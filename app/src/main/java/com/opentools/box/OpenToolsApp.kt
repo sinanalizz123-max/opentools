@@ -11,11 +11,7 @@ class OpenToolsApp : Application() {
         super.onCreate()
         val default = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, error ->
-            try {
-                val sw = StringWriter()
-                error.printStackTrace(PrintWriter(sw))
-                prefs(this).edit().putString("last_crash", sw.toString()).apply()
-            } catch (_: Exception) { }
+            saveCrash(this@OpenToolsApp, error)
             default?.uncaughtException(thread, error)
         }
     }
@@ -23,6 +19,15 @@ class OpenToolsApp : Application() {
     companion object {
         fun prefs(context: Context) =
             context.getSharedPreferences("home", Context.MODE_PRIVATE)
+
+        fun saveCrash(context: Context, error: Throwable) {
+            try {
+                val sw = StringWriter()
+                error.printStackTrace(PrintWriter(sw))
+                // commit() is synchronous: survives instant process death.
+                prefs(context).edit().putString("last_crash", sw.toString()).commit()
+            } catch (_: Exception) { }
+        }
 
         fun takeLastCrash(context: Context): String? {
             val p = prefs(context)

@@ -63,7 +63,29 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        OpenToolsApp.takeLastCrash(this)?.let { showCrash(it) }
+        val pendingCrash = OpenToolsApp.takeLastCrash(this)
+        try {
+            buildExpressiveUI()
+        } catch (e: Throwable) {
+            OpenToolsApp.saveCrash(this, e)
+            buildFallbackUI()
+        }
+        if (pendingCrash != null) {
+            window.decorView.post { showCrash(pendingCrash) }
+        }
+    }
+
+    /** Simple grid fallback — always works, used if expressive UI fails. */
+    private fun buildFallbackUI() {
+        val grid = RecyclerView(this).apply {
+            layoutManager = GridLayoutManager(this@MainActivity, 3)
+            adapter = ToolGridAdapter(allTools) { openTool(it) }
+        }
+        searchResults = ListView(this).apply { visibility = View.GONE }
+        setContentView(FrameLayout(this).apply { addView(grid) })
+    }
+
+    private fun buildExpressiveUI() {
         val root = ScrollView(this).apply {
             addView(LinearLayout(context).apply {
                 orientation = LinearLayout.VERTICAL
@@ -99,7 +121,8 @@ class MainActivity : AppCompatActivity() {
             setTextIsSelectable(true)
         }
         scroll.addView(text)
-        MaterialAlertDialogBuilder(this)
+        // Framework dialog on purpose: must work even if M3 is the crasher.
+        android.app.AlertDialog.Builder(this)
             .setTitle("Last crash report")
             .setMessage("Copy this and send it to the developer:")
             .setView(scroll)

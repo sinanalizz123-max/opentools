@@ -194,7 +194,7 @@ class VaultActivity : AppCompatActivity() {
                 }.show()
             true
         }
-        val add = MaterialButton(this).apply {
+        val add = NativeButton(this).apply {
             text = "Import file"
             setOnClickListener { importer.launch(arrayOf("*/*")) }
         }

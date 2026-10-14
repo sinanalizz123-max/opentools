@@ -35,7 +35,16 @@ class BluetoothTerminalActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         logView = ListView(this)
-        adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, lines)
+        adapter = object : ArrayAdapter<String>(this, android.R.layout.simple_list_item_1, lines) {
+            override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
+                val row = (convertView as? TextView) ?: TextView(this@BluetoothTerminalActivity)
+                row.text = getItem(position)
+                UiStyle.styleText(row, 13f, false)
+                row.setPadding(UiStyle.dp(context, 12f), UiStyle.dp(context, 10f),
+                    UiStyle.dp(context, 12f), UiStyle.dp(context, 10f))
+                return row
+            }
+        }
         logView.adapter = adapter
         val address = EditText(this).apply {
             hint = "Device MAC address"

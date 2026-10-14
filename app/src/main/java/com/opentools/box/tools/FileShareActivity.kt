@@ -228,6 +228,7 @@ class FileShareActivity : AppCompatActivity() {
                         if (size > MAX_FILE_BYTES) throw IOException("Peer sent an oversized file")
                         val folder = getExternalFilesDir(null) ?: filesDir
                         val temp = File(folder, "incoming-" + System.currentTimeMillis() + ".tmp")
+                        var receivedFile: File? = null
                         try {
                             temp.outputStream().buffered().use { out ->
                                 val buffer = ByteArray(16 * 1024)
@@ -247,12 +248,14 @@ class FileShareActivity : AppCompatActivity() {
                                 temp.copyTo(dest, overwrite = true)
                                 temp.delete()
                             }
+                            receivedFile = dest
                         } finally {
                             temp.delete()
                         }
                         received++
+                        val savedName = receivedFile?.name ?: "file"
                         runOnUiThread {
-                            log.add(0, "Received: " + dest.name)
+                            log.add(0, "Received: " + savedName)
                             adapter.notifyDataSetChanged()
                         }
                     }

@@ -62,17 +62,33 @@ class MainActivity : AppCompatActivity() {
     private var searchInput: EditText? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        mark("super.onCreate.start")
         super.onCreate(savedInstanceState)
+        mark("super.onCreate.done")
         val pendingCrash = OpenToolsApp.takeLastCrash(this)
+        val lastStep = OpenToolsApp.prefs(this).getString("last_step", "?")
+        mark("dispatch")
         try {
             buildExpressiveUI()
+            mark("expressive.done")
         } catch (e: Throwable) {
             OpenToolsApp.saveCrash(this, e)
+            mark("expressive.failed:" + e.javaClass.simpleName)
             buildFallbackUI()
         }
-        if (pendingCrash != null) {
-            window.decorView.post { showCrash(pendingCrash) }
+        val report = listOfNotNull(
+            pendingCrash,
+            if (lastStep != null && lastStep != "expressive.done") "Last reached step: $lastStep" else null,
+        ).joinToString("\n\n").take(4000)
+        if (report.isNotBlank()) {
+            window.decorView.post { showCrash(report) }
         }
+    }
+
+    private fun mark(step: String) {
+        try {
+            OpenToolsApp.prefs(this).edit().putString("last_step", step).commit()
+        } catch (_: Exception) { }
     }
 
     /** Simple grid fallback — always works, used if expressive UI fails. */
@@ -89,8 +105,11 @@ class MainActivity : AppCompatActivity() {
         val root = ScrollView(this).apply {
             addView(LinearLayout(context).apply {
                 orientation = LinearLayout.VERTICAL
+                mark("step.header")
                 addView(buildHeader())
+                mark("step.search")
                 addView(buildSearch())
+                mark("step.featured")
                 addView(buildFeatured())
                 addView(sectionTitle("Shortcuts"))
                 shortcutRow = LinearLayout(context).apply {
@@ -98,8 +117,11 @@ class MainActivity : AppCompatActivity() {
                 }
                 addView(shortcutRow)
                 addView(sectionTitle("Categories"))
+                mark("step.categories")
                 addView(buildCategorySection())
+                mark("step.common")
                 addView(buildCommonCard())
+                mark("step.recommended")
                 addView(buildRecommended())
             })
         }
@@ -109,8 +131,11 @@ class MainActivity : AppCompatActivity() {
             addView(searchResults)
         }
         setContentView(frame)
+        mark("step.contentSet")
         refreshShortcuts()
+        mark("step.shortcuts")
         selectCategory(category)
+        mark("step.grid")
     }
 
     private fun showCrash(crash: String) {

@@ -5,7 +5,6 @@ import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
 import android.os.Bundle
 import android.view.Gravity
-import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
@@ -34,9 +33,8 @@ class TorchActivity : AppCompatActivity() {
             gravity = Gravity.CENTER
             UiStyle.styleText(this, 15f, false, UiStyle.muted(context))
         }
-        toggle = Button(this).apply {
+        toggle = NativeButton(this).apply {
             text = "Turn on flashlight"
-            UiStyle.styleButton(this)
         }
         toggle.isEnabled = cameraId != null
         status.text = if (cameraId == null) "No flashlight is available on this device." else "Flashlight is off"

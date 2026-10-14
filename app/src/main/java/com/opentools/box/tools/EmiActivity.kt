@@ -11,7 +11,7 @@ import com.opentools.box.ToolScaffold
 import com.opentools.box.UiStyle
 import kotlin.math.pow
 
-/** EMI loan calculator with validated values and a clear repayment summary. */
+/** EMI calculator with validated values and a clear repayment summary. */
 class EmiActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -27,14 +27,10 @@ class EmiActivity : AppCompatActivity() {
         val result = TextView(this).apply {
             text = "Your monthly payment and total cost will appear here."
             UiStyle.styleText(this, 16f, true)
-            setPadding(UiStyle.dp(context, 18f), UiStyle.dp(context, 18f),
-                UiStyle.dp(context, 18f), UiStyle.dp(context, 18f))
+            setPadding(UiStyle.dp(context, 18f), UiStyle.dp(context, 18f), UiStyle.dp(context, 18f), UiStyle.dp(context, 18f))
             background = UiStyle.rounded(context, UiStyle.surface(context), 16f, UiStyle.border(context))
         }
-        val calc = Button(this).apply {
-            text = "Calculate EMI"
-            UiStyle.styleButton(this)
-        }
+        val calc = Button(this).apply { text = "Calculate EMI"; UiStyle.styleButton(this) }
         calc.setOnClickListener {
             val p = principal.text.toString().trim().toDoubleOrNull()
             val r = rate.text.toString().trim().toDoubleOrNull()
@@ -61,19 +57,14 @@ class EmiActivity : AppCompatActivity() {
             orientation = LinearLayout.VERTICAL
             val pad = UiStyle.dp(context, 20f)
             setPadding(pad, pad, pad, pad)
-            addView(TextView(context).apply {
-                text = "Loan calculator"
-                UiStyle.styleText(this, 24f, true)
-            })
+            addView(TextView(context).apply { text = "Loan calculator"; UiStyle.styleText(this, 24f, true) })
             addView(TextView(context).apply {
                 text = "Estimate your monthly repayment."
                 UiStyle.styleText(this, 14f, false, UiStyle.muted(context))
                 setPadding(0, UiStyle.dp(context, 4f), 0, UiStyle.dp(context, 20f))
             })
             listOf(principal, rate, years).forEach { field ->
-                addView(field, LinearLayout.LayoutParams(-1, -2).apply {
-                    bottomMargin = UiStyle.dp(context, 12f)
-                })
+                addView(field, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = UiStyle.dp(context, 12f) })
             }
             addView(calc, LinearLayout.LayoutParams(-1, -2).apply {
                 topMargin = UiStyle.dp(context, 4f)

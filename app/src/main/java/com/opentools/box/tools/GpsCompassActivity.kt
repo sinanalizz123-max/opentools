@@ -172,6 +172,7 @@ class GpsCompassActivity : AppCompatActivity(), SensorEventListener, LocationLis
         if (code != REQUEST_LOCATION) return
         if (results.firstOrNull() == PackageManager.PERMISSION_GRANTED) {
             try { locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000L, 1f, this) }
+            catch (_: SecurityException) { status.text = "Location permission required." }
             catch (_: Exception) { status.text = "GPS location is unavailable." }
         } else status.text = "Location permission denied."
     }

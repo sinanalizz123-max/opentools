@@ -10,6 +10,7 @@ import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import com.opentools.box.ToolScaffold
 import com.opentools.box.UiStyle
+import android.widget.Button
 
 /** Flashlight toggle with hardware detection and visible failure feedback. */
 class TorchActivity : AppCompatActivity() {

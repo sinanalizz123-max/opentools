@@ -53,7 +53,10 @@ class WalkieActivity : AppCompatActivity() {
         }
         talk.setOnTouchListener { view, e ->
             when (e.action) {
-                MotionEvent.ACTION_DOWN -> startTalking()
+                MotionEvent.ACTION_DOWN -> {
+                    view.performClick()
+                    startTalking()
+                }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     stopTalking()
                     view.performClick()

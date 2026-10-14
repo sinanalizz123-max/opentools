@@ -10,6 +10,7 @@ import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import com.opentools.box.ToolScaffold
 import com.opentools.box.UiStyle
+import android.widget.Button
 
 /** Countdown timer using native Android controls and a clear progress display. */
 class TimerActivity : AppCompatActivity() {

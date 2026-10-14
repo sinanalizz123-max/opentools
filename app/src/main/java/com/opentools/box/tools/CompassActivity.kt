@@ -116,6 +116,7 @@ class CompassActivity : AppCompatActivity(), SensorEventListener {
             typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
         }
         private val needle = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = UiStyle.accent(context) }
+        private val triangle = android.graphics.Path()
 
         override fun onDraw(canvas: Canvas) {
             super.onDraw(canvas)
@@ -149,7 +150,8 @@ class CompassActivity : AppCompatActivity(), SensorEventListener {
             val tipY = cy - radius * 0.58f
             val baseY = cy + radius * 0.12f
             val halfWidth = radius * 0.11f
-            val triangle = android.graphics.Path().apply {
+            val triangle = this.triangle.apply {
+                reset()
                 moveTo(cx, tipY)
                 lineTo(cx - halfWidth, baseY)
                 lineTo(cx + halfWidth, baseY)

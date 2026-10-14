@@ -47,7 +47,7 @@ class CctvServerActivity : AppCompatActivity() {
             setPadding(UiStyle.dp(context, 14f), UiStyle.dp(context, 14f),
                 UiStyle.dp(context, 14f), UiStyle.dp(context, 14f))
             background = UiStyle.rounded(context, UiStyle.surface(context), 14f, UiStyle.border(context))
-            textIsSelectable = true
+            setTextIsSelectable(true)
         }
         startButton = NativeButton(this).apply { text = "Start stream"; isEnabled = false }
         stopButton = NativeButton(this, false).apply { text = "Stop stream"; isEnabled = false }
@@ -234,11 +234,13 @@ class CctvServerActivity : AppCompatActivity() {
     override fun onRequestPermissionsResult(code: Int, perms: Array<String>, results: IntArray) {
         super.onRequestPermissionsResult(code, perms, results)
         if (code != REQUEST_CAMERA) return
-        if (results.firstOrNull() == PackageManager.PERMISSION_GRANTED) startCaptureIfAllowed()
-        else {
+        if (results.firstOrNull() == PackageManager.PERMISSION_GRANTED) {
+            startCaptureIfAllowed()
+        } else {
             status.text = "Camera permission denied."
             startButton.isEnabled = true
         }
-        else finish()
     }
+
+    companion object { private const val REQUEST_CAMERA = 1 }
 }

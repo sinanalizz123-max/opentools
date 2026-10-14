@@ -14,6 +14,10 @@ import androidx.core.view.WindowInsetsCompat
 /** Shared, restrained native screen chrome. No Material 3 widgets. */
 object ToolScaffold {
     fun wrap(activity: AppCompatActivity, title: String, content: View): View {
+        activity.window.statusBarColor = UiStyle.background(activity)
+        activity.window.navigationBarColor = UiStyle.background(activity)
+        activity.window.decorView.systemUiVisibility = if (UiStyle.isDark(activity)) 0 else
+            (View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR)
         val bar = Toolbar(activity).apply {
             setBackgroundColor(UiStyle.background(activity))
             setTitleTextColor(UiStyle.text(activity))

@@ -114,7 +114,7 @@ class ConverterActivity : AppCompatActivity() {
 
     private fun styledSpinner() = Spinner(this).apply {
         background = UiStyle.rounded(context, UiStyle.surface(context), 12f, UiStyle.border(context))
-        popupBackground = UiStyle.rounded(context, UiStyle.surface(context), 12f, UiStyle.border(context))
+        setPopupBackgroundDrawable(UiStyle.rounded(context, UiStyle.surface(context), 12f, UiStyle.border(context)))
         setPadding(UiStyle.dp(context, 10f), 0, UiStyle.dp(context, 10f), 0)
     }
 

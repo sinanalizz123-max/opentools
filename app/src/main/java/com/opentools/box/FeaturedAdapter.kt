@@ -17,7 +17,13 @@ class FeaturedAdapter(
         RecyclerView.ViewHolder(card)
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): Holder {
-        val card = MaterialCardView(parent.context)
+        // ViewPager2 requires pages to be match_parent, else it throws
+        // IllegalStateException during layout.
+        val card = MaterialCardView(parent.context).apply {
+            layoutParams = ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT)
+        }
         val title = TextView(parent.context).apply {
             textSize = 26f
             val pad = ToolScaffold.pad(context)

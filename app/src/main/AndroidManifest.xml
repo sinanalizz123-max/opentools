@@ -27,8 +27,6 @@
             </intent-filter>
         </activity>
 
-        <activity android:name=".HomeActivity" android:exported="false" />
-
         <activity android:name=".tools.TorchActivity" android:exported="false" />
         <activity android:name=".tools.StopwatchActivity" android:exported="false" />
         <activity android:name=".tools.CalculatorActivity" android:exported="false" />

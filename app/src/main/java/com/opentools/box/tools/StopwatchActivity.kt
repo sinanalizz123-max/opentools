@@ -6,7 +6,6 @@ import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ArrayAdapter
-import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.ListView
 import android.widget.TextView
@@ -44,8 +43,8 @@ class StopwatchActivity : AppCompatActivity() {
             setPadding(UiStyle.dp(context, 12f), UiStyle.dp(context, 26f), UiStyle.dp(context, 12f), UiStyle.dp(context, 26f))
             background = UiStyle.rounded(context, UiStyle.surface(context), 20f, UiStyle.border(context))
         }
-        startPause = Button(this).apply { text = if (running) "Pause" else "Start"; UiStyle.styleButton(this) }
-        lapReset = Button(this).apply { text = if (running) "Lap" else "Reset"; UiStyle.styleButton(this, false) }
+        startPause = NativeButton(this).apply { text = if (running) "Pause" else "Start" }
+        lapReset = NativeButton(this, false).apply { text = if (running) "Lap" else "Reset" }
         val lapList = ListView(this).apply {
             divider = android.graphics.drawable.ColorDrawable(UiStyle.border(context))
             dividerHeight = UiStyle.dp(context, 1f)

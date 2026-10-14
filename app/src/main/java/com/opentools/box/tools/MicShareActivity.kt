@@ -24,29 +24,33 @@ import java.net.InetAddress
  */
 class MicShareActivity : AppCompatActivity() {
 
-    private var streaming = false
-    private var listening = false
+    @Volatile private var streaming = false
+    @Volatile private var listening = false
+    @Volatile private var streamSocket: DatagramSocket? = null
+    @Volatile private var listenSocket: DatagramSocket? = null
+    @Volatile private var recorder: AudioRecord? = null
+    @Volatile private var player: AudioTrack? = null
     private lateinit var status: TextView
+    private lateinit var streamButton: MaterialButton
+    private lateinit var listenButton: MaterialButton
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val peer = EditText(this).apply { hint = "Peer IP to stream to" }
         status = TextView(this).apply { textSize = 16f; text = "Idle" }
-        val stream = MaterialButton(this).apply { text = "Start streaming mic" }
-        val listen = MaterialButton(this).apply { text = "Listen on :9997" }
-        stream.setOnClickListener {
-            if (streaming) stopStream()
-            else startStream(peer.text.toString().trim())
-            stream.text = if (streaming) "Stop streaming" else "Start streaming mic"
+        streamButton = MaterialButton(this).apply { text = "Start streaming mic" }
+        listenButton = MaterialButton(this).apply { text = "Listen on :9997" }
+        streamButton.setOnClickListener {
+            if (streaming) stopStream() else startStream(peer.text.toString().trim())
         }
-        listen.setOnClickListener {
-            if (!listening) startListen()
+        listenButton.setOnClickListener {
+            if (listening) stopListen() else startListen()
         }
         setContentView(com.opentools.box.ToolScaffold.wrap(this, "Mic Share",LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             val pad = (16 * resources.displayMetrics.density).toInt()
             setPadding(pad, pad, pad, pad)
-            addView(peer); addView(stream); addView(listen); addView(status)
+            addView(peer); addView(streamButton); addView(listenButton); addView(status)
         }))
     }
 
@@ -59,70 +63,115 @@ class MicShareActivity : AppCompatActivity() {
     }
 
     private fun startStream(ip: String) {
-        if (ip.isEmpty()) { status.text = "Enter peer IP"; return }
+        if (ip.isBlank()) { status.text = "Enter peer IP"; return }
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.RECORD_AUDIO), 1)
+            return
+        }
+        if (streaming) return
         streaming = true
-        status.text = "Streaming to $ip"
+        streamButton.text = "Stop streaming"
+        status.text = "Connecting to $ip…"
         Thread {
+            var localRecorder: AudioRecord? = null
+            var sender: DatagramSocket? = null
             try {
                 val minIn = AudioRecord.getMinBufferSize(16000,
                     AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
-                val rec = AudioRecord(MediaRecorder.AudioSource.MIC, 16000,
-                    AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, minIn)
-                rec.startRecording()
-                val send = DatagramSocket()
+                if (minIn <= 0) throw IllegalStateException("Microphone audio format is unsupported")
+                localRecorder = AudioRecord(MediaRecorder.AudioSource.MIC, 16000,
+                    AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, maxOf(minIn, 4096))
+                if (localRecorder.state != AudioRecord.STATE_INITIALIZED) throw IllegalStateException("Microphone unavailable")
+                recorder = localRecorder
+                localRecorder.startRecording()
+                sender = DatagramSocket()
+                streamSocket = sender
                 val addr = InetAddress.getByName(ip)
                 val buf = ByteArray(2048)
+                runOnUiThread { status.text = "Streaming to $ip" }
                 while (streaming) {
-                    val n = rec.read(buf, 0, buf.size)
-                    if (n > 0) send.send(DatagramPacket(buf, n, addr, 9997))
+                    val n = localRecorder.read(buf, 0, buf.size)
+                    if (n < 0) throw IllegalStateException("Microphone read failed")
+                    if (n > 0) sender.send(DatagramPacket(buf, n, addr, 9997))
                 }
-                send.close()
-                rec.stop(); rec.release()
             } catch (e: Exception) {
-                runOnUiThread { status.text = "Stream failed: ${e.message}" }
+                if (streaming) runOnUiThread { status.text = "Stream failed: " + (e.message ?: "audio unavailable") }
+            } finally {
                 streaming = false
+                try { sender?.close() } catch (_: Exception) { }
+                try { localRecorder?.stop() } catch (_: Exception) { }
+                try { localRecorder?.release() } catch (_: Exception) { }
+                if (streamSocket === sender) streamSocket = null
+                if (recorder === localRecorder) recorder = null
+                runOnUiThread { streamButton.text = "Start streaming mic" }
             }
         }.start()
     }
 
     private fun stopStream() {
         streaming = false
+        try { streamSocket?.close() } catch (_: Exception) { }
+        try { recorder?.stop() } catch (_: Exception) { }
+        streamButton.text = "Start streaming mic"
         status.text = "Idle"
     }
 
     private fun startListen() {
+        if (listening) return
         listening = true
+        listenButton.text = "Stop listening"
         status.text = "Listening on :9997"
         Thread {
+            var receiver: DatagramSocket? = null
+            var localPlayer: AudioTrack? = null
             try {
-                val sock = DatagramSocket(9997)
+                receiver = DatagramSocket(9997)
+                listenSocket = receiver
                 val minOut = AudioTrack.getMinBufferSize(16000,
                     AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT)
-                val track = AudioTrack(AudioManager.STREAM_MUSIC, 16000,
+                if (minOut <= 0) throw IllegalStateException("Speaker audio format is unsupported")
+                localPlayer = AudioTrack(AudioManager.STREAM_MUSIC, 16000,
                     AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT,
-                    minOut, AudioTrack.MODE_STREAM).also { it.play() }
+                    maxOf(minOut, 4096), AudioTrack.MODE_STREAM)
+                if (localPlayer.state != AudioTrack.STATE_INITIALIZED) throw IllegalStateException("Speaker unavailable")
+                player = localPlayer
+                localPlayer.play()
                 val buf = ByteArray(2048)
                 while (listening) {
-                    try {
-                        val pkt = DatagramPacket(buf, buf.size)
-                        sock.receive(pkt)
-                        track.write(pkt.data, 0, pkt.length)
-                    } catch (_: Exception) { break }
+                    val pkt = DatagramPacket(buf, buf.size)
+                    receiver.receive(pkt)
+                    localPlayer.write(pkt.data, 0, pkt.length)
                 }
-                track.stop(); track.release()
-                sock.close()
-            } catch (_: Exception) { }
+            } catch (e: Exception) {
+                if (listening) runOnUiThread { status.text = "Listener failed: " + (e.message ?: "audio unavailable") }
+            } finally {
+                listening = false
+                try { receiver?.close() } catch (_: Exception) { }
+                try { localPlayer?.stop() } catch (_: Exception) { }
+                try { localPlayer?.release() } catch (_: Exception) { }
+                if (listenSocket === receiver) listenSocket = null
+                if (player === localPlayer) player = null
+                runOnUiThread { listenButton.text = "Listen on :9997" }
+            }
         }.start()
     }
 
-    override fun onPause() {
-        streaming = false
+    private fun stopListen() {
         listening = false
+        try { listenSocket?.close() } catch (_: Exception) { }
+        listenButton.text = "Listen on :9997"
+        status.text = "Idle"
+    }
+
+    override fun onPause() {
+        stopStream()
+        stopListen()
         super.onPause()
     }
 
     override fun onRequestPermissionsResult(code: Int, perms: Array<String>, results: IntArray) {
         super.onRequestPermissionsResult(code, perms, results)
+        if (code != 1) return
         if (results.firstOrNull() != PackageManager.PERMISSION_GRANTED) finish()
     }
 }

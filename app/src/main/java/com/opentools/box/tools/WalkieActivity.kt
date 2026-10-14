@@ -96,6 +96,11 @@ class WalkieActivity : AppCompatActivity() {
     }
 
     private fun startTalking() {
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.RECORD_AUDIO), 1)
+            return
+        }
+        if (talking) return
         val ip = peerInput.text.toString().trim()
         if (ip.isEmpty()) { status.text = "Enter peer IP first"; return }
         talking = true
@@ -104,8 +109,10 @@ class WalkieActivity : AppCompatActivity() {
             try {
                 val minIn = AudioRecord.getMinBufferSize(16000,
                     AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
+                if (minIn <= 0) throw IllegalStateException("Microphone audio format is unsupported")
                 recorder = AudioRecord(MediaRecorder.AudioSource.MIC, 16000,
-                    AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, minIn)
+                    AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, maxOf(minIn, 4096))
+                if (recorder?.state != AudioRecord.STATE_INITIALIZED) throw IllegalStateException("Microphone unavailable")
                 recorder?.startRecording()
                 val send = DatagramSocket()
                 val addr = InetAddress.getByName(ip)
@@ -130,6 +137,7 @@ class WalkieActivity : AppCompatActivity() {
 
     override fun onRequestPermissionsResult(code: Int, perms: Array<String>, results: IntArray) {
         super.onRequestPermissionsResult(code, perms, results)
+        if (code != 1) return
         if (results.firstOrNull() == PackageManager.PERMISSION_GRANTED) startListening()
         else finish()
     }

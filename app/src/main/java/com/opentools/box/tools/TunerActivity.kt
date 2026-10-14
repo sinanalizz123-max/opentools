@@ -102,6 +102,11 @@ class TunerActivity : AppCompatActivity() {
     }
 
     private fun startListening() {
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.RECORD_AUDIO), 1)
+            return
+        }
+        if (listening) return
         val minBuf = AudioRecord.getMinBufferSize(SAMPLE_RATE,
             AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
         val size = maxOf(minBuf, SAMPLE_RATE / 5)
@@ -110,10 +115,17 @@ class TunerActivity : AppCompatActivity() {
                 AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, size)
         } catch (_: Exception) { null }
         if (recorder?.state != AudioRecord.STATE_INITIALIZED) {
+            recorder?.release()
+            recorder = null
             Toast.makeText(this, "Microphone unavailable", Toast.LENGTH_SHORT).show()
             return
         }
-        recorder?.startRecording()
+        try { recorder?.startRecording() } catch (_: SecurityException) {
+            recorder?.release()
+            recorder = null
+            Toast.makeText(this, "Microphone permission required", Toast.LENGTH_SHORT).show()
+            return
+        }
         listening = true
         worker = Thread {
             val buf = ShortArray(size)
@@ -129,9 +141,9 @@ class TunerActivity : AppCompatActivity() {
 
     private fun stopListening() {
         listening = false
-        try { worker?.join(300) } catch (_: Exception) { }
-        worker = null
         try { recorder?.stop() } catch (_: Exception) { }
+        try { worker?.join(500) } catch (_: Exception) { }
+        worker = null
         recorder?.release()
         recorder = null
     }
@@ -153,6 +165,7 @@ class TunerActivity : AppCompatActivity() {
 
     override fun onRequestPermissionsResult(code: Int, perms: Array<String>, results: IntArray) {
         super.onRequestPermissionsResult(code, perms, results)
+        if (code != 1) return
         if (results.firstOrNull() == PackageManager.PERMISSION_GRANTED) startListening()
         else finish()
     }

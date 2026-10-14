@@ -2,43 +2,81 @@ package com.opentools.box.tools
 
 import android.graphics.Color
 import android.os.Bundle
+import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
+import android.widget.FrameLayout
+import android.widget.LinearLayout
 import android.widget.SeekBar
-import android.widget.SeekBar.OnSeekBarChangeListener
+import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import com.opentools.box.ToolScaffold
+import com.opentools.box.UiStyle
 
-/** White-screen light with brightness boost. Original implementation. */
+/** Bright white screen with adjustable display brightness. */
 class WhiteScreenActivity : AppCompatActivity() {
+    private lateinit var brightnessLabel: TextView
+    private lateinit var brightnessSeek: SeekBar
+    private lateinit var controls: LinearLayout
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val view = View(this).apply { setBackgroundColor(Color.WHITE) }
-        val seek = SeekBar(this).apply {
+        val surface = View(this).apply {
+            setBackgroundColor(Color.WHITE)
+            contentDescription = "White light surface. Tap to show or hide brightness controls."
+        }
+        brightnessLabel = TextView(this).apply {
+            text = "Brightness · 100%"
+            UiStyle.styleText(this, 14f, true)
+            setTextColor(UiStyle.text(context))
+            setPadding(0, 0, 0, UiStyle.dp(context, 4f))
+        }
+        brightnessSeek = SeekBar(this).apply {
             max = 100
             progress = 100
-            setOnSeekBarChangeListener(object : OnSeekBarChangeListener {
-                override fun onProgressChanged(s: SeekBar?, p: Int, fromUser: Boolean) {
-                    window.attributes = window.attributes.apply {
-                        screenBrightness = (p.coerceAtLeast(1)) / 100f
-                    }
+            progressTintList = android.content.res.ColorStateList.valueOf(UiStyle.accent(context))
+            thumbTintList = android.content.res.ColorStateList.valueOf(UiStyle.accent(context))
+            contentDescription = "Display brightness"
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    val brightness = progress.coerceAtLeast(1) / 100f
+                    window.attributes = window.attributes.apply { screenBrightness = brightness }
+                    brightnessLabel.text = "Brightness · ${progress.coerceAtLeast(1)}%"
                 }
-                override fun onStartTrackingTouch(s: SeekBar?) = Unit
-                override fun onStopTrackingTouch(s: SeekBar?) = Unit
+                override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+                override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
             })
+        }
+        controls = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            val pad = UiStyle.dp(context, 14f)
+            setPadding(pad, pad, pad, pad)
+            background = UiStyle.rounded(context, UiStyle.surface(context), 16f, UiStyle.border(context))
+            addView(brightnessLabel)
+            addView(brightnessSeek)
+        }
+        var visible = true
+        surface.setOnClickListener {
+            visible = !visible
+            controls.visibility = if (visible) View.VISIBLE else View.GONE
         }
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         window.attributes = window.attributes.apply { screenBrightness = 1f }
-        view.setOnClickListener { seek.visibility = if (seek.visibility == View.VISIBLE) View.GONE else View.VISIBLE }
-        setContentView(com.opentools.box.ToolScaffold.wrap(this, "White Screen",android.widget.FrameLayout(this).apply {
-            addView(view, android.widget.FrameLayout.LayoutParams(
-                android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
-                android.widget.FrameLayout.LayoutParams.MATCH_PARENT))
-            addView(seek, android.widget.FrameLayout.LayoutParams(
-                android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
-                android.widget.FrameLayout.LayoutParams.WRAP_CONTENT).apply {
-                gravity = android.view.Gravity.BOTTOM
+        val frame = FrameLayout(this).apply {
+            addView(surface, FrameLayout.LayoutParams(-1, -1))
+            addView(controls, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM).apply {
+                val margin = UiStyle.dp(context, 10f)
+                setMargins(margin, 0, margin, margin)
             })
-        }))
+        }
+        setContentView(ToolScaffold.wrap(this, "White Screen", frame))
+    }
+
+    override fun onDestroy() {
+        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        window.attributes = window.attributes.apply {
+            screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+        }
+        super.onDestroy()
     }
 }

@@ -9,15 +9,19 @@ import android.media.AudioTrack
 import android.media.MediaRecorder
 import android.os.Bundle
 import android.view.MotionEvent
-import android.widget.EditText
+import android.net.nsd.NsdServiceInfo
+import android.widget.ArrayAdapter
+import android.widget.ListView
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
-import com.google.android.material.button.MaterialButton
+import com.opentools.box.UiStyle
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
+import java.security.MessageDigest
+import java.security.SecureRandom
 
 /**
  * LAN walkie-talkie: hold to talk, UDP audio to peer IP:9998.
@@ -25,8 +29,55 @@ import java.net.InetAddress
  */
 class WalkieActivity : AppCompatActivity() {
 
-    private lateinit var peerInput: EditText
     private lateinit var status: TextView
+    private lateinit var connStatus: TextView
+    private var volLevel = 0.8f
+    private fun markConn(peer: String, connected: Boolean) { runOnUiThread { try { connStatus.text = peer + " · " + (if (connected) "connected" else "idle") } catch (_: Exception) {} } }
+    private fun attachPtt(btn: NativeButton, start: () -> Unit, stop: () -> Unit) { btn.setOnTouchListener { v, e -> when (e.action) { android.view.MotionEvent.ACTION_DOWN -> { v.isPressed = true; start(); true } android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> { v.isPressed = false; v.performClick(); stop(); true } else -> false } } }
+    private fun volumeBar(ctx: android.content.Context, set: (Float) -> Unit): android.widget.SeekBar = android.widget.SeekBar(ctx).apply { max = 100; progress = 80; setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener { override fun onProgressChanged(s: android.widget.SeekBar?, p: Int, u: Boolean) { volLevel = p / 100f; set(volLevel) } override fun onStartTrackingTouch(s: android.widget.SeekBar?) {} override fun onStopTrackingTouch(s: android.widget.SeekBar?) {} }) }
+    private var hostHandle: AutoCloseable? = null
+    private var browseHandle: AutoCloseable? = null
+    private var hosting = false
+    private var hostName = ""
+    private var selectedIp = ""
+    @Volatile private var sessionToken = ""
+    private val peers = mutableListOf<NsdServiceInfo>()
+    private lateinit var peerAdapter: ArrayAdapter<String>
+    private val svcType = "_opentools-ptt._udp."
+    private fun peerLabel(s: NsdServiceInfo): String {
+        val ip = try { s.host?.hostAddress ?: "?" } catch (_: Exception) { "?" }
+        return (s.serviceName ?: "?") + " · " + ip + ":" + s.port
+    }
+    private fun ensureLocBrowse() {
+        try {
+            browseHandle?.close()
+        } catch (_: Exception) { }
+        browseHandle = null
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.ACCESS_FINE_LOCATION), 9001)
+            return
+        }
+        startBrowse()
+    }
+    private fun startBrowse() {
+        try { browseHandle?.close() } catch (_: Exception) { }
+        browseHandle = LanDiscovery.browse(this, svcType) { list ->
+            runOnUiThread {
+                peers.clear(); peers.addAll(list.filter { it.serviceName != hostName })
+                if (::peerAdapter.isInitialized) {
+                    peerAdapter.clear(); peerAdapter.addAll(peers.map { peerLabel(it) })
+                    if (peers.isEmpty()) peerAdapter.add("(searching for hosts…)")
+                    peerAdapter.notifyDataSetChanged()
+                }
+            }
+        }
+    }
+    private fun stopDiscovery() {
+        try { hostHandle?.close() } catch (_: Exception) { }
+        try { browseHandle?.close() } catch (_: Exception) { }
+        hostHandle = null; browseHandle = null; hosting = false
+    }
+
     private var talking = false
     private var listening = true
     private var socket: DatagramSocket? = null
@@ -35,21 +86,70 @@ class WalkieActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        peerInput = EditText(this).apply { hint = "Peer IP, e.g. 192.168.1.5" }
-        status = TextView(this).apply { textSize = 16f; text = "Listening on :9998" }
-        val talk = MaterialButton(this).apply { text = "HOLD TO TALK" }
-        talk.setOnTouchListener { _, e ->
+        sessionToken = newToken()
+        peerAdapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, mutableListOf("(searching for hosts…)"))
+        val peerList = ListView(this).apply { adapter = peerAdapter }
+        val token = android.widget.EditText(this).apply {
+            hint = "Peer access token"
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+            UiStyle.styleInput(this)
+            setSingleLine(true)
+        }
+        val hostBtn = NativeButton(this, false).apply { text = "Start hosting" }
+        hostBtn.setOnClickListener {
+            if (hosting) { stopDiscovery(); hostBtn.text = "Start hosting"; status.text = "Listening on port 9998."; ensureLocBrowse() }
+            else { hostHandle = LanDiscovery.host(this, svcType, 9998, (android.os.Build.MODEL ?: "walkie").replace(" ","-") + "-" + (0..999).random(), onRegistered = { n -> runOnUiThread { hostName = n; status.text = "Hosting as " + n + "\nShare token: " + sessionToken } }, onError = { m -> runOnUiThread { status.text = "Host error: " + m } }); hosting = true; hostBtn.text = "Stop hosting" }
+        }
+        peerList.setOnItemClickListener { _, _, pos, _ ->
+            peers.getOrNull(pos)?.let { s -> try { selectedIp = s.host?.hostAddress ?: "" } catch (_: Exception) { }; status.text = "Peer: " + peerLabel(s) }
+        }
+        status = TextView(this).apply {
+            text = "Listening on port 9998. Enter your peer's IP address."
+            UiStyle.styleText(this, 14f, false, UiStyle.muted(context))
+            setPadding(UiStyle.dp(context, 14f), UiStyle.dp(context, 12f),
+                UiStyle.dp(context, 14f), UiStyle.dp(context, 12f))
+            background = UiStyle.rounded(context, UiStyle.surface(context), 14f, UiStyle.border(context))
+        }
+        val talk = NativeButton(this).apply {
+            text = "Hold to talk"
+            contentDescription = "Press and hold to transmit voice to the peer"
+        }
+        talk.setOnTouchListener { view, e ->
             when (e.action) {
-                MotionEvent.ACTION_DOWN -> startTalking()
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> stopTalking()
+                MotionEvent.ACTION_DOWN -> {
+                    view.performClick()
+                    startTalking(token.text.toString().trim())
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    stopTalking()
+                    view.performClick()
+                }
             }
             true
         }
-        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Walkie-Talkie",LinearLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Walkie-Talkie", LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            val pad = (16 * resources.displayMetrics.density).toInt()
+            val pad = UiStyle.dp(context, 20f)
             setPadding(pad, pad, pad, pad)
-            addView(peerInput); addView(status); addView(talk)
+            addView(TextView(context).apply { text = "Push-to-talk"; UiStyle.styleText(this, 24f, true) })
+            addView(TextView(context).apply {
+                text = "Both devices should be on the same reachable network."
+                UiStyle.styleText(this, 14f, false, UiStyle.muted(context))
+                setPadding(0, UiStyle.dp(context, 4f), 0, UiStyle.dp(context, 16f))
+            })
+            addView(hostBtn, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = UiStyle.dp(context, 8f)
+            })
+            addView(peerList, LinearLayout.LayoutParams(-1, UiStyle.dp(context, 140f)).apply {
+                bottomMargin = UiStyle.dp(context, 12f)
+            })
+            addView(token, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = UiStyle.dp(context, 12f)
+            })
+            addView(status, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = UiStyle.dp(context, 18f)
+            })
+            addView(talk, LinearLayout.LayoutParams(-1, UiStyle.dp(context, 64f)))
         }))
     }
 
@@ -61,14 +161,21 @@ class WalkieActivity : AppCompatActivity() {
             return
         }
         startListening()
+        ensureLocBrowse()
     }
 
     override fun onPause() {
         stopTalking()
+        stopDiscovery()
         listening = false
         try { socket?.close() } catch (_: Exception) { }
         socket = null
         super.onPause()
+    }
+
+    private fun newToken(): String {
+        val bytes = ByteArray(16).also { SecureRandom().nextBytes(it) }
+        return bytes.joinToString("") { "%02x".format(it) }
     }
 
     private fun startListening() {
@@ -81,12 +188,16 @@ class WalkieActivity : AppCompatActivity() {
                 player = AudioTrack(AudioManager.STREAM_VOICE_CALL, 16000,
                     AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT,
                     minOut, AudioTrack.MODE_STREAM).also { it.play() }
-                val buf = ByteArray(2048)
+                val expected = (sessionToken + "\n").toByteArray()
+                val buf = ByteArray(expected.size + 2048)
                 while (listening) {
                     val pkt = DatagramPacket(buf, buf.size)
                     try {
                         socket?.receive(pkt)
-                        if (!talking) player?.write(pkt.data, 0, pkt.length)
+                        if (!talking && pkt.length >= expected.size &&
+                            MessageDigest.isEqual(expected, pkt.data.copyOfRange(0, expected.size))) {
+                            player?.write(pkt.data, expected.size, pkt.length - expected.size)
+                        }
                     } catch (_: Exception) { break }
                 }
             } catch (_: Exception) { }
@@ -95,24 +206,33 @@ class WalkieActivity : AppCompatActivity() {
         }.start()
     }
 
-    private fun startTalking() {
-        val ip = peerInput.text.toString().trim()
-        if (ip.isEmpty()) { status.text = "Enter peer IP first"; return }
+    private fun startTalking(token: String) {
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.RECORD_AUDIO), 1)
+            return
+        }
+        if (talking) return
+        val ip = selectedIp
+        if (ip.isEmpty()) { status.text = "Tap a peer in the list first"; return }
+        if (token.isEmpty()) { status.text = "Enter the access token shown on the receiving device"; return }
         talking = true
         status.text = "Talking…"
         Thread {
             try {
                 val minIn = AudioRecord.getMinBufferSize(16000,
                     AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
+                if (minIn <= 0) throw IllegalStateException("Microphone audio format is unsupported")
                 recorder = AudioRecord(MediaRecorder.AudioSource.MIC, 16000,
-                    AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, minIn)
+                    AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, maxOf(minIn, 4096))
+                if (recorder?.state != AudioRecord.STATE_INITIALIZED) throw IllegalStateException("Microphone unavailable")
                 recorder?.startRecording()
                 val send = DatagramSocket()
                 val addr = InetAddress.getByName(ip)
-                val buf = ByteArray(2048)
+                val prefix = (token + "\n").toByteArray()
+                val buf = ByteArray(prefix.size + 2048)
                 while (talking) {
-                    val n = recorder?.read(buf, 0, buf.size) ?: 0
-                    if (n > 0) send.send(DatagramPacket(buf, n, addr, 9998))
+                    val n = recorder?.read(buf, prefix.size, buf.size - prefix.size) ?: 0
+                    if (n > 0) send.send(DatagramPacket(buf, prefix.size + n, addr, 9998))
                 }
                 send.close()
             } catch (e: Exception) {
@@ -130,6 +250,8 @@ class WalkieActivity : AppCompatActivity() {
 
     override fun onRequestPermissionsResult(code: Int, perms: Array<String>, results: IntArray) {
         super.onRequestPermissionsResult(code, perms, results)
+        if (code == 9001) { if (results.firstOrNull() == PackageManager.PERMISSION_GRANTED) startBrowse(); return }
+        if (code != 1) return
         if (results.firstOrNull() == PackageManager.PERMISSION_GRANTED) startListening()
         else finish()
     }

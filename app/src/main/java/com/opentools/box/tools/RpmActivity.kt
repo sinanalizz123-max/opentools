@@ -6,34 +6,107 @@ import android.view.Gravity
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
-import com.google.android.material.button.MaterialButton
+import com.opentools.box.ToolScaffold
+import com.opentools.box.UiStyle
 
-/** Tap-tempo RPM meter. Original implementation. */
+/** Tap-tempo RPM meter with a large reading and robust timing calculation. */
 class RpmActivity : AppCompatActivity() {
-
     private val taps = ArrayDeque<Long>()
     private lateinit var valueView: TextView
+    private lateinit var hintView: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        valueView = TextView(this).apply { textSize = 56f; gravity = Gravity.CENTER; text = "Tap!" }
-        val tap = MaterialButton(this).apply { text = "TAP" }
-        val reset = MaterialButton(this).apply { text = "Reset" }
+        valueView = TextView(this).apply {
+            text = "Tap to start"
+            gravity = Gravity.CENTER
+            UiStyle.styleText(this, 40f, true)
+            setPadding(UiStyle.dp(context, 16f), UiStyle.dp(context, 28f),
+                UiStyle.dp(context, 16f), UiStyle.dp(context, 28f))
+            background = UiStyle.rounded(context, UiStyle.surface(context), 20f, UiStyle.border(context))
+        }
+        hintView = TextView(this).apply {
+            text = "Tap steadily several times to estimate revolutions per minute."
+            gravity = Gravity.CENTER
+            UiStyle.styleText(this, 14f, false, UiStyle.muted(context))
+        }
+        val tap = NativeButton(this).apply { text = "TAP" }
+        val reset = NativeButton(this, false).apply { text = "Reset" }
         tap.setOnClickListener {
             val now = SystemClock.elapsedRealtime()
             taps.addLast(now)
             while (taps.size > 8) taps.removeFirst()
             if (taps.size >= 2) {
-                val spanMin = (taps.last() - taps.first()) / 60000.0
-                val rpm = (taps.size - 1) / spanMin
-                valueView.text = "%.0f RPM".format(rpm)
+                val spanMs = taps.last() - taps.first()
+                if (spanMs > 0L) {
+                    val rpm = 60000.0 * (taps.size - 1) / spanMs
+                    valueView.text = "%.1f RPM".format(rpm)
+                    hintView.text = "Based on ${taps.size} taps. Keep tapping for a steadier estimate."
+                }
+            } else {
+                valueView.text = "Keep tapping…"
+                hintView.text = "One more tap is needed to calculate RPM."
             }
         }
-        reset.setOnClickListener { taps.clear(); valueView.text = "Tap!" }
-        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Tap RPM",LinearLayout(this).apply {
+        reset.setOnClickListener {
+            taps.clear()
+            valueView.text = "Tap to start"
+            hintView.text = "Tap steadily several times to estimate revolutions per minute."
+        }
+        val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
-            addView(valueView); addView(tap); addView(reset)
-        }))
+            val pad = UiStyle.dp(context, 24f)
+            setPadding(pad, pad, pad, pad)
+            addView(TextView(context).apply {
+                text = "Tap tempo"
+                gravity = Gravity.CENTER
+                UiStyle.styleText(this, 24f, true)
+                setPadding(0, 0, 0, UiStyle.dp(context, 18f))
+            })
+            addView(valueView, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = UiStyle.dp(context, 16f)
+            })
+            addView(hintView, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = UiStyle.dp(context, 24f)
+            })
+            addView(tap, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = UiStyle.dp(context, 10f)
+            })
+            addView(reset, LinearLayout.LayoutParams(-1, -2))
+        }
+        val _sv = android.widget.ScrollView(this).apply { addView(content) }
+        try { content.addView(calibSeek("rpm", 10f) {}) } catch (_: Exception) { }
+        try { addCamToggle(content) } catch (_: Exception) { }
+        setContentView(ToolScaffold.wrap(this, "Tap RPM", _sv))
     }
+
+    private fun calibOf(tool: String): Float { return getPreferences(android.content.Context.MODE_PRIVATE).getFloat(tool + "_calib", 0f) }
+    private fun calibSeek(tool: String, range: Float, onCh: () -> Unit): android.widget.SeekBar {
+        val prefs = getPreferences(android.content.Context.MODE_PRIVATE)
+        return android.widget.SeekBar(this).apply {
+            max = 200; progress = ((prefs.getFloat(tool + "_calib", 0f) / range * 100) + 100).toInt().coerceIn(0, 200)
+            setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(sb: android.widget.SeekBar?, p: Int, u: Boolean) { prefs.edit().putFloat(tool + "_calib", (p - 100) / 100f * range).apply(); onCh() }
+                override fun onStartTrackingTouch(sb: android.widget.SeekBar?) = Unit
+                override fun onStopTrackingTouch(sb: android.widget.SeekBar?) = Unit
+            })
+        }
+    }
+    private var camView: android.view.TextureView? = null
+    private var camToggle: NativeButton? = null
+    private fun addCamToggle(content: android.widget.LinearLayout) {
+        camToggle = NativeButton(this, false).apply { text = "Camera overlay: off" }
+        camView = android.view.TextureView(this).apply { visibility = android.view.View.GONE; layoutParams = android.widget.LinearLayout.LayoutParams(-1, com.opentools.box.UiStyle.dp(context, 180f)) }
+        camToggle!!.setOnClickListener {
+            val on = camView!!.visibility != android.view.View.VISIBLE
+            camView!!.visibility = if (on) android.view.View.VISIBLE else android.view.View.GONE
+            camToggle!!.text = if (on) "Camera overlay: on" else "Camera overlay: off"
+            if (on) CamPreviewHelper.open(this, camView!!) else CamPreviewHelper.close()
+        }
+        content.addView(camToggle); content.addView(camView)
+    }
+
+
+    override fun onPause() { try { CamPreviewHelper.close() } catch (_: Exception) { }; super.onPause() }
 }

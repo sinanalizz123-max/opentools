@@ -9,7 +9,7 @@ flashlight, sensors, converters, media, GPS, LAN sharing, and more.
 > reimplemented from scratch; no assets, strings, layouts, or code from any
 > other app are used here.
 
-## Tools (81)
+## Tools (78)
 
 Light: Torch, White Screen, Color Light · Sensors: Compass, EMF, G-Force,
 Pressure, Humidity, Light, Proximity, Level, Battery, Vibrometer, Altimeter,
@@ -32,8 +32,8 @@ billing/play-purchase flows.
 Requires Android SDK (platform 36) and JDK 17:
 
 ```sh
-gradle :app:assembleDebug     # quick local build
-gradle :app:assembleRelease   # R8 + resource shrinking (needs signing, see below)
+./gradlew :app:assembleDebug     # quick local build
+./gradlew :app:assembleRelease   # R8 + resource shrinking (needs signing, see below)
 ```
 
 Release signing: create `local.properties` (never committed) with
@@ -48,3 +48,6 @@ key.alias.password=…
 ## License
 
 Apache-2.0 — see [LICENSE](LICENSE).
+
+Tool icons by [UXWing](https://uxwing.com) (free for commercial use,
+no attribution required — credited here anyway).

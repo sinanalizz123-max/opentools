@@ -4,64 +4,111 @@ import android.database.Cursor
 import android.net.Uri
 import android.os.Bundle
 import android.provider.ContactsContract
+import android.view.View
+import android.view.ViewGroup
 import android.widget.ArrayAdapter
 import android.widget.LinearLayout
 import android.widget.ListView
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
-import com.google.android.material.button.MaterialButton
+import com.opentools.box.ToolScaffold
+import com.opentools.box.UiStyle
 
-/** Contact viewer (system permission-gated). Original implementation. */
+/** Permission-gated local contacts viewer with native styling. */
 class ContactsActivity : AppCompatActivity() {
-
     private val entries = mutableListOf<String>()
+    private val numbers = mutableListOf<String>()
+    private var query = ""
     private lateinit var adapter: ArrayAdapter<String>
     private lateinit var count: TextView
+    private lateinit var loadButton: NativeButton
 
-    private val permission = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) load()
+    private val permission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) load() else count.text = "Contacts permission denied. Your contacts were not read."
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        count = TextView(this).apply { textSize = 16f }
-        val list = ListView(this)
-        adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, entries)
-        list.adapter = adapter
-        val loadBtn = MaterialButton(this).apply { text = "Load contacts" }
-        loadBtn.setOnClickListener {
-            permission.launch(android.Manifest.permission.READ_CONTACTS)
+        count = TextView(this).apply {
+            text = "Tap Load contacts to view contacts stored on this device."
+            UiStyle.styleText(this, 14f, false, UiStyle.muted(context))
+            setPadding(UiStyle.dp(context, 14f), UiStyle.dp(context, 12f),
+                UiStyle.dp(context, 14f), UiStyle.dp(context, 12f))
+            background = UiStyle.rounded(context, UiStyle.surface(context), 14f, UiStyle.border(context))
         }
-        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Contacts",LinearLayout(this).apply {
+        val list = ListView(this).apply {
+            divider = android.graphics.drawable.ColorDrawable(UiStyle.border(context))
+            dividerHeight = UiStyle.dp(context, 1f)
+            setBackgroundColor(UiStyle.background(context))
+        }
+        val search = android.widget.EditText(this).apply { hint = "Search contacts"; com.opentools.box.UiStyle.styleInput(this); addTextChangedListener(object : android.text.TextWatcher { override fun afterTextChanged(s: android.text.Editable?) { query = s.toString(); adapter.filter.filter(query) } override fun beforeTextChanged(a: CharSequence?, b: Int, c: Int, d: Int) = Unit; override fun onTextChanged(a: CharSequence?, b: Int, c: Int, d: Int) = Unit }) }
+        adapter = object : ArrayAdapter<String>(this, android.R.layout.simple_list_item_1, entries) {
+            override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
+                val row = (convertView as? TextView) ?: TextView(this@ContactsActivity)
+                row.text = getItem(position)
+                UiStyle.styleText(row, 14f, false)
+                row.setPadding(UiStyle.dp(context, 14f), UiStyle.dp(context, 14f),
+                    UiStyle.dp(context, 14f), UiStyle.dp(context, 14f))
+                return row
+            }
+        }
+        list.adapter = adapter
+        list.setOnItemClickListener { _, _, pos, _ ->
+            val num = numbers.getOrNull(pos) ?: return@setOnItemClickListener
+            android.app.AlertDialog.Builder(this).setTitle(entries.getOrNull(pos) ?: "Contact")
+                .setItems(arrayOf("Call", "Message")) { _, w ->
+                    if (w == 0) startActivity(android.content.Intent(android.content.Intent.ACTION_DIAL, android.net.Uri.parse("tel:" + num)))
+                    else startActivity(android.content.Intent(android.content.Intent.ACTION_SENDTO, android.net.Uri.parse("smsto:" + num)))
+                }.show()
+        }
+        loadButton = NativeButton(this).apply { text = "Load contacts" }
+        loadButton.setOnClickListener { permission.launch(android.Manifest.permission.READ_CONTACTS) }
+        val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            addView(loadBtn); addView(count)
-            addView(list, LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
-        }))
+            val pad = UiStyle.dp(context, 16f)
+            setPadding(pad, pad, pad, pad)
+            addView(TextView(context).apply { text = "Contacts"; UiStyle.styleText(this, 24f, true) })
+            addView(TextView(context).apply {
+                text = "Nothing is uploaded. Contacts are read only after you grant permission."
+                UiStyle.styleText(this, 13f, false, UiStyle.muted(context))
+                setPadding(0, UiStyle.dp(context, 4f), 0, UiStyle.dp(context, 12f))
+            })
+            addView(search, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = UiStyle.dp(context, 8f) })
+            addView(loadButton, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = UiStyle.dp(context, 10f)
+            })
+            addView(count, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = UiStyle.dp(context, 10f)
+            })
+            addView(list, LinearLayout.LayoutParams(-1, 0, 1f))
+        }
+        setContentView(ToolScaffold.wrap(this, "Contacts", content))
     }
 
     private fun load() {
-        entries.clear()
+        entries.clear(); numbers.clear()
         try {
             val uri: Uri = ContactsContract.CommonDataKinds.Phone.CONTENT_URI
-            val cursor: Cursor? = contentResolver.query(uri,
-                arrayOf(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
-                    ContactsContract.CommonDataKinds.Phone.NUMBER),
+            val cursor: Cursor? = contentResolver.query(
+                uri,
+                arrayOf(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME, ContactsContract.CommonDataKinds.Phone.NUMBER),
                 null, null,
-                ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME + " ASC")
+                ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME + " ASC"
+            )
             cursor?.use {
-                val nameIdx = it.getColumnIndex(
-                    ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME)
-                val numIdx = it.getColumnIndex(
-                    ContactsContract.CommonDataKinds.Phone.NUMBER)
+                val nameIndex = it.getColumnIndex(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME)
+                val numberIndex = it.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER)
                 while (it.moveToNext()) {
-                    entries.add("${it.getString(nameIdx)} — ${it.getString(numIdx)}")
+                    val name = if (nameIndex >= 0) it.getString(nameIndex).orEmpty() else ""
+                    val number = if (numberIndex >= 0) it.getString(numberIndex).orEmpty() else ""
+                    entries.add("$name — $number"); numbers.add(number)
                 }
             }
-        } catch (_: Exception) { }
-        count.text = "${entries.size} contact(s)"
+            count.text = if (entries.isEmpty()) "No contacts found." else "${entries.size} contact(s)"
+        } catch (_: Exception) {
+            count.text = "Could not read contacts. Check permission and try again."
+        }
         adapter.notifyDataSetChanged()
     }
 }

@@ -7,20 +7,26 @@ import android.media.AudioRecord
 import android.media.MediaRecorder
 import android.os.Bundle
 import android.widget.LinearLayout
+import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
-import com.google.android.material.progressindicator.LinearProgressIndicator
+import com.opentools.box.ToolScaffold
+import com.opentools.box.UiStyle
 import kotlin.math.log10
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
 /** Sound-level meter (dB) with peak hold. Original implementation. */
 class DecibelActivity : AppCompatActivity() {
+    private lateinit var graph: SparkGraphView
+    private lateinit var minMax: TextView
+    private var gMin: Float = Float.MAX_VALUE
+    private var gMax: Float = Float.MIN_VALUE
 
     private lateinit var levelView: TextView
     private lateinit var peakView: TextView
-    private lateinit var bar: LinearProgressIndicator
+    private lateinit var bar: ProgressBar
     private var recorder: AudioRecord? = null
     private var measuring = false
     private var worker: Thread? = null
@@ -29,20 +35,55 @@ class DecibelActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        levelView = TextView(this).apply { textSize = 56f; text = "-- dB" }
-        peakView = TextView(this).apply { textSize = 20f; text = "Peak: --" }
-        bar = LinearProgressIndicator(this).apply { max = 120 }
-        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Decibel Meter",LinearLayout(this).apply {
+        levelView = TextView(this).apply {
+            text = "-- dB"
+            gravity = android.view.Gravity.CENTER
+            UiStyle.styleText(this, 52f, true)
+            setPadding(UiStyle.dp(context, 16f), UiStyle.dp(context, 24f),
+                UiStyle.dp(context, 16f), UiStyle.dp(context, 24f))
+        }
+        peakView = TextView(this).apply {
+            text = "Peak: --"
+            gravity = android.view.Gravity.CENTER
+            UiStyle.styleText(this, 18f, true)
+            setPadding(UiStyle.dp(context, 14f), UiStyle.dp(context, 14f),
+                UiStyle.dp(context, 14f), UiStyle.dp(context, 14f))
+            background = UiStyle.rounded(context, UiStyle.surface(context), 14f, UiStyle.border(context))
+        }
+        bar = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
+            max = 120
+            progress = 0
+            progressTintList = android.content.res.ColorStateList.valueOf(UiStyle.accent(context))
+            progressBackgroundTintList = android.content.res.ColorStateList.valueOf(UiStyle.border(context))
+        }
+        val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = android.view.Gravity.CENTER
-            val pad = (24 * resources.displayMetrics.density).toInt()
+            val pad = UiStyle.dp(context, 24f)
             setPadding(pad, pad, pad, pad)
-            addView(levelView)
-            addView(bar, LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT))
-            addView(peakView)
-        }))
+            addView(TextView(context).apply {
+                text = "Sound level"
+                gravity = android.view.Gravity.CENTER
+                UiStyle.styleText(this, 24f, true)
+                setPadding(0, 0, 0, UiStyle.dp(context, 18f))
+            })
+            addView(levelView, LinearLayout.LayoutParams(-1, -2))
+            addView(bar, LinearLayout.LayoutParams(-1, UiStyle.dp(context, 8f)).apply {
+                bottomMargin = UiStyle.dp(context, 18f)
+            })
+            addView(peakView, LinearLayout.LayoutParams(-1, -2))
+            addView(TextView(context).apply {
+                text = "Approximate meter reading; not a calibrated sound pressure meter."
+                gravity = android.view.Gravity.CENTER
+                UiStyle.styleText(this, 13f, false, UiStyle.muted(context))
+                setPadding(0, UiStyle.dp(context, 12f), 0, 0)
+            })
+        }
+        
+        graph = SparkGraphView(this).apply { graph.setRange(0f, 120f) }
+        minMax = TextView(this).apply { text = "Min: --  Max: --"; gravity = android.view.Gravity.CENTER; com.opentools.box.UiStyle.styleText(this, 13f, false, com.opentools.box.UiStyle.muted(context)) }
+        try { (content as android.widget.LinearLayout).addView(graph, android.widget.LinearLayout.LayoutParams(-1, com.opentools.box.UiStyle.dp(this, 160f))); (content as android.widget.LinearLayout).addView(minMax) } catch (_: Exception) { }
+                setContentView(ToolScaffold.wrap(this, "Decibel Meter", content))
     }
 
     override fun onResume() {
@@ -61,6 +102,11 @@ class DecibelActivity : AppCompatActivity() {
     }
 
     private fun startMeasuring() {
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.RECORD_AUDIO), 1)
+            return
+        }
+        if (measuring) return
         val size = maxOf(
             AudioRecord.getMinBufferSize(44100, AudioFormat.CHANNEL_IN_MONO,
                 AudioFormat.ENCODING_PCM_16BIT),
@@ -69,8 +115,20 @@ class DecibelActivity : AppCompatActivity() {
             AudioRecord(MediaRecorder.AudioSource.MIC, 44100,
                 AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, size)
         } catch (_: Exception) { null }
-        if (recorder?.state != AudioRecord.STATE_INITIALIZED) return
-        recorder?.startRecording()
+        if (recorder?.state != AudioRecord.STATE_INITIALIZED) {
+            recorder?.release()
+            recorder = null
+            levelView.text = "Microphone unavailable"
+            return
+        }
+        try {
+            recorder?.startRecording()
+        } catch (_: SecurityException) {
+            recorder?.release()
+            recorder = null
+            levelView.text = "Microphone permission required"
+            return
+        }
         measuring = true
         peak = 0.0
         peakSince = System.currentTimeMillis()
@@ -95,7 +153,8 @@ class DecibelActivity : AppCompatActivity() {
                     runOnUiThread {
                         levelView.text = "%d dB".format(s.roundToInt())
                         peakView.text = "Peak: %d dB".format(p.roundToInt())
-                        bar.setProgressCompat(s.roundToInt().coerceIn(0, 120), true)
+                        try { val _v: Float = (s).toFloat(); graph.push(_v); if (_v < gMin) gMin = _v; if (_v > gMax) gMax = _v; minMax.text = "Min: %s  Max: %s".format(gMin, gMax) } catch (_: Exception) { }
+                        bar.progress = s.roundToInt().coerceIn(0, 120)
                     }
                 }
             }
@@ -104,16 +163,17 @@ class DecibelActivity : AppCompatActivity() {
 
     private fun stopMeasuring() {
         measuring = false
-        try { worker?.join(300) } catch (_: Exception) { }
-        worker = null
         try { recorder?.stop() } catch (_: Exception) { }
+        try { worker?.join(500) } catch (_: Exception) { }
+        worker = null
         recorder?.release()
         recorder = null
     }
 
     override fun onRequestPermissionsResult(code: Int, perms: Array<String>, results: IntArray) {
         super.onRequestPermissionsResult(code, perms, results)
+        if (code != 1) return
         if (results.firstOrNull() == PackageManager.PERMISSION_GRANTED) startMeasuring()
-        else finish()
+        else levelView.text = "Microphone permission denied"
     }
 }

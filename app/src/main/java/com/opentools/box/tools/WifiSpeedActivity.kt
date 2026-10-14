@@ -4,76 +4,196 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.net.wifi.WifiManager
 import android.os.Bundle
-import android.text.format.Formatter
-import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
-import com.google.android.material.button.MaterialButton
+import com.opentools.box.ToolScaffold
+import com.opentools.box.UiStyle
+import java.net.HttpURLConnection
 import java.net.URL
+import java.util.Locale
 
-/** WiFi info + HTTP download speed test. Original implementation. */
+/** Internet speed test: auto-picks the fastest of several working servers. */
 class WifiSpeedActivity : AppCompatActivity() {
+
+    private data class Server(val name: String, val url: String)
+
+    private val servers = listOf(
+        Server("Hetzner DE", "https://speed.hetzner.de/100MB.bin"),
+        Server("Hetzner FI", "https://fsn-speed.hetzner.com/100MB.bin"),
+        Server("Hetzner US", "https://ash-speed.hetzner.com/100MB.bin"),
+        Server("Cloudflare", "https://speed.cloudflare.com/__down?bytes=50000000"),
+        Server("OVH FR", "https://proof.ovh.net/files/100Mb.dat"),
+        Server("Tele2 EU", "https://speedtest.tele2.net/100MB.zip"),
+    )
 
     private lateinit var info: TextView
     private lateinit var result: TextView
-    private var testing = false
+    private lateinit var go: NativeButton
+    private lateinit var chart: SparkGraphView
+    private lateinit var historyView: android.widget.TextView
+    private val speedHistory = mutableListOf<String>()
+    private lateinit var serverSpinner: android.widget.Spinner
+    private lateinit var customUrl: android.widget.EditText
+    private val presetUrls = listOf("https://speed.hetzner.de/100MB.bin","https://speed.cloudflare.com/__down?bytes=50000000","https://proof.ovh.net/files/100Mb.dat")
+    @Volatile private var testing = false
 
     @SuppressLint("SetTextI18n")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        info = TextView(this).apply { textSize = 16f }
-        result = TextView(this).apply { textSize = 28f }
-        val url = EditText(this).apply {
-            setText("https://speed.hetzner.de/10MB.bin")
+        info = TextView(this).apply {
+            UiStyle.styleText(this, 14f, false)
+            setPadding(UiStyle.dp(context, 16f), UiStyle.dp(context, 14f),
+                UiStyle.dp(context, 16f), UiStyle.dp(context, 14f))
+            background = UiStyle.rounded(context, UiStyle.surface(context), 14f, UiStyle.border(context))
         }
-        val go = MaterialButton(this).apply { text = "Test speed" }
-        go.setOnClickListener { test(url.text.toString()) }
+        result = TextView(this).apply {
+            text = "Speed results will appear here."
+            UiStyle.styleText(this, 22f, true)
+            setPadding(UiStyle.dp(context, 16f), UiStyle.dp(context, 18f),
+                UiStyle.dp(context, 16f), UiStyle.dp(context, 18f))
+            background = UiStyle.rounded(context, UiStyle.surface(context), 16f, UiStyle.border(context))
+        }
+        go = NativeButton(this).apply { text = "Test internet speed" }
+        go.setOnClickListener { runTest() }
         showInfo()
-        setContentView(com.opentools.box.ToolScaffold.wrap(this, "WiFi Speed",LinearLayout(this).apply {
+        val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            val pad = (16 * resources.displayMetrics.density).toInt()
+            val pad = UiStyle.dp(context, 20f)
             setPadding(pad, pad, pad, pad)
-            addView(info); addView(url); addView(go); addView(result)
-        }))
+            addView(TextView(context).apply { text = "Connection"; UiStyle.styleText(this, 24f, true) })
+            addView(info, LinearLayout.LayoutParams(-1, -2).apply {
+                topMargin = UiStyle.dp(context, 12f)
+                bottomMargin = UiStyle.dp(context, 18f)
+            })
+            addView(TextView(context).apply { text = "Speed test"; UiStyle.styleText(this, 19f, true) })
+            addView(TextView(context).apply {
+                text = "Automatically picks the fastest server, then measures download speed over your active connection (Wi-Fi or mobile data)."
+                UiStyle.styleText(this, 13f, false, UiStyle.muted(context))
+                setPadding(0, UiStyle.dp(context, 4f), 0, UiStyle.dp(context, 10f))
+            })
+            addView(go, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = UiStyle.dp(context, 14f)
+            })
+            addView(result, LinearLayout.LayoutParams(-1, -2))
+        }
+        chart = SparkGraphView(this).apply { minimumHeight = UiStyle.dp(context, 90f) }; chart.setRange(0f, 200f)
+        historyView = TextView(this).apply { UiStyle.styleText(this, 13f, false) }
+        serverSpinner = android.widget.Spinner(this).apply { adapter = android.widget.ArrayAdapter(context, android.R.layout.simple_spinner_item, listOf("Auto (fastest)") + presetUrls).apply { setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item) } }
+        customUrl = android.widget.EditText(this).apply { hint = "Custom URL (optional)"; UiStyle.styleInput(this) }
+        val shareBtn = NativeButton(this).apply { text = "Share results" }; shareBtn.setOnClickListener { shareResults() }
+        content.addView(serverSpinner); content.addView(customUrl); content.addView(chart, LinearLayout.LayoutParams(-1, UiStyle.dp(this@WifiSpeedActivity, 90f))); content.addView(historyView); content.addView(shareBtn)
+        setContentView(ToolScaffold.wrap(this, "Internet Speed", android.widget.ScrollView(this).apply { addView(content) }))
     }
 
     @SuppressLint("SetTextI18n")
     private fun showInfo() {
-        val wm = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
-        val ci = wm.connectionInfo
-        info.text = "SSID: ${ci.ssid}\nRSSI: ${ci.rssi} dBm\n" +
-            "Link: ${ci.linkSpeed} Mbps\nIP: ${Formatter.formatIpAddress(ci.ipAddress)}"
+        try {
+            val wifi = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+            val connection = wifi.connectionInfo
+            val ssid = connection.ssid.trim('"')
+            info.text = if (connection.networkId == -1) {
+                "Not on Wi-Fi — test will use mobile data."
+            } else {
+                "SSID: $ssid\nSignal: ${connection.rssi} dBm\n" +
+                    "Link speed: ${connection.linkSpeed} Mbps\nIP: ${android.text.format.Formatter.formatIpAddress(connection.ipAddress)}"
+            }
+        } catch (_: Exception) {
+            info.text = "Connection details are unavailable."
+        }
     }
 
-    private fun test(urlStr: String) {
+    private fun runTest() {
         if (testing) return
         testing = true
-        result.text = "Testing…"
+        go.isEnabled = false
+        result.text = "Finding the fastest server…"
         Thread {
             try {
-                val conn = URL(urlStr).openConnection()
-                conn.connectTimeout = 10000
-                conn.readTimeout = 30000
-                val start = System.currentTimeMillis()
-                var bytes = 0L
-                conn.getInputStream().use { input ->
-                    val buf = ByteArray(64 * 1024)
-                    while (true) {
-                        val n = input.read(buf)
-                        if (n < 0) break
-                        bytes += n
-                        if (System.currentTimeMillis() - start > 20000) break
-                    }
+                val best = pickServer()
+                if (best == null) {
+                    ui("No test server reachable. Check your connection.")
+                    return@Thread
                 }
-                val secs = (System.currentTimeMillis() - start) / 1000.0
-                val mbps = bytes * 8 / 1e6 / secs
-                runOnUiThread { result.text = "%.1f Mbps".format(mbps) }
-            } catch (e: Exception) {
-                runOnUiThread { result.text = "Failed: ${e.message}" }
+                ui("Testing via ${best.first.name} (ping ${best.second} ms)…")
+                val target = customUrl.text.toString().trim().ifEmpty { best.first.url }
+                val mbps = download(target)
+                speedHistory.add(0, String.format(java.util.Locale.getDefault(), "%.1f Mbps via %s", mbps, best.first.name))
+                if (speedHistory.size > 20) speedHistory.removeAt(speedHistory.size - 1)
+                ui(String.format(Locale.getDefault(),
+                    "%.1f Mbps\nvia %s · ping %d ms",
+                    mbps, best.first.name, best.second))
+            } catch (error: Exception) {
+                ui("Test failed: ${error.message ?: "connection error"}")
             } finally {
                 testing = false
+                runOnUiThread { go.isEnabled = true }
             }
         }.start()
+    }
+
+    /** Returns (server, pingMs) of the fastest reachable server, or null. */
+    private fun pickServer(): Pair<Server, Long>? {
+        var best: Pair<Server, Long>? = null
+        for (server in servers) {
+            if (!testing) return best
+            val ping = ping(server.url)
+            runOnUiThread { result.text = "Pinging ${server.name}…" }
+            if (ping != null && (best == null || ping < best.second)) {
+                best = server to ping
+            }
+        }
+        return best
+    }
+
+    /** Minimal HEAD-style latency probe using a 1-byte range request. */
+    private fun ping(urlString: String): Long? {
+        return try {
+            val conn = (URL(urlString).openConnection() as HttpURLConnection).apply {
+                connectTimeout = 5000
+                readTimeout = 5000
+                useCaches = false
+                setRequestProperty("Range", "bytes=0-0")
+            }
+            val start = System.nanoTime()
+            conn.inputStream.use { it.read() }
+            val ms = (System.nanoTime() - start) / 1_000_000
+            conn.disconnect()
+            if (ms in 1..15000) ms else null
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun download(urlString: String): Double {
+        val conn = URL(urlString).openConnection().apply {
+            connectTimeout = 10000
+            readTimeout = 15000
+            useCaches = false
+        }
+        val start = System.nanoTime()
+        var bytes = 0L
+        conn.getInputStream().use { input ->
+            val buffer = ByteArray(64 * 1024)
+            while (bytes < MAX_TEST_BYTES) {
+                val read = input.read(buffer)
+                if (read < 0) break
+                if (read == 0) continue
+                bytes += read
+                if ((System.nanoTime() - start) / 1_000_000_000.0 >= MAX_TEST_SECONDS) break
+            }
+        }
+        val seconds = ((System.nanoTime() - start) / 1_000_000_000.0).coerceAtLeast(0.001)
+        return bytes * 8.0 / 1_000_000.0 / seconds
+    }
+
+    private fun shareResults() { val i = android.content.Intent(android.content.Intent.ACTION_SEND).apply { type = "text/plain"; putExtra(android.content.Intent.EXTRA_TEXT, (listOf(result.text.toString()) + speedHistory).joinToString("\n")) }; startActivity(android.content.Intent.createChooser(i, "Share speed results")) }
+    private fun ui(text: String) {
+        runOnUiThread { result.text = text }
+    }
+
+    companion object {
+        private const val MAX_TEST_BYTES = 25L * 1024L * 1024L
+        private const val MAX_TEST_SECONDS = 15.0
     }
 }

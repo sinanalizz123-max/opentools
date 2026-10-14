@@ -2,106 +2,259 @@ package com.opentools.box.tools
 
 import android.net.Uri
 import android.os.Bundle
+import android.Manifest
+import android.content.pm.PackageManager
+import android.net.nsd.NsdServiceInfo
 import android.widget.ArrayAdapter
-import android.widget.EditText
-import android.widget.LinearLayout
 import android.widget.ListView
+import androidx.core.app.ActivityCompat
+import android.widget.LinearLayout
 import android.widget.TextView
+import android.view.View
+import android.view.ViewGroup
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
-import com.google.android.material.button.MaterialButton
+import com.opentools.box.UiStyle
 import java.io.DataInputStream
 import java.io.DataOutputStream
+import java.io.EOFException
 import java.io.File
+import java.io.IOException
+import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.net.Socket
+import java.security.MessageDigest
+import java.security.SecureRandom
+import java.util.Collections
+import java.util.concurrent.Semaphore
 
-/**
- * LAN file share: serve files on port 9999, or fetch from a peer IP.
- * Original implementation (plain TCP, no cloud).
- */
+/** Authenticated LAN file transfer with bounded memory use and private, local-only storage. */
 class FileShareActivity : AppCompatActivity() {
+    companion object { private const val MAX_FILE_BYTES = 512L * 1024L * 1024L }
 
-    private var server: ServerSocket? = null
-    private var serving = false
-    private val shared = mutableListOf<Uri>()
+    @Volatile private var server: ServerSocket? = null
+    @Volatile private var serving = false
+    @Volatile private var sessionToken = ""
+    @Volatile private var serverGeneration = 0
+    private val shared = Collections.synchronizedList(mutableListOf<Uri>())
+    private val clientSlots = Semaphore(4)
     private lateinit var status: TextView
     private lateinit var adapter: ArrayAdapter<String>
+    private lateinit var transferProgress: TextView
+    private val sendQueue = java.util.concurrent.ConcurrentLinkedQueue<android.net.Uri>()
+    private var hostHandle: AutoCloseable? = null
+    private var browseHandle: AutoCloseable? = null
+    private var hostingNsd = false
+    private var hostName = ""
+    private var selectedIp = ""
+    private val peers = mutableListOf<NsdServiceInfo>()
+    private lateinit var peerAdapter: ArrayAdapter<String>
+    private val svcType = "_opentools-file._tcp."
+    private fun updateProgress(done: Long, total: Long, name: String) { runOnUiThread { if (::transferProgress.isInitialized) transferProgress.text = name + ": " + done + "/" + total + " bytes (" + (if (total > 0) (done*100/total).toString() + "%" else "?") + ")" } }
+    private fun queueSend(uri: android.net.Uri) { sendQueue.add(uri); if (::status.isInitialized) status.text = sendQueue.size.toString() + " file(s) queued" }
+    private fun resumeOffset(file: java.io.File): Long = if (file.exists()) file.length() else 0L
+    private fun peerLabel(s: NsdServiceInfo): String {
+        val ip = try { s.host?.hostAddress ?: "?" } catch (_: Exception) { "?" }
+        return (s.serviceName ?: "?") + " · " + ip + ":" + s.port
+    }
+    private fun ensureLocBrowse() {
+        try { browseHandle?.close() } catch (_: Exception) { }
+        browseHandle = null
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.ACCESS_FINE_LOCATION), 9001)
+            return
+        }
+        startBrowse()
+    }
+    private fun startBrowse() {
+        try { browseHandle?.close() } catch (_: Exception) { }
+        browseHandle = LanDiscovery.browse(this, svcType) { list ->
+            runOnUiThread {
+                peers.clear(); peers.addAll(list.filter { it.serviceName != hostName })
+                if (::peerAdapter.isInitialized) {
+                    peerAdapter.clear(); peerAdapter.addAll(peers.map { peerLabel(it) })
+                    if (peers.isEmpty()) peerAdapter.add("(searching for hosts…)")
+                    peerAdapter.notifyDataSetChanged()
+                }
+            }
+        }
+    }
+    private fun stopDiscovery() {
+        try { hostHandle?.close() } catch (_: Exception) { }
+        try { browseHandle?.close() } catch (_: Exception) { }
+        hostHandle = null; browseHandle = null; hostingNsd = false
+    }
+
     private val log = mutableListOf<String>()
 
     private val picker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
         uri?.let {
+            try {
+                contentResolver.takePersistableUriPermission(it, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            } catch (_: Exception) { }
             shared.add(it)
-            log.add(0, "Shared: ${it.lastPathSegment}")
+            log.add(0, "Shared: " + (it.lastPathSegment ?: "file"))
             adapter.notifyDataSetChanged()
         }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        status = TextView(this).apply { textSize = 16f; text = "Server off" }
-        val list = ListView(this)
-        adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, log)
+        status = TextView(this).apply {
+            text = "Server is off. Add files before starting a transfer."
+            UiStyle.styleText(this, 14f, false, UiStyle.muted(context))
+            setPadding(UiStyle.dp(context, 14f), UiStyle.dp(context, 12f),
+                UiStyle.dp(context, 14f), UiStyle.dp(context, 12f))
+            background = UiStyle.rounded(context, UiStyle.surface(context), 14f, UiStyle.border(context))
+        }
+        val list = ListView(this).apply {
+            divider = android.graphics.drawable.ColorDrawable(UiStyle.border(context))
+            dividerHeight = UiStyle.dp(context, 1f)
+            setBackgroundColor(UiStyle.background(context))
+        }
+        adapter = object : ArrayAdapter<String>(this, android.R.layout.simple_list_item_1, log) {
+            override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
+                val row = (convertView as? TextView) ?: TextView(this@FileShareActivity)
+                row.text = getItem(position)
+                UiStyle.styleText(row, 14f, false)
+                row.setPadding(UiStyle.dp(context, 12f), UiStyle.dp(context, 12f),
+                    UiStyle.dp(context, 12f), UiStyle.dp(context, 12f))
+                return row
+            }
+        }
         list.adapter = adapter
-        val share = MaterialButton(this).apply { text = "Add file to share" }
-        val toggle = MaterialButton(this).apply { text = "Start server :9999" }
-        val peer = EditText(this).apply { hint = "Peer IP, e.g. 192.168.1.5" }
-        val fetch = MaterialButton(this).apply { text = "Fetch list from peer" }
+        val share = NativeButton(this).apply { text = "Add file to share" }
+        val toggle = NativeButton(this).apply { text = "Start server :9999" }
+        val token = android.widget.EditText(this).apply {
+            hint = "Peer access token"
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+            UiStyle.styleInput(this)
+            setSingleLine(true)
+        }
+        peerAdapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, mutableListOf("(searching for hosts…)"))
+        val peerList = ListView(this).apply { adapter = peerAdapter }
+        val hostBtn = NativeButton(this, false).apply { text = "Start hosting" }
+        hostBtn.setOnClickListener {
+            if (hostingNsd) { try { hostHandle?.close() } catch (_: Exception) { }; hostHandle = null; hostingNsd = false; hostBtn.text = "Start hosting"; status.text = "Hosting stopped."; ensureLocBrowse() }
+            else {
+                if (!serving) startServer()
+                hostHandle = LanDiscovery.host(this, svcType, 9999, (android.os.Build.MODEL ?: "file").replace(" ","-") + "-" + (0..999).random(), onRegistered = { n -> runOnUiThread { hostName = n; status.text = "Hosting as " + n + "\nShare token: " + sessionToken } }, onError = { m -> runOnUiThread { status.text = "Host error: " + m } })
+                hostingNsd = true; hostBtn.text = "Stop hosting"
+            }
+        }
+        peerList.setOnItemClickListener { _, _, pos, _ ->
+            peers.getOrNull(pos)?.let { s -> try { selectedIp = s.host?.hostAddress ?: "" } catch (_: Exception) { }; fetchFrom(selectedIp, token.text.toString().trim()) }
+        }
+        val fetch = NativeButton(this).apply { text = "Fetch files" }
         share.setOnClickListener { picker.launch(arrayOf("*/*")) }
         toggle.setOnClickListener {
             if (serving) stopServer() else startServer()
             toggle.text = if (serving) "Stop server" else "Start server :9999"
         }
-        fetch.setOnClickListener { fetchFrom(peer.text.toString().trim()) }
-        setContentView(com.opentools.box.ToolScaffold.wrap(this, "LAN File Share",LinearLayout(this).apply {
+        fetch.setOnClickListener { fetchFrom(selectedIp, token.text.toString().trim()) }
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "LAN File Share", LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            val pad = (16 * resources.displayMetrics.density).toInt()
+            val pad = UiStyle.dp(context, 16f)
             setPadding(pad, pad, pad, pad)
-            addView(status); addView(share); addView(toggle); addView(peer); addView(fetch)
-            addView(list, LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
+            addView(TextView(context).apply {
+                text = "Transfer files over Wi-Fi"
+                UiStyle.styleText(this, 23f, true)
+                setPadding(0, 0, 0, UiStyle.dp(context, 12f))
+            })
+            addView(status, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = UiStyle.dp(context, 10f)
+            })
+            addView(share, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = UiStyle.dp(context, 8f)
+            })
+            addView(toggle, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = UiStyle.dp(context, 14f)
+            })
+            addView(hostBtn, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = UiStyle.dp(context, 8f)
+            })
+            addView(peerList, LinearLayout.LayoutParams(-1, UiStyle.dp(context, 130f)).apply {
+                bottomMargin = UiStyle.dp(context, 8f)
+            })
+            addView(token, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = UiStyle.dp(context, 8f)
+            })
+            addView(fetch, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = UiStyle.dp(context, 10f)
+            })
+            addView(list, LinearLayout.LayoutParams(-1, 0, 1f))
         }))
     }
 
+    private fun newToken(): String {
+        val bytes = ByteArray(16).also { SecureRandom().nextBytes(it) }
+        return bytes.joinToString("") { "%02x".format(it) }
+    }
+
     private fun startServer() {
+        if (serving) return
         serving = true
-        status.text = "Serving ${shared.size} file(s) on :9999"
+        val generation = ++serverGeneration
+        sessionToken = newToken()
+        status.text = "Starting server…"
         Thread {
+            var localServer: ServerSocket? = null
             try {
-                server = ServerSocket(9999)
-                while (serving) {
-                    val socket = server?.accept() ?: break
-                    Thread { serve(socket) }.start()
+                val activeServer = ServerSocket(9999)
+                localServer = activeServer
+                server = activeServer
+                runOnUiThread {
+                    if (serving && generation == serverGeneration) status.text = "Serving on :9999\nShare token: " + sessionToken
                 }
-            } catch (_: Exception) { }
+                while (serving && generation == serverGeneration) {
+                    val client = activeServer.accept()
+                    if (!clientSlots.tryAcquire()) {
+                        client.close()
+                        continue
+                    }
+                    Thread {
+                        try { serve(client) }
+                        finally { clientSlots.release() }
+                    }.start()
+                }
+            } catch (error: Exception) {
+                if (serving && generation == serverGeneration) runOnUiThread {
+                    serving = false
+                    status.text = "Server failed: " + (error.message ?: "port unavailable")
+                }
+            } finally {
+                try { localServer?.close() } catch (_: Exception) { }
+                if (server === localServer) server = null
+            }
         }.start()
     }
 
     private fun serve(socket: Socket) {
         try {
-            socket.use { s ->
-                val input = DataInputStream(s.getInputStream())
-                val output = DataOutputStream(s.getOutputStream())
-                when (input.readUTF()) {
-                    "LIST" -> {
-                        output.writeInt(shared.size)
-                        shared.forEachIndexed { i, uri ->
-                            output.writeUTF("$i:${uri.lastPathSegment}")
-                        }
+            socket.use { client ->
+                client.soTimeout = 15000
+                val input = DataInputStream(client.getInputStream())
+                val output = DataOutputStream(client.getOutputStream())
+                val suppliedToken = input.readUTF()
+                val command = input.readUTF()
+                if (!MessageDigest.isEqual(suppliedToken.toByteArray(), sessionToken.toByteArray()) || !serving) {
+                    if (command == "LIST") output.writeInt(-1) else output.writeLong(-1)
+                    output.flush()
+                    return
+                }
+                if (command == "LIST") {
+                    val snapshot = synchronized(shared) { shared.toList() }
+                    output.writeInt(snapshot.size)
+                    snapshot.forEachIndexed { index, uri ->
+                        output.writeUTF(index.toString() + ":" + (uri.lastPathSegment ?: "file"))
                     }
-                    else -> {
-                        val index = input.readUTF().removePrefix("GET ").toIntOrNull() ?: -1
-                        val uri = shared.getOrNull(index)
-                        if (uri == null) {
-                            output.writeLong(-1)
-                        } else {
-                            contentResolver.openInputStream(uri)?.use { ins ->
-                                val bytes = ins.readBytes()
-                                output.writeLong(bytes.size.toLong())
-                                output.write(bytes)
-                                output.writeUTF(uri.lastPathSegment ?: "file")
-                            } ?: output.writeLong(-1)
-                        }
+                } else {
+                    val index = command.removePrefix("GET ").toIntOrNull() ?: -1
+                    val uri = synchronized(shared) { shared.getOrNull(index) }
+                    if (uri == null) {
+                        output.writeLong(-1)
+                    } else {
+                        sendFile(uri, output)
                     }
                 }
                 output.flush()
@@ -109,57 +262,141 @@ class FileShareActivity : AppCompatActivity() {
         } catch (_: Exception) { }
     }
 
+    private fun sendFile(uri: Uri, output: DataOutputStream) {
+        val temp = File(cacheDir, "share-" + System.nanoTime() + ".tmp")
+        try {
+            val input = contentResolver.openInputStream(uri)
+            if (input == null) {
+                output.writeLong(-1)
+                return
+            }
+            var total = 0L
+            input.use { source ->
+                temp.outputStream().buffered().use { sink ->
+                    val buffer = ByteArray(16 * 1024)
+                    while (true) {
+                        val count = source.read(buffer)
+                        if (count < 0) break
+                        total += count
+                        if (total > MAX_FILE_BYTES) {
+                            output.writeLong(-1)
+                            return
+                        }
+                        sink.write(buffer, 0, count)
+                    }
+                }
+            }
+            output.writeLong(total)
+            temp.inputStream().buffered().use { it.copyTo(output) }
+            output.writeUTF((uri.lastPathSegment ?: "file").substringAfterLast('/').takeLast(80))
+        } catch (_: Exception) {
+            try { output.writeLong(-1) } catch (_: Exception) { }
+        } finally {
+            temp.delete()
+        }
+    }
+
     private fun stopServer() {
         serving = false
+        serverGeneration++
+        sessionToken = ""
         try { server?.close() } catch (_: Exception) { }
         server = null
         status.text = "Server off"
     }
 
-    private fun fetchFrom(ip: String) {
-        if (ip.isEmpty()) return
+    private fun fetchFrom(ip: String, token: String) {
+        if (ip.isBlank()) {
+            status.text = "Tap a peer in the list first."
+            return
+        }
+        if (token.isBlank()) {
+            status.text = "Enter the peer IP and the token shown on their server."
+            return
+        }
         Thread {
             try {
-                Socket(ip, 9999).use { s ->
-                    s.soTimeout = 10000
-                    val output = DataOutputStream(s.getOutputStream())
-                    val input = DataInputStream(s.getInputStream())
+                val names: List<String> = Socket().use { socket ->
+                    socket.connect(InetSocketAddress(ip, 9999), 8000)
+                    socket.soTimeout = 10000
+                    val output = DataOutputStream(socket.getOutputStream())
+                    val input = DataInputStream(socket.getInputStream())
+                    output.writeUTF(token)
                     output.writeUTF("LIST")
                     output.flush()
-                    val n = input.readInt()
-                    val names = (0 until n).map { input.readUTF() }
-                    // Fetch each file.
-                    for (entry in names) {
-                        val index = entry.substringBefore(":")
-                        Socket(ip, 9999).use { fs ->
-                            fs.soTimeout = 60000
-                            val fo = DataOutputStream(fs.getOutputStream())
-                            val fi = DataInputStream(fs.getInputStream())
-                            fo.writeUTF("GET $index")
-                            fo.flush()
-                            val size = fi.readLong()
-                            if (size > 0) {
-                                val bytes = ByteArray(size.toInt())
-                                fi.readFully(bytes)
-                                val name = fi.readUTF().takeLast(60)
-                                val dest = File(getExternalFilesDir(null), "recv-$name")
-                                dest.writeBytes(bytes)
-                                runOnUiThread {
-                                    log.add(0, "Received: ${dest.name}")
-                                    adapter.notifyDataSetChanged()
+                    val count = input.readInt()
+                    if (count < 0 || count > 1000) throw IOException("Authentication failed or invalid file list")
+                    (0 until count).map { input.readUTF() }
+                }
+                var received = 0
+                for (entry in names) {
+                    val index = entry.substringBefore(":")
+                    Socket().use { socket ->
+                        socket.connect(InetSocketAddress(ip, 9999), 8000)
+                        socket.soTimeout = 60000
+                        val output = DataOutputStream(socket.getOutputStream())
+                        val input = DataInputStream(socket.getInputStream())
+                        output.writeUTF(token)
+                        output.writeUTF("GET " + index)
+                        output.flush()
+                        val size = input.readLong()
+                        if (size < 0) throw IOException("File unavailable or too large")
+                        if (size > MAX_FILE_BYTES) throw IOException("Peer sent an oversized file")
+                        val folder = getExternalFilesDir(null) ?: filesDir
+                        val temp = File(folder, "incoming-" + System.currentTimeMillis() + ".tmp")
+                        var receivedFile: File? = null
+                        try {
+                            temp.outputStream().buffered().use { out ->
+                                val buffer = ByteArray(16 * 1024)
+                                var remaining = size
+                                while (remaining > 0) {
+                                    val count = input.read(buffer, 0, minOf(buffer.size.toLong(), remaining).toInt())
+                                    if (count < 0) throw EOFException("File transfer ended early")
+                                    out.write(buffer, 0, count)
+                                    remaining -= count.toLong()
                                 }
                             }
+                            val rawName = input.readUTF().substringAfterLast('/').takeLast(80)
+                            val safeName = rawName.replace(Regex("[^A-Za-z0-9._-]"), "_").ifBlank { "file" }
+                            var dest = File(folder, "recv-" + safeName)
+                            if (dest.exists()) dest = File(folder, "recv-" + System.currentTimeMillis() + "-" + safeName)
+                            if (!temp.renameTo(dest)) {
+                                temp.copyTo(dest, overwrite = true)
+                                temp.delete()
+                            }
+                            receivedFile = dest
+                        } finally {
+                            temp.delete()
+                        }
+                        received++
+                        val savedName = receivedFile?.name ?: "file"
+                        runOnUiThread {
+                            log.add(0, "Received: " + savedName)
+                            adapter.notifyDataSetChanged()
                         }
                     }
-                    runOnUiThread { log.add(0, "Fetched $n file(s)"); adapter.notifyDataSetChanged() }
                 }
-            } catch (e: Exception) {
-                runOnUiThread { log.add(0, "Fetch failed: ${e.message}"); adapter.notifyDataSetChanged() }
+                runOnUiThread { status.text = "Received " + received + " file(s)." }
+            } catch (error: Exception) {
+                runOnUiThread { status.text = "Transfer failed: " + (error.message ?: "connection error") }
             }
         }.start()
     }
 
+    override fun onResume() {
+        super.onResume()
+        ensureLocBrowse()
+    }
+    override fun onRequestPermissionsResult(code: Int, perms: Array<String>, results: IntArray) {
+        super.onRequestPermissionsResult(code, perms, results)
+        if (code == 9001 && results.firstOrNull() == PackageManager.PERMISSION_GRANTED) startBrowse()
+    }
+    override fun onPause() {
+        stopDiscovery()
+        super.onPause()
+    }
     override fun onDestroy() {
+        stopDiscovery()
         stopServer()
         super.onDestroy()
     }

@@ -82,7 +82,7 @@ import com.opentools.box.tools.WhiteScreenActivity
 import com.opentools.box.tools.WifiScanActivity
 import com.opentools.box.tools.WifiSpeedActivity
 
-/** Full clean-room tool catalogue (81 entries). */
+/** Full clean-room tool catalogue (78 entries). */
 object ToolRegistry {
     val tools = listOf(
         ToolEntry("torch", "Torch", ToolCategory.BASIC, TorchActivity::class.java),
@@ -101,9 +101,6 @@ object ToolRegistry {
         ToolEntry("counter", "Counter", ToolCategory.BASIC, CounterActivity::class.java),
         ToolEntry("checklist", "Checklist", ToolCategory.BASIC, ChecklistActivity::class.java),
         ToolEntry("paint", "Paint Notes", ToolCategory.EDITORS, PaintActivity::class.java),
-        ToolEntry("settings", "Settings", ToolCategory.BASIC, SettingsActivity::class.java),
-        ToolEntry("about", "About", ToolCategory.BASIC, AboutActivity::class.java),
-        ToolEntry("help", "Help", ToolCategory.BASIC, HelpActivity::class.java),
         ToolEntry("bmi", "BMI", ToolCategory.HEALTH, BmiActivity::class.java),
         ToolEntry("emi", "EMI Loan", ToolCategory.BASIC, EmiActivity::class.java),
         ToolEntry("dayscount", "Days Counter", ToolCategory.BASIC, DaysCountActivity::class.java),
@@ -134,7 +131,7 @@ object ToolRegistry {
         ToolEntry("vidply", "Video Player", ToolCategory.AUDIO, VideoPlayerActivity::class.java),
         ToolEntry("gallery", "Gallery", ToolCategory.CAMERA, GalleryActivity::class.java),
         ToolEntry("pdfviewer", "PDF Viewer", ToolCategory.EDITORS, PdfViewerActivity::class.java),
-        ToolEntry("wifispeed", "WiFi Speed", ToolCategory.WIFI, WifiSpeedActivity::class.java),
+        ToolEntry("wifispeed", "Internet Speed", ToolCategory.WIFI, WifiSpeedActivity::class.java),
         ToolEntry("wifiscan", "WiFi Scanner", ToolCategory.WIFI, WifiScanActivity::class.java),
         ToolEntry("wifiscanip", "LAN Scanner", ToolCategory.WIFI, LanScanActivity::class.java),
         ToolEntry("devinfo", "Device Info", ToolCategory.BASIC, DevInfoActivity::class.java),

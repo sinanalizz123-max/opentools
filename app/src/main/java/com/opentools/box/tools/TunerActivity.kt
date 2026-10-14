@@ -7,12 +7,13 @@ import android.media.AudioRecord
 import android.media.MediaRecorder
 import android.os.Bundle
 import android.widget.LinearLayout
+import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
-import com.google.android.material.progressindicator.LinearProgressIndicator
-import kotlin.math.abs
+import com.opentools.box.ToolScaffold
+import com.opentools.box.UiStyle
 import kotlin.math.log2
 import kotlin.math.roundToInt
 
@@ -60,30 +61,54 @@ class TunerActivity : AppCompatActivity() {
 
     private lateinit var noteView: TextView
     private lateinit var freqView: TextView
-    private lateinit var needle: LinearProgressIndicator
+    private lateinit var needle: ProgressBar
     private var recorder: AudioRecord? = null
     private var listening = false
     private var worker: Thread? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        noteView = TextView(this).apply { textSize = 64f; text = "--" }
-        freqView = TextView(this).apply { textSize = 24f; text = "" }
-        needle = LinearProgressIndicator(this).apply {
-            max = 100
-            setProgressCompat(50, false)
+        noteView = TextView(this).apply {
+            text = "--"
+            gravity = android.view.Gravity.CENTER
+            UiStyle.styleText(this, 64f, true)
         }
-        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Tuner",LinearLayout(this).apply {
+        freqView = TextView(this).apply {
+            text = "Play a note near your microphone."
+            gravity = android.view.Gravity.CENTER
+            UiStyle.styleText(this, 17f, false, UiStyle.muted(context))
+            setPadding(0, UiStyle.dp(context, 8f), 0, UiStyle.dp(context, 20f))
+        }
+        needle = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
+            max = 100
+            progress = 50
+            progressTintList = android.content.res.ColorStateList.valueOf(UiStyle.accent(context))
+            progressBackgroundTintList = android.content.res.ColorStateList.valueOf(UiStyle.border(context))
+            contentDescription = "Pitch accuracy, centered means in tune"
+        }
+        val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = android.view.Gravity.CENTER
-            val pad = (24 * resources.displayMetrics.density).toInt()
+            val pad = UiStyle.dp(context, 24f)
             setPadding(pad, pad, pad, pad)
-            addView(noteView)
-            addView(freqView)
-            addView(needle, LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT))
-        }))
+            addView(TextView(context).apply {
+                text = "Instrument tuner"
+                gravity = android.view.Gravity.CENTER
+                UiStyle.styleText(this, 24f, true)
+                setPadding(0, 0, 0, UiStyle.dp(context, 18f))
+            })
+            addView(noteView, LinearLayout.LayoutParams(-1, -2))
+            addView(freqView, LinearLayout.LayoutParams(-1, -2))
+            addView(needle, LinearLayout.LayoutParams(-1, UiStyle.dp(context, 8f)))
+            addView(TextView(context).apply {
+                text = "The center of the bar indicates the nearest note is in tune."
+                gravity = android.view.Gravity.CENTER
+                UiStyle.styleText(this, 13f, false, UiStyle.muted(context))
+                setPadding(0, UiStyle.dp(context, 12f), 0, 0)
+            })
+        }
+        var smoothBuf_note = 0f
+        setContentView(ToolScaffold.wrap(this, "Tuner", content))
     }
 
     override fun onResume() {
@@ -102,6 +127,11 @@ class TunerActivity : AppCompatActivity() {
     }
 
     private fun startListening() {
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.RECORD_AUDIO), 1)
+            return
+        }
+        if (listening) return
         val minBuf = AudioRecord.getMinBufferSize(SAMPLE_RATE,
             AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
         val size = maxOf(minBuf, SAMPLE_RATE / 5)
@@ -110,10 +140,17 @@ class TunerActivity : AppCompatActivity() {
                 AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, size)
         } catch (_: Exception) { null }
         if (recorder?.state != AudioRecord.STATE_INITIALIZED) {
+            recorder?.release()
+            recorder = null
             Toast.makeText(this, "Microphone unavailable", Toast.LENGTH_SHORT).show()
             return
         }
-        recorder?.startRecording()
+        try { recorder?.startRecording() } catch (_: SecurityException) {
+            recorder?.release()
+            recorder = null
+            Toast.makeText(this, "Microphone permission required", Toast.LENGTH_SHORT).show()
+            return
+        }
         listening = true
         worker = Thread {
             val buf = ShortArray(size)
@@ -129,9 +166,9 @@ class TunerActivity : AppCompatActivity() {
 
     private fun stopListening() {
         listening = false
-        try { worker?.join(300) } catch (_: Exception) { }
-        worker = null
         try { recorder?.stop() } catch (_: Exception) { }
+        try { worker?.join(500) } catch (_: Exception) { }
+        worker = null
         recorder?.release()
         recorder = null
     }
@@ -140,7 +177,7 @@ class TunerActivity : AppCompatActivity() {
         if (freq == null) {
             noteView.text = "--"
             freqView.text = ""
-            needle.setProgressCompat(50, true)
+            needle.progress = 50
             return
         }
         val midi = (12 * log2(freq / 440.0) + 69).roundToInt()
@@ -148,11 +185,12 @@ class TunerActivity : AppCompatActivity() {
         val cents = (1200 * log2(freq / nearest)).coerceIn(-50.0, 50.0)
         noteView.text = noteNames[(midi % 12 + 12) % 12]
         freqView.text = "%.1f Hz  %+.0f¢".format(freq, cents)
-        needle.setProgressCompat((50 + cents).roundToInt().coerceIn(0, 100), true)
+        needle.progress = (50 + cents).roundToInt().coerceIn(0, 100)
     }
 
     override fun onRequestPermissionsResult(code: Int, perms: Array<String>, results: IntArray) {
         super.onRequestPermissionsResult(code, perms, results)
+        if (code != 1) return
         if (results.firstOrNull() == PackageManager.PERMISSION_GRANTED) startListening()
         else finish()
     }

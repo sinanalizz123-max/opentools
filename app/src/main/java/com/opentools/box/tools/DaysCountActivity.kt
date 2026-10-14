@@ -5,46 +5,93 @@ import android.os.Bundle
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
-import com.google.android.material.button.MaterialButton
+import com.opentools.box.ToolScaffold
+import com.opentools.box.UiStyle
+import java.text.DateFormat
 import java.util.Calendar
+import java.util.Date
 import java.util.concurrent.TimeUnit
 
-/** Days-between-dates counter. Original implementation. */
+/** Days-between-dates counter with readable date selections and result summary. */
 class DaysCountActivity : AppCompatActivity() {
-
     private var from: Long? = null
     private var to: Long? = null
+    private lateinit var fromLabel: TextView
+    private lateinit var toLabel: TextView
     private lateinit var result: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        result = TextView(this).apply { textSize = 24f }
-        val pickFrom = MaterialButton(this).apply { text = "Pick start date" }
-        val pickTo = MaterialButton(this).apply { text = "Pick end date" }
-        pickFrom.setOnClickListener { pickDate { from = it; render() } }
-        pickTo.setOnClickListener { pickDate { to = it; render() } }
-        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Days Counter",LinearLayout(this).apply {
+        from = savedInstanceState?.getLong("from")?.takeIf { it > 0L }
+        to = savedInstanceState?.getLong("to")?.takeIf { it > 0L }
+        fromLabel = TextView(this).apply { UiStyle.styleText(this, 14f, true) }
+        toLabel = TextView(this).apply { UiStyle.styleText(this, 14f, true) }
+        result = TextView(this).apply {
+            UiStyle.styleText(this, 24f, true)
+            setPadding(UiStyle.dp(context, 18f), UiStyle.dp(context, 18f), UiStyle.dp(context, 18f), UiStyle.dp(context, 18f))
+            background = UiStyle.rounded(context, UiStyle.surface(context), 16f, UiStyle.border(context))
+        }
+        val pickFrom = NativeButton(this, false).apply { text = "Choose start date" }
+        val pickTo = NativeButton(this, false).apply { text = "Choose end date" }
+        pickFrom.setOnClickListener { pickDate(from) { from = it; render() } }
+        pickTo.setOnClickListener { pickDate(to) { to = it; render() } }
+        render()
+
+        val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            val pad = (16 * resources.displayMetrics.density).toInt()
+            val pad = UiStyle.dp(context, 20f)
             setPadding(pad, pad, pad, pad)
-            addView(pickFrom); addView(pickTo); addView(result)
-        }))
+            addView(TextView(context).apply { text = "Date difference"; UiStyle.styleText(this, 24f, true) })
+            addView(TextView(context).apply {
+                text = "Select two dates to count the days between them."
+                UiStyle.styleText(this, 14f, false, UiStyle.muted(context))
+                setPadding(0, UiStyle.dp(context, 4f), 0, UiStyle.dp(context, 20f))
+            })
+            addView(pickFrom, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = UiStyle.dp(context, 8f) })
+            addView(fromLabel, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = UiStyle.dp(context, 14f) })
+            addView(pickTo, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = UiStyle.dp(context, 8f) })
+            addView(toLabel, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = UiStyle.dp(context, 20f) })
+            addView(LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL
+                listOf("Days", "Hours", "Minutes").forEachIndexed { i, m -> addView(NativeButton(context, false).apply { text = m; setOnClickListener { mode = i; render() } }, LinearLayout.LayoutParams(0, -2, 1f)) }
+            }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = UiStyle.dp(context, 10f); bottomMargin = UiStyle.dp(context, 10f) })
+            addView(result, LinearLayout.LayoutParams(-1, -2))
+        }
+        setContentView(ToolScaffold.wrap(this, "Days Counter", content))
     }
 
-    private fun pickDate(onPick: (Long) -> Unit) {
-        val c = Calendar.getInstance()
-        DatePickerDialog(this, { _, y, m, d ->
-            val cal = Calendar.getInstance().apply { set(y, m, d, 0, 0, 0); set(Calendar.MILLISECOND, 0) }
-            onPick(cal.timeInMillis)
+    private fun pickDate(initial: Long?, onPick: (Long) -> Unit) {
+        val c = Calendar.getInstance().apply { if (initial != null) timeInMillis = initial }
+        DatePickerDialog(this, { _, year, month, day ->
+            val selected = Calendar.getInstance().apply {
+                set(year, month, day, 0, 0, 0)
+                set(Calendar.MILLISECOND, 0)
+            }
+            onPick(selected.timeInMillis)
         }, c.get(Calendar.YEAR), c.get(Calendar.MONTH), c.get(Calendar.DAY_OF_MONTH)).show()
     }
 
+    private var mode = 0
     private fun render() {
+        fromLabel.text = from?.let { "Start: " + DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(it)) }
+            ?: "No start date selected"
+        toLabel.text = to?.let { "End: " + DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(it)) }
+            ?: "No end date selected"
         val f = from
         val t = to
         result.text = if (f != null && t != null) {
-            val days = TimeUnit.MILLISECONDS.toDays(kotlin.math.abs(t - f))
-            "$days day(s)"
-        } else "Pick both dates"
+            val diff = kotlin.math.abs(t - f)
+            val now = System.currentTimeMillis()
+            val target = maxOf(f, t)
+            val until = target - now
+            val count = when (mode) { 1 -> TimeUnit.MILLISECONDS.toHours(diff).toString() + " hours"; 2 -> TimeUnit.MILLISECONDS.toMinutes(diff).toString() + " minutes"; else -> TimeUnit.MILLISECONDS.toDays(diff).toString() + " days" }
+            val cd = if (until > 0) "\nCountdown: " + when (mode) { 1 -> TimeUnit.MILLISECONDS.toHours(until).toString() + "h"; 2 -> TimeUnit.MILLISECONDS.toMinutes(until).toString() + " min"; else -> TimeUnit.MILLISECONDS.toDays(until).toString() + " days left" } else "\nReached"
+            count + cd
+        } else "Choose both dates"
+    }
+
+    override fun onSaveInstanceState(out: Bundle) {
+        super.onSaveInstanceState(out)
+        from?.let { out.putLong("from", it) }
+        to?.let { out.putLong("to", it) }
     }
 }

@@ -54,7 +54,7 @@ class DocViewerActivity : AppCompatActivity() {
             UiStyle.styleText(this, 15f, false)
             setPadding(UiStyle.dp(context, 16f), UiStyle.dp(context, 16f),
                 UiStyle.dp(context, 16f), UiStyle.dp(context, 16f))
-            textIsSelectable = true
+            setTextIsSelectable(true)
         }
         status = TextView(this).apply {
             text = "Text preview"

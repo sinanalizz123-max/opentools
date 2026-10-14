@@ -8,36 +8,57 @@ import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.os.Bundle
+import android.view.Gravity
 import android.view.View
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import com.opentools.box.ToolScaffold
+import com.opentools.box.UiStyle
 import kotlin.math.abs
+import kotlin.math.min
 
-/** Protractor: pitch/roll angle readout with dial. Original implementation. */
+/** Pitch and roll protractor with a responsive native dial. */
 class ProtractorActivity : AppCompatActivity(), SensorEventListener {
-
     private lateinit var sensorManager: SensorManager
     private lateinit var dial: Dial
     private lateinit var label: TextView
+    private lateinit var status: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
         dial = Dial(this)
-        label = TextView(this).apply { textSize = 32f }
-        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Protractor",LinearLayout(this).apply {
+        label = TextView(this).apply {
+            text = "Pitch —°   Roll —°"
+            gravity = Gravity.CENTER
+            UiStyle.styleText(this, 22f, true)
+            setPadding(UiStyle.dp(context, 12f), UiStyle.dp(context, 14f),
+                UiStyle.dp(context, 12f), UiStyle.dp(context, 14f))
+        }
+        status = TextView(this).apply {
+            text = "Rotate the phone to measure its angle."
+            gravity = Gravity.CENTER
+            UiStyle.styleText(this, 13f, false, UiStyle.muted(context))
+            setPadding(0, UiStyle.dp(context, 8f), 0, UiStyle.dp(context, 8f))
+        }
+        val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            addView(dial, LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
-            addView(label)
-        }))
+            addView(dial, LinearLayout.LayoutParams(-1, 0, 1f))
+            addView(label, LinearLayout.LayoutParams(-1, -2))
+            addView(status, LinearLayout.LayoutParams(-1, -2))
+        }
+        setContentView(ToolScaffold.wrap(this, "Protractor", content))
     }
 
     override fun onResume() {
         super.onResume()
         sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)?.let {
             sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_UI)
+            status.text = "Keep the phone steady for a stable reading."
+        } ?: run {
+            dial.sensorAvailable = false
+            status.text = "This device has no rotation-vector sensor."
         }
     }
 
@@ -46,46 +67,69 @@ class ProtractorActivity : AppCompatActivity(), SensorEventListener {
         super.onPause()
     }
 
-    override fun onSensorChanged(e: SensorEvent) {
-        val rot = FloatArray(9)
-        SensorManager.getRotationMatrixFromVector(rot, e.values)
-        val o = FloatArray(3)
-        SensorManager.getOrientation(rot, o)
-        val pitch = Math.toDegrees(o[1].toDouble())
-        val roll = Math.toDegrees(o[2].toDouble())
+    override fun onSensorChanged(event: SensorEvent) {
+        val rotation = FloatArray(9)
+        SensorManager.getRotationMatrixFromVector(rotation, event.values)
+        val orientation = FloatArray(3)
+        SensorManager.getOrientation(rotation, orientation)
+        val pitch = Math.toDegrees(orientation[1].toDouble())
+        val roll = Math.toDegrees(orientation[2].toDouble())
         dial.angle = roll.toFloat()
         label.text = "Pitch %.1f°   Roll %.1f°".format(pitch, roll)
     }
 
-    override fun onAccuracyChanged(s: Sensor?, a: Int) = Unit
+    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
 
     class Dial(context: Context) : View(context) {
         var angle = 0f
-            set(v) { field = v; invalidate() }
-        private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            textSize = 36f; strokeWidth = 3f; style = Paint.Style.STROKE
+            set(value) { field = value; invalidate() }
+        var sensorAvailable = true
+            set(value) { field = value; invalidate() }
+        private val ring = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = UiStyle.border(context)
+            style = Paint.Style.STROKE
+            strokeWidth = UiStyle.dp(context, 2f).toFloat()
         }
-        override fun onDraw(c: Canvas) {
-            super.onDraw(c)
+        private val tick = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = UiStyle.muted(context)
+            strokeWidth = UiStyle.dp(context, 1.5f).toFloat()
+        }
+        private val needle = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = UiStyle.accent(context)
+            strokeWidth = UiStyle.dp(context, 3f).toFloat()
+        }
+        private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = UiStyle.text(context)
+            textSize = UiStyle.dp(context, 16f).toFloat()
+            textAlign = Paint.Align.CENTER
+        }
+
+        override fun onDraw(canvas: Canvas) {
+            super.onDraw(canvas)
             val cx = width / 2f
             val cy = height / 2f
-            val r = minOf(width, height) / 2f - 30f
-            c.drawCircle(cx, cy, r, paint)
-            for (deg in 0 until 360 step 15) {
-                val rad = Math.toRadians(deg.toDouble())
-                c.drawLine(
-                    (cx + r * 0.85 * Math.cos(rad)).toFloat(),
-                    (cy + r * 0.85 * Math.sin(rad)).toFloat(),
-                    (cx + r * Math.cos(rad)).toFloat(),
-                    (cy + r * Math.sin(rad)).toFloat(), paint)
+            val radius = min(width, height) * 0.38f
+            canvas.drawCircle(cx, cy, radius, ring)
+            if (!sensorAvailable) {
+                canvas.drawText("Sensor unavailable", cx, cy + text.textSize, text)
+                return
             }
-            val a = Math.toRadians(angle.toDouble())
-            paint.style = Paint.Style.FILL
-            c.drawLine(cx, cy,
-                (cx + r * 0.9 * Math.sin(a)).toFloat(),
-                (cy - r * 0.9 * Math.cos(a)).toFloat(), paint)
-            paint.style = Paint.Style.STROKE
-            c.drawText("%.1f°".format(abs(angle)), cx - 60f, cy + r + 50f, paint)
+            for (degree in 0 until 360 step 15) {
+                val angleRad = Math.toRadians(degree.toDouble())
+                val inner = radius * if (degree % 45 == 0) 0.82f else 0.9f
+                canvas.drawLine(
+                    cx + (inner * kotlin.math.cos(angleRad)).toFloat(),
+                    cy + (inner * kotlin.math.sin(angleRad)).toFloat(),
+                    cx + (radius * kotlin.math.cos(angleRad)).toFloat(),
+                    cy + (radius * kotlin.math.sin(angleRad)).toFloat(), tick
+                )
+            }
+            canvas.save()
+            canvas.rotate(angle, cx, cy)
+            canvas.drawLine(cx - radius * 0.75f, cy, cx + radius * 0.75f, cy, needle)
+            canvas.drawCircle(cx, cy, UiStyle.dp(context, 5f).toFloat(), needle)
+            canvas.restore()
+            canvas.drawText("%.1f°".format(abs(angle)), cx, cy + radius + UiStyle.dp(context, 28f), text)
         }
     }
 }

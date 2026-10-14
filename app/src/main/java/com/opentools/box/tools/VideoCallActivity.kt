@@ -136,7 +136,11 @@ class VideoCallActivity : AppCompatActivity() {
     private fun beginCall(ip: String, peerToken: String) {
         callActive = true
         status.text = "In call with " + ip
-        mjpegClient = CctvLan.MjpegClient(remoteView) { message -> status.text = message }.also {
+        mjpegClient = CctvLan.MjpegClient(
+            remoteView,
+            { message -> status.text = message },
+            { status.text = "In call with " + ip }
+        ).also {
             it.start("http://" + ip + ":" + CctvLan.PORT + "/", peerToken)
         }
         startAudio(ip, peerToken)

@@ -28,7 +28,11 @@ class CctvViewerActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
             status.text = "Connecting to camera…"
-            client = CctvLan.MjpegClient(view) { message -> status.text = message }.also {
+            client = CctvLan.MjpegClient(
+                view,
+                { message -> status.text = message },
+                { status.text = "Connected to camera" }
+            ).also {
                 it.start("http://" + address + ":" + CctvLan.PORT + "/", secret)
             }
         }

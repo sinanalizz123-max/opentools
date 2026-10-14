@@ -111,6 +111,7 @@ object CctvLan {
     class MjpegClient(
         private val view: ImageView,
         private val onError: (String) -> Unit,
+        private val onConnected: (() -> Unit)? = null,
     ) {
         @Volatile var running = false
         @Volatile private var connection: Socket? = null
@@ -139,6 +140,7 @@ object CctvLan {
                     if (!responseHeaders.startsWith("HTTP/1.0 200") && !responseHeaders.startsWith("HTTP/1.1 200")) {
                         throw IOException("Camera rejected the access token or is unavailable")
                     }
+                    view.post { if (running) onConnected?.invoke() }
                     var buffer = ByteArray(8192)
                     var used = 0
                     val chunk = ByteArray(8192)
@@ -177,6 +179,7 @@ object CctvLan {
                             used = remaining
                         }
                     }
+                    if (running) view.post { onError("Camera stream ended") }
                 } catch (e: Exception) {
                     if (running) view.post { onError(e.message ?: "Connection failed") }
                 } finally {

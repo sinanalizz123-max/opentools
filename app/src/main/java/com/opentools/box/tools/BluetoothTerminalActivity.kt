@@ -57,7 +57,7 @@ class BluetoothTerminalActivity : AppCompatActivity() {
             UiStyle.styleInput(this)
             setSingleLine(true)
         }
-        val send = MaterialButton(this).apply { text = "Send" }
+        val send = NativeButton(this).apply { text = "Send" }
         connect.setOnClickListener { connectTo(address.text.toString().trim()) }
         send.setOnClickListener {
             try {

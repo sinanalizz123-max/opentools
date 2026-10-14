@@ -17,6 +17,10 @@ import java.io.StringWriter
  */
 class MainActivity : AppCompatActivity() {
 
+    // Suspect #1: field-initialized activity-result launcher (as in real home).
+    private val voiceLauncher = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()) { }
+
     private lateinit var log: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -28,6 +32,7 @@ class MainActivity : AppCompatActivity() {
         val run = Button(this).apply { text = "Run diagnostics" }
         val copy = Button(this).apply { text = "Copy results" }
         val torch = Button(this).apply { text = "Open Torch (tool screen test)" }
+        val home = Button(this).apply { text = "Open real home (HomeActivity)" }
         run.setOnClickListener { runDiagnostics() }
         copy.setOnClickListener {
             val cm = getSystemService(CLIPBOARD_SERVICE) as android.content.ClipboardManager
@@ -36,6 +41,11 @@ class MainActivity : AppCompatActivity() {
         torch.setOnClickListener {
             test("open.TorchActivity") {
                 startActivity(Intent(this, com.opentools.box.tools.TorchActivity::class.java))
+            }
+        }
+        home.setOnClickListener {
+            test("open.HomeActivity") {
+                startActivity(Intent(this, HomeActivity::class.java))
             }
         }
         setContentView(ScrollView(this).apply {
@@ -50,6 +60,7 @@ class MainActivity : AppCompatActivity() {
                 addView(run)
                 addView(copy)
                 addView(torch)
+                addView(home)
                 addView(log)
             })
         })

@@ -28,14 +28,10 @@ class BmiActivity : AppCompatActivity() {
         val result = TextView(this).apply {
             text = "Enter your measurements to calculate BMI."
             UiStyle.styleText(this, 18f, true)
-            setPadding(UiStyle.dp(context, 18f), UiStyle.dp(context, 18f),
-                UiStyle.dp(context, 18f), UiStyle.dp(context, 18f))
+            setPadding(UiStyle.dp(context, 18f), UiStyle.dp(context, 18f), UiStyle.dp(context, 18f), UiStyle.dp(context, 18f))
             background = UiStyle.rounded(context, UiStyle.surface(context), 16f, UiStyle.border(context))
         }
-        val calc = Button(this).apply {
-            text = "Calculate BMI"
-            UiStyle.styleButton(this)
-        }
+        val calc = Button(this).apply { text = "Calculate BMI"; UiStyle.styleButton(this) }
         calc.setOnClickListener {
             val w = weight.text.toString().trim().toDoubleOrNull()
             val h = height.text.toString().trim().toDoubleOrNull()?.div(100.0)
@@ -57,24 +53,15 @@ class BmiActivity : AppCompatActivity() {
             orientation = LinearLayout.VERTICAL
             val pad = UiStyle.dp(context, 20f)
             setPadding(pad, pad, pad, pad)
-            addView(TextView(context).apply {
-                text = "Body mass index"
-                UiStyle.styleText(this, 24f, true)
-            })
+            addView(TextView(context).apply { text = "Body mass index"; UiStyle.styleText(this, 24f, true) })
             addView(TextView(context).apply {
                 text = "A simple estimate based on your weight and height."
                 UiStyle.styleText(this, 14f, false, UiStyle.muted(context))
                 setPadding(0, UiStyle.dp(context, 4f), 0, UiStyle.dp(context, 20f))
             })
-            addView(weight, LinearLayout.LayoutParams(-1, -2).apply {
-                bottomMargin = UiStyle.dp(context, 12f)
-            })
-            addView(height, LinearLayout.LayoutParams(-1, -2).apply {
-                bottomMargin = UiStyle.dp(context, 16f)
-            })
-            addView(calc, LinearLayout.LayoutParams(-1, -2).apply {
-                bottomMargin = UiStyle.dp(context, 18f)
-            })
+            addView(weight, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = UiStyle.dp(context, 12f) })
+            addView(height, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = UiStyle.dp(context, 16f) })
+            addView(calc, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = UiStyle.dp(context, 18f) })
             addView(result, LinearLayout.LayoutParams(-1, -2))
         }
         setContentView(ToolScaffold.wrap(this, "BMI Calculator", content))

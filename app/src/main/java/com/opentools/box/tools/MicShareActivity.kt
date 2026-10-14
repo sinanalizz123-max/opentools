@@ -13,7 +13,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
-import com.google.android.material.button.MaterialButton
+import com.opentools.box.UiStyle
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
@@ -31,26 +31,54 @@ class MicShareActivity : AppCompatActivity() {
     @Volatile private var recorder: AudioRecord? = null
     @Volatile private var player: AudioTrack? = null
     private lateinit var status: TextView
-    private lateinit var streamButton: MaterialButton
-    private lateinit var listenButton: MaterialButton
+    private lateinit var streamButton: NativeButton
+    private lateinit var listenButton: NativeButton
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val peer = EditText(this).apply { hint = "Peer IP to stream to" }
-        status = TextView(this).apply { textSize = 16f; text = "Idle" }
-        streamButton = MaterialButton(this).apply { text = "Start streaming mic" }
-        listenButton = MaterialButton(this).apply { text = "Listen on :9997" }
+        val peer = EditText(this).apply {
+            hint = "Peer IP address"
+            UiStyle.styleInput(this)
+            setSingleLine(true)
+        }
+        status = TextView(this).apply {
+            text = "Idle · choose whether to stream your microphone or listen for a peer."
+            UiStyle.styleText(this, 14f, false, UiStyle.muted(context))
+            setPadding(UiStyle.dp(context, 14f), UiStyle.dp(context, 12f),
+                UiStyle.dp(context, 14f), UiStyle.dp(context, 12f))
+            background = UiStyle.rounded(context, UiStyle.surface(context), 14f, UiStyle.border(context))
+        }
+        streamButton = NativeButton(this).apply { text = "Start microphone stream" }
+        listenButton = NativeButton(this, false).apply { text = "Listen on port 9997" }
         streamButton.setOnClickListener {
             if (streaming) stopStream() else startStream(peer.text.toString().trim())
         }
         listenButton.setOnClickListener {
             if (listening) stopListen() else startListen()
         }
-        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Mic Share",LinearLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Mic Share", LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            val pad = (16 * resources.displayMetrics.density).toInt()
+            val pad = UiStyle.dp(context, 20f)
             setPadding(pad, pad, pad, pad)
-            addView(peer); addView(streamButton); addView(listenButton); addView(status)
+            addView(TextView(context).apply {
+                text = "Share audio on your LAN"
+                UiStyle.styleText(this, 24f, true)
+            })
+            addView(TextView(context).apply {
+                text = "Use the same Wi-Fi network and enter the receiving device's IP address."
+                UiStyle.styleText(this, 14f, false, UiStyle.muted(context))
+                setPadding(0, UiStyle.dp(context, 4f), 0, UiStyle.dp(context, 18f))
+            })
+            addView(peer, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = UiStyle.dp(context, 10f)
+            })
+            addView(streamButton, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = UiStyle.dp(context, 8f)
+            })
+            addView(listenButton, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = UiStyle.dp(context, 12f)
+            })
+            addView(status)
         }))
     }
 
@@ -70,7 +98,7 @@ class MicShareActivity : AppCompatActivity() {
         }
         if (streaming) return
         streaming = true
-        streamButton.text = "Stop streaming"
+        streamButton.text = "Stop microphone stream"
         status.text = "Connecting to $ip…"
         Thread {
             var localRecorder: AudioRecord? = null
@@ -103,7 +131,7 @@ class MicShareActivity : AppCompatActivity() {
                 try { localRecorder?.release() } catch (_: Exception) { }
                 if (streamSocket === sender) streamSocket = null
                 if (recorder === localRecorder) recorder = null
-                runOnUiThread { streamButton.text = "Start streaming mic" }
+                runOnUiThread { streamButton.text = "Start microphone stream" }
             }
         }.start()
     }
@@ -151,7 +179,7 @@ class MicShareActivity : AppCompatActivity() {
                 try { localPlayer?.release() } catch (_: Exception) { }
                 if (listenSocket === receiver) listenSocket = null
                 if (player === localPlayer) player = null
-                runOnUiThread { listenButton.text = "Listen on :9997" }
+                runOnUiThread { listenButton.text = "Listen on port 9997" }
             }
         }.start()
     }

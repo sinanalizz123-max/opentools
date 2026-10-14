@@ -1,0 +1,65 @@
+plugins {
+    id("com.android.application")
+    id("org.jetbrains.kotlin.android")
+}
+
+android {
+    namespace = "com.opentools.box"
+    compileSdk = 36
+
+    defaultConfig {
+        applicationId = "com.opentools.box"
+        minSdk = 26
+        targetSdk = 36
+        versionCode = 1
+        versionName = "0.1.0"
+    }
+
+    def localProps = new java.util.Properties()
+    def localFile = rootProject.file("local.properties")
+    if (localFile.exists()) {
+        localFile.withInputStream { localProps.load(it) }
+    }
+    def releaseStore = localProps.getProperty("key.store") ? file(localProps.getProperty("key.store")) : null
+
+    signingConfigs {
+        if (releaseStore != null && releaseStore.exists()) {
+            create("releaseLocal") {
+                storeFile(releaseStore)
+                storePassword(localProps.getProperty("key.store.password"))
+                keyAlias(localProps.getProperty("key.alias"))
+                keyPassword(localProps.getProperty("key.alias.password"))
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled = true
+            shrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+            if (releaseStore != null && releaseStore.exists()) {
+                signingConfig = signingConfigs.getByName("releaseLocal")
+            }
+        }
+    }
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+}
+
+dependencies {
+    implementation("androidx.core:core-ktx:1.15.0")
+    implementation("androidx.appcompat:appcompat:1.7.0")
+    implementation("com.google.android.material:material:1.12.0")
+    implementation("androidx.recyclerview:recyclerview:1.3.2")
+    implementation("com.google.zxing:core:3.5.3")
+    implementation("com.google.android.gms:play-services-mlkit-text-recognition:19.0.0")
+}

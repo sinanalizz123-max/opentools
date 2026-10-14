@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Permissions are declared per-tool, minimal scope. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.FLASHLIGHT" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+
+    <application
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:theme="@style/Theme.OpenTools">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity android:name=".tools.TorchActivity" android:exported="false" />
+        <activity android:name=".tools.StopwatchActivity" android:exported="false" />
+        <activity android:name=".tools.CalculatorActivity" android:exported="false" />
+        <activity android:name=".tools.CompassActivity" android:exported="false" />
+        <activity android:name=".tools.ConverterActivity" android:exported="false" />
+        <activity android:name=".tools.RulerActivity" android:exported="false" />
+        <activity android:name=".tools.WhiteScreenActivity" android:exported="false" />
+        <activity android:name=".tools.MirrorActivity" android:exported="false" />
+        <activity android:name=".tools.RecorderActivity" android:exported="false" />
+        <activity android:name=".tools.MetronomeActivity" android:exported="false" />
+        <activity android:name=".tools.TunerActivity" android:exported="false" />
+        <activity android:name=".tools.DecibelActivity" android:exported="false" />
+        <activity android:name=".tools.TimerActivity" android:exported="false" />
+        <activity android:name=".tools.CounterActivity" android:exported="false" />
+        <activity android:name=".tools.ChecklistActivity" android:exported="false" />
+        <activity android:name=".tools.PaintActivity" android:exported="false" />
+        <activity android:name=".tools.SettingsActivity" android:exported="false" />
+        <activity android:name=".tools.AboutActivity" android:exported="false" />
+        <activity android:name=".tools.HelpActivity" android:exported="false" />
+        <activity android:name=".tools.BmiActivity" android:exported="false" />
+        <activity android:name=".tools.EmiActivity" android:exported="false" />
+        <activity android:name=".tools.DaysCountActivity" android:exported="false" />
+        <activity android:name=".tools.RandomDigitsActivity" android:exported="false" />
+        <activity android:name=".tools.TtsActivity" android:exported="false" />
+        <activity android:name=".tools.SpeechToTextActivity" android:exported="false" />
+        <activity android:name=".tools.MusicShareActivity" android:exported="false" />
+        <activity android:name=".tools.GpsCompassActivity" android:exported="false" />
+        <activity android:name=".tools.LocationShareActivity" android:exported="false" />
+        <activity android:name=".tools.ScreenLightActivity" android:exported="false" />
+        <activity android:name=".tools.ShutterActivity" android:exported="false" />
+        <activity android:name=".tools.FileBrowserActivity" android:exported="false" />
+        <activity android:name=".tools.MeasureActivity" android:exported="false" />
+        <activity android:name=".tools.ProtractorActivity" android:exported="false" />
+        <activity android:name=".tools.SpeedometerActivity" android:exported="false" />
+        <activity android:name=".tools.SoundGenActivity" android:exported="false" />
+        <activity android:name=".tools.DecideActivity" android:exported="false" />
+        <activity android:name=".tools.NightVisionActivity" android:exported="false" />
+        <activity android:name=".tools.MotionDetectActivity" android:exported="false" />
+        <activity android:name=".tools.BluetoothTerminalActivity" android:exported="false" />
+        <activity android:name=".tools.ContactsActivity" android:exported="false" />
+        <activity android:name=".tools.DocViewerActivity" android:exported="false" />
+        <activity android:name=".tools.CctvServerActivity" android:exported="false" />
+        <activity android:name=".tools.CctvViewerActivity" android:exported="false" />
+        <activity android:name=".tools.VideoCallActivity" android:exported="false" />
+        <activity android:name=".tools.FileShareActivity" android:exported="false" />
+        <activity android:name=".tools.WalkieActivity" android:exported="false" />
+        <activity android:name=".tools.MicShareActivity" android:exported="false" />
+        <activity android:name=".tools.TxtRecogActivity" android:exported="false" />
+        <activity android:name=".tools.TxtRecogLiveActivity" android:exported="false" />
+        <activity android:name=".tools.ScreenRecordActivity" android:exported="false" />
+        <activity android:name=".tools.VaultActivity" android:exported="false" />
+        <activity android:name=".tools.IrRemoteActivity" android:exported="false" />
+        <activity android:name=".tools.WifiSpeedActivity" android:exported="false" />
+        <activity android:name=".tools.WifiScanActivity" android:exported="false" />
+        <activity android:name=".tools.LanScanActivity" android:exported="false" />
+        <activity android:name=".tools.DevInfoActivity" android:exported="false" />
+        <activity android:name=".tools.SignalActivity" android:exported="false" />
+        <activity android:name=".tools.AudioPlayerActivity" android:exported="false" />
+        <activity android:name=".tools.VideoPlayerActivity" android:exported="false" />
+        <activity android:name=".tools.GalleryActivity" android:exported="false" />
+        <activity android:name=".tools.PdfViewerActivity" android:exported="false" />
+        <activity android:name=".tools.GpsActivity" android:exported="false" />
+        <activity android:name=".tools.ClipboardActivity" android:exported="false" />
+        <activity android:name=".tools.ColorDetectActivity" android:exported="false" />
+        <activity android:name=".tools.MagnifierActivity" android:exported="false" />
+        <activity android:name=".tools.HeartRateActivity" android:exported="false" />
+        <activity android:name=".tools.EmfActivity" android:exported="false" />
+        <activity android:name=".tools.GMeterActivity" android:exported="false" />
+        <activity android:name=".tools.PressureActivity" android:exported="false" />
+        <activity android:name=".tools.HumidityActivity" android:exported="false" />
+        <activity android:name=".tools.LightSensorActivity" android:exported="false" />
+        <activity android:name=".tools.ProximityActivity" android:exported="false" />
+        <activity android:name=".tools.LevelActivity" android:exported="false" />
+        <activity android:name=".tools.BatteryTempActivity" android:exported="false" />
+        <activity android:name=".tools.VibrometerActivity" android:exported="false" />
+        <activity android:name=".tools.RpmActivity" android:exported="false" />
+        <activity android:name=".tools.MorseActivity" android:exported="false" />
+        <activity android:name=".tools.QrGenerateActivity" android:exported="false" />
+        <activity android:name=".tools.ScannerActivity" android:exported="false" />
+        <activity android:name=".tools.CalorieActivity" android:exported="false" />
+        <activity android:name=".tools.AltitudeActivity" android:exported="false" />
+    </application>
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+    <uses-permission android:name="android.permission.TRANSMIT_IR" />
+    <uses-permission android:name="android.permission.BLUETOOTH" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
+</manifest>

@@ -127,6 +127,7 @@ class MainActivity : AppCompatActivity() {
             addView(root)
             addView(searchResults)
         }
+        ToolScaffold.applySystemBarInsets(frame)
         setContentView(frame)
         mark("step.contentSet")
         refreshShortcuts()

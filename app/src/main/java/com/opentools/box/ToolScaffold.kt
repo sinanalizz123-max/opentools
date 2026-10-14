@@ -5,6 +5,8 @@ import android.view.View
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import com.google.android.material.appbar.MaterialToolbar
 
 /**
@@ -20,6 +22,7 @@ object ToolScaffold {
         }
         return LinearLayout(activity).apply {
             orientation = LinearLayout.VERTICAL
+            ToolScaffold.applySystemBarInsets(this)
             addView(bar, LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT))
@@ -30,4 +33,13 @@ object ToolScaffold {
 
     fun pad(context: Context): Int =
         (16 * context.resources.displayMetrics.density).toInt()
+
+    /** Keep content below the status bar and above the nav bar. */
+    fun applySystemBarInsets(view: View) {
+        ViewCompat.setOnApplyWindowInsetsListener(view) { v, insets ->
+            val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            v.setPadding(bars.left, bars.top, bars.right, bars.bottom)
+            insets
+        }
+    }
 }

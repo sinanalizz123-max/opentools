@@ -57,7 +57,7 @@ class MorseActivity : AppCompatActivity() {
             setPadding(UiStyle.dp(context, 16f), UiStyle.dp(context, 16f),
                 UiStyle.dp(context, 16f), UiStyle.dp(context, 16f))
             background = UiStyle.rounded(context, UiStyle.surface(context), 16f, UiStyle.border(context))
-            textIsSelectable = true
+            setTextIsSelectable(true)
         }
         status = TextView(this).apply {
             text = if (flashId == null) "Flashlight transmission is unavailable on this device."

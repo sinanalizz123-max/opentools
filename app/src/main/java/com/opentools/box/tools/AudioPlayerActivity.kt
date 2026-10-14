@@ -18,7 +18,7 @@ import androidx.core.content.ContextCompat
 import com.opentools.box.UiStyle
 import java.io.File
 
-/** Audio file player (system picker + on-device folder browser + MediaPlayer). */
+/** Audio file player (on-device folder browser + MediaPlayer). */
 class AudioPlayerActivity : AppCompatActivity() {
 
     private var player: MediaPlayer? = null
@@ -33,6 +33,7 @@ class AudioPlayerActivity : AppCompatActivity() {
     private var folders: Map<String, List<Pair<String, Uri>>> = emptyMap()
     private var openFolder: String? = null
 
+    private lateinit var backBtn: NativeButton
     private val progress = object : Runnable {
         override fun run() {
             player?.let {
@@ -40,10 +41,6 @@ class AudioPlayerActivity : AppCompatActivity() {
                 seek.postDelayed(this, 500)
             }
         }
-    }
-
-    private val picker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
-        uri?.let { open(it) }
     }
 
     private val permLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -95,9 +92,7 @@ class AudioPlayerActivity : AppCompatActivity() {
             override fun onStartTrackingTouch(s: SeekBar?) = Unit
             override fun onStopTrackingTouch(s: SeekBar?) = Unit
         })
-        val pick = NativeButton(this, false).apply { text = "Open audio" }
         toggle = NativeButton(this).apply { text = "Play"; isEnabled = false }
-        pick.setOnClickListener { picker.launch(arrayOf("audio/*")) }
         toggle.setOnClickListener {
             val p = player ?: return@setOnClickListener
             if (playing) { p.pause(); toggle.text = "Play" }
@@ -108,6 +103,14 @@ class AudioPlayerActivity : AppCompatActivity() {
             text = "On-device audio"
             UiStyle.styleText(this, 13f, true, UiStyle.muted(context))
             setPadding(0, 0, 0, UiStyle.dp(this@AudioPlayerActivity, 8f))
+        }
+        backBtn = NativeButton(this, false).apply {
+            text = "← Back to folders"
+            visibility = android.view.View.GONE
+            setOnClickListener {
+                openFolder = null
+                renderBrowser()
+            }
         }
         browserList = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         retryPerm = NativeButton(this, false).apply {
@@ -122,6 +125,9 @@ class AudioPlayerActivity : AppCompatActivity() {
             orientation = LinearLayout.VERTICAL
             val pad = UiStyle.dp(this@AudioPlayerActivity, 20f)
             setPadding(pad, pad, pad, pad)
+            addView(backBtn, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = UiStyle.dp(this@AudioPlayerActivity, 8f)
+            })
             addView(browserStatus, LinearLayout.LayoutParams(-1, -2))
             addView(browserScroll, LinearLayout.LayoutParams(-1, UiStyle.dp(this@AudioPlayerActivity, 180f)).apply {
                 bottomMargin = UiStyle.dp(this@AudioPlayerActivity, 16f)
@@ -139,9 +145,6 @@ class AudioPlayerActivity : AppCompatActivity() {
             })
             addView(seek, LinearLayout.LayoutParams(-1, -2).apply {
                 bottomMargin = UiStyle.dp(this@AudioPlayerActivity, 12f)
-            })
-            addView(pick, LinearLayout.LayoutParams(-1, -2).apply {
-                bottomMargin = UiStyle.dp(this@AudioPlayerActivity, 8f)
             })
             addView(toggle, LinearLayout.LayoutParams(-1, -2))
         }))
@@ -212,6 +215,7 @@ class AudioPlayerActivity : AppCompatActivity() {
         browserList.removeAllViews()
         val current = openFolder
         if (current == null) {
+            backBtn.visibility = android.view.View.GONE
             browserStatus.text = if (folders.isEmpty()) "No on-device audio found."
                 else "On-device audio — choose a folder"
             folders.forEach { (folder, files) ->
@@ -226,6 +230,7 @@ class AudioPlayerActivity : AppCompatActivity() {
                 })
             }
         } else {
+            backBtn.visibility = android.view.View.VISIBLE
             browserStatus.text = current
             browserList.addView(NativeButton(this, false).apply {
                 text = "← All folders"
@@ -239,7 +244,7 @@ class AudioPlayerActivity : AppCompatActivity() {
             folders[current]?.forEach { (name, contentUri) ->
                 browserList.addView(NativeButton(this, false).apply {
                     text = name
-                    setOnClickListener { open(contentUri) }
+                    setOnClickListener { open(contentUri, name) }
                 }, LinearLayout.LayoutParams(-1, -2).apply {
                     bottomMargin = UiStyle.dp(this@AudioPlayerActivity, 6f)
                 })
@@ -247,14 +252,14 @@ class AudioPlayerActivity : AppCompatActivity() {
         }
     }
 
-    private fun open(uri: Uri) {
+    private fun open(uri: Uri, displayName: String? = null) {
         seek.removeCallbacks(progress)
         try { player?.release() } catch (_: Exception) { }
         player = null
         playing = false
         toggle.isEnabled = false
         toggle.text = "Loading…"
-        nameView.text = uri.lastPathSegment ?: "Audio"
+        nameView.text = "Now playing: " + (displayName ?: uri.lastPathSegment ?: "Audio")
         try {
             player = MediaPlayer().apply {
                 setDataSource(this@AudioPlayerActivity, uri)
@@ -262,7 +267,9 @@ class AudioPlayerActivity : AppCompatActivity() {
                     seek.max = prepared.duration.coerceAtLeast(0)
                     seek.progress = 0
                     toggle.isEnabled = true
-                    toggle.text = "Play"
+                    prepared.start()
+                    playing = true
+                    toggle.text = "Pause"
                     seek.post(progress)
                 }
                 setOnCompletionListener {

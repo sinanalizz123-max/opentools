@@ -25,22 +25,12 @@ class GalleryActivity : AppCompatActivity() {
     private lateinit var status: TextView
     private lateinit var browserStatus: TextView
     private lateinit var browserList: LinearLayout
+    private lateinit var caption: TextView
+    private lateinit var backToFolders: NativeButton
     private lateinit var retryPerm: NativeButton
     private var permRequested = false
     private var folders: Map<String, List<Pair<String, Uri>>> = emptyMap()
     private var openFolder: String? = null
-
-    private val picker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
-        if (uri != null) {
-            try {
-                image.setImageURI(uri)
-                status.text = "Image opened"
-            } catch (_: Exception) {
-                image.setImageDrawable(null)
-                status.text = "Couldn't open this image."
-            }
-        }
-    }
 
     private val permLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) { retryPerm.visibility = android.view.View.GONE; loadBrowser() } else {
@@ -71,7 +61,8 @@ class GalleryActivity : AppCompatActivity() {
             this, Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED,
         ) == PackageManager.PERMISSION_GRANTED
     }
-    private fun show(uri: Uri) {
+    private fun show(uri: Uri, name: String = "") {
+        caption.text = name
         try {
             image.setImageURI(uri)
             status.text = "Image opened"
@@ -95,8 +86,16 @@ class GalleryActivity : AppCompatActivity() {
             setPadding(UiStyle.dp(this@GalleryActivity, 12f), UiStyle.dp(this@GalleryActivity, 10f),
                 UiStyle.dp(this@GalleryActivity, 12f), UiStyle.dp(this@GalleryActivity, 10f))
         }
-        val pick = NativeButton(this).apply { text = "Open image" }
-        pick.setOnClickListener { picker.launch(arrayOf("image/*")) }
+        caption = TextView(this).apply {
+            text = ""
+            gravity = Gravity.CENTER
+            UiStyle.styleText(this, 13f, false, UiStyle.muted(context))
+        }
+        backToFolders = NativeButton(this, false).apply {
+            text = "← Back to folders"
+            visibility = android.view.View.GONE
+            setOnClickListener { openFolder = null; renderBrowser() }
+        }
         browserStatus = TextView(this).apply {
             text = "On-device images"
             UiStyle.styleText(this, 13f, true, UiStyle.muted(context))
@@ -115,6 +114,7 @@ class GalleryActivity : AppCompatActivity() {
             val pad = UiStyle.dp(this@GalleryActivity, 16f)
             setPadding(pad, pad, pad, pad)
             addView(browserStatus, LinearLayout.LayoutParams(-1, -2))
+            addView(backToFolders, LinearLayout.LayoutParams(-1, -2))
             addView(retryPerm, LinearLayout.LayoutParams(-1, -2))
             addView(browserScroll, LinearLayout.LayoutParams(-1, UiStyle.dp(this@GalleryActivity, 150f)).apply {
                 topMargin = UiStyle.dp(this@GalleryActivity, 6f)
@@ -123,9 +123,9 @@ class GalleryActivity : AppCompatActivity() {
             addView(status, LinearLayout.LayoutParams(-1, -2))
             addView(image, LinearLayout.LayoutParams(-1, 0, 1f).apply {
                 topMargin = UiStyle.dp(this@GalleryActivity, 8f)
-                bottomMargin = UiStyle.dp(this@GalleryActivity, 12f)
+                bottomMargin = UiStyle.dp(this@GalleryActivity, 4f)
             })
-            addView(pick, LinearLayout.LayoutParams(-1, -2))
+            addView(caption, LinearLayout.LayoutParams(-1, -2))
         }
         setContentView(ToolScaffold.wrap(this, "Gallery", content))
         ensureBrowser()
@@ -194,6 +194,7 @@ class GalleryActivity : AppCompatActivity() {
         browserList.removeAllViews()
         val current = openFolder
         if (current == null) {
+            backToFolders.visibility = android.view.View.GONE
             browserStatus.text = if (folders.isEmpty()) "No on-device images found."
                 else "On-device images — choose a folder"
             folders.forEach { (folder, files) ->
@@ -205,6 +206,7 @@ class GalleryActivity : AppCompatActivity() {
                 })
             }
         } else {
+            backToFolders.visibility = android.view.View.VISIBLE
             browserStatus.text = current
             browserList.addView(NativeButton(this, false).apply {
                 text = "← All folders"
@@ -215,7 +217,7 @@ class GalleryActivity : AppCompatActivity() {
             folders[current]?.forEach { (name, contentUri) ->
                 browserList.addView(NativeButton(this, false).apply {
                     text = name
-                    setOnClickListener { show(contentUri) }
+                    setOnClickListener { show(contentUri, name) }
                 }, LinearLayout.LayoutParams(-1, -2).apply {
                     bottomMargin = UiStyle.dp(this@GalleryActivity, 6f)
                 })

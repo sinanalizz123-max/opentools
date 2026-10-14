@@ -27,20 +27,12 @@ class VideoPlayerActivity : AppCompatActivity() {
     private lateinit var browserStatus: TextView
     private lateinit var browserList: LinearLayout
     private lateinit var retryPerm: NativeButton
+    private lateinit var backBtn: NativeButton
+    private lateinit var mediaControls: MediaController
     private var permRequested = false
     private var folders: Map<String, List<Pair<String, Uri>>> = emptyMap()
     private var openFolder: String? = null
 
-    private val picker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
-        if (uri != null) {
-            try {
-                status.text = "Loading video…"
-                video.setVideoURI(uri)
-            } catch (_: Exception) {
-                status.text = "Couldn't open this video."
-            }
-        }
-    }
 
     private val permLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) { retryPerm.visibility = android.view.View.GONE; loadBrowser() } else {
@@ -71,9 +63,10 @@ class VideoPlayerActivity : AppCompatActivity() {
             this, Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED,
         ) == PackageManager.PERMISSION_GRANTED
     }
-    private fun play(uri: Uri) {
+    private fun play(uri: Uri, name: String = "Video") {
         try {
-            status.text = "Loading video…"
+            video.stopPlayback()
+            status.text = "Now playing: " + name
             video.setVideoURI(uri)
         } catch (_: Exception) {
             status.text = "Couldn't open this video."
@@ -102,8 +95,12 @@ class VideoPlayerActivity : AppCompatActivity() {
             }
             setBackgroundColor(android.graphics.Color.BLACK)
         }
-        val pick = NativeButton(this).apply { text = "Open video" }
-        pick.setOnClickListener { picker.launch(arrayOf("video/*")) }
+        mediaControls = MediaController(this).also { video.setMediaController(it) }
+        backBtn = NativeButton(this, false).apply {
+            text = "← Back to folders"
+            visibility = android.view.View.GONE
+            setOnClickListener { openFolder = null; renderBrowser() }
+        }
         browserStatus = TextView(this).apply {
             text = "On-device videos"
             UiStyle.styleText(this, 13f, true, UiStyle.muted(context))
@@ -121,6 +118,9 @@ class VideoPlayerActivity : AppCompatActivity() {
             orientation = LinearLayout.VERTICAL
             val pad = UiStyle.dp(this@VideoPlayerActivity, 12f)
             setPadding(pad, pad, pad, pad)
+            addView(backBtn, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = UiStyle.dp(this@VideoPlayerActivity, 6f)
+            })
             addView(browserStatus, LinearLayout.LayoutParams(-1, -2))
             addView(retryPerm, LinearLayout.LayoutParams(-1, -2))
             addView(browserScroll, LinearLayout.LayoutParams(-1, UiStyle.dp(this@VideoPlayerActivity, 150f)).apply {
@@ -132,7 +132,6 @@ class VideoPlayerActivity : AppCompatActivity() {
                 topMargin = UiStyle.dp(this@VideoPlayerActivity, 8f)
                 bottomMargin = UiStyle.dp(this@VideoPlayerActivity, 10f)
             })
-            addView(pick, LinearLayout.LayoutParams(-1, -2))
         }
         setContentView(ToolScaffold.wrap(this, "Video Player", content))
         ensureBrowser()
@@ -200,6 +199,7 @@ class VideoPlayerActivity : AppCompatActivity() {
     private fun renderBrowser() {
         browserList.removeAllViews()
         val current = openFolder
+        backBtn.visibility = if (current == null) android.view.View.GONE else android.view.View.VISIBLE
         if (current == null) {
             browserStatus.text = if (folders.isEmpty()) "No on-device videos found."
                 else "On-device videos — choose a folder"
@@ -222,7 +222,7 @@ class VideoPlayerActivity : AppCompatActivity() {
             folders[current]?.forEach { (name, contentUri) ->
                 browserList.addView(NativeButton(this, false).apply {
                     text = name
-                    setOnClickListener { play(contentUri) }
+                    setOnClickListener { play(contentUri, name) }
                 }, LinearLayout.LayoutParams(-1, -2).apply {
                     bottomMargin = UiStyle.dp(this@VideoPlayerActivity, 6f)
                 })

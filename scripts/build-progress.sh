@@ -4,9 +4,9 @@
 LOG="$1"; shift
 rm -f "$LOG"
 START=$(date +%s)
-# Cap RAM tightly (Gradle/Kotlin daemons are capped in gradle.properties)
-# but allow 3 CPU cores so dex/R8 can use threads without hogging the phone.
-taskset -c 0-2 nice -n 19 ionice -c3 gradle "$@" --console=plain >"$LOG" 2>&1 &
+# Cap RAM tightly (Gradle ~1.1G + Kotlin ~512M = ~1.8G peak) and allow
+# 4 CPU cores so 2 workers can run tasks in parallel.
+taskset -c 0-3 nice -n 19 ionice -c3 gradle "$@" --console=plain >"$LOG" 2>&1 &
 PID=$!
 LAST=""
 COUNT=0

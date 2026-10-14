@@ -7,9 +7,11 @@ import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ListView
 import android.widget.TextView
+import android.view.View
+import android.view.ViewGroup
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
-import com.google.android.material.button.MaterialButton
+import com.opentools.box.UiStyle
 import java.io.DataInputStream
 import java.io.DataOutputStream
 import java.io.EOFException
@@ -50,14 +52,42 @@ class FileShareActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        status = TextView(this).apply { textSize = 15f; text = "Server off" }
-        val list = ListView(this)
-        adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, log)
+        status = TextView(this).apply {
+            text = "Server is off. Add files before starting a transfer."
+            UiStyle.styleText(this, 14f, false, UiStyle.muted(context))
+            setPadding(UiStyle.dp(context, 14f), UiStyle.dp(context, 12f),
+                UiStyle.dp(context, 14f), UiStyle.dp(context, 12f))
+            background = UiStyle.rounded(context, UiStyle.surface(context), 14f, UiStyle.border(context))
+        }
+        val list = ListView(this).apply {
+            divider = android.graphics.drawable.ColorDrawable(UiStyle.border(context))
+            dividerHeight = UiStyle.dp(context, 1f)
+            setBackgroundColor(UiStyle.background(context))
+        }
+        adapter = object : ArrayAdapter<String>(this, android.R.layout.simple_list_item_1, log) {
+            override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
+                val row = (convertView as? TextView) ?: TextView(this@FileShareActivity)
+                row.text = getItem(position)
+                UiStyle.styleText(row, 14f, false)
+                row.setPadding(UiStyle.dp(context, 12f), UiStyle.dp(context, 12f),
+                    UiStyle.dp(context, 12f), UiStyle.dp(context, 12f))
+                return row
+            }
+        }
         list.adapter = adapter
-        val share = MaterialButton(this).apply { text = "Add file to share" }
+        val share = NativeButton(this).apply { text = "Add file to share" }
         val toggle = MaterialButton(this).apply { text = "Start server :9999" }
-        val peer = EditText(this).apply { hint = "Peer IP, e.g. 192.168.1.5" }
-        val token = EditText(this).apply { hint = "Peer access token" }
+        val peer = EditText(this).apply {
+            hint = "Peer IP address"
+            UiStyle.styleInput(this)
+            setSingleLine(true)
+        }
+        val token = EditText(this).apply {
+            hint = "Peer access token"
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+            UiStyle.styleInput(this)
+            setSingleLine(true)
+        }
         val fetch = MaterialButton(this).apply { text = "Fetch files" }
         share.setOnClickListener { picker.launch(arrayOf("*/*")) }
         toggle.setOnClickListener {
@@ -67,14 +97,31 @@ class FileShareActivity : AppCompatActivity() {
         fetch.setOnClickListener { fetchFrom(peer.text.toString().trim(), token.text.toString().trim()) }
         setContentView(com.opentools.box.ToolScaffold.wrap(this, "LAN File Share", LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            val pad = (16 * resources.displayMetrics.density).toInt()
+            val pad = UiStyle.dp(context, 16f)
             setPadding(pad, pad, pad, pad)
-            addView(status)
-            addView(share)
-            addView(toggle)
-            addView(peer)
-            addView(token)
-            addView(fetch)
+            addView(TextView(context).apply {
+                text = "Transfer files over Wi-Fi"
+                UiStyle.styleText(this, 23f, true)
+                setPadding(0, 0, 0, UiStyle.dp(context, 12f))
+            })
+            addView(status, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = UiStyle.dp(context, 10f)
+            })
+            addView(share, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = UiStyle.dp(context, 8f)
+            })
+            addView(toggle, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = UiStyle.dp(context, 14f)
+            })
+            addView(peer, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = UiStyle.dp(context, 8f)
+            })
+            addView(token, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = UiStyle.dp(context, 8f)
+            })
+            addView(fetch, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = UiStyle.dp(context, 10f)
+            })
             addView(list, LinearLayout.LayoutParams(-1, 0, 1f))
         }))
     }

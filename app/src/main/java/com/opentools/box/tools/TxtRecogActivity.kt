@@ -40,7 +40,7 @@ class TxtRecogActivity : AppCompatActivity() {
             UiStyle.styleText(this, 15f, false)
             setPadding(UiStyle.dp(context, 14f), UiStyle.dp(context, 14f),
                 UiStyle.dp(context, 14f), UiStyle.dp(context, 14f))
-            textIsSelectable = true
+            setTextIsSelectable(true)
         }
         status = TextView(this).apply {
             text = "Choose an image containing text."

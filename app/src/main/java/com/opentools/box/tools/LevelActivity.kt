@@ -2,33 +2,57 @@ package com.opentools.box.tools
 
 import android.content.Context
 import android.graphics.Canvas
-import android.graphics.Color
 import android.graphics.Paint
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.os.Bundle
+import android.view.Gravity
 import android.view.View
+import android.widget.LinearLayout
+import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import com.opentools.box.ToolScaffold
+import com.opentools.box.UiStyle
+import kotlin.math.hypot
+import kotlin.math.min
 
-/** Bubble level (accelerometer). Original implementation. */
+/** Responsive bubble level using the accelerometer. */
 class LevelActivity : AppCompatActivity(), SensorEventListener {
-
     private lateinit var sensorManager: SensorManager
-    private lateinit var view: LevelView
+    private lateinit var levelView: LevelView
+    private lateinit var status: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
-        view = LevelView(this)
-        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Bubble Level",view))
+        levelView = LevelView(this)
+        status = TextView(this).apply {
+            text = "Place your phone on a flat surface."
+            gravity = Gravity.CENTER
+            UiStyle.styleText(this, 14f, false, UiStyle.muted(context))
+            setPadding(UiStyle.dp(context, 12f), UiStyle.dp(context, 10f),
+                UiStyle.dp(context, 12f), UiStyle.dp(context, 10f))
+        }
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(levelView, LinearLayout.LayoutParams(-1, 0, 1f))
+            addView(status, LinearLayout.LayoutParams(-1, -2))
+        }
+        setContentView(ToolScaffold.wrap(this, "Bubble Level", content))
     }
 
     override fun onResume() {
         super.onResume()
-        sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)?.let {
-            sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_UI)
+        val sensor = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+        if (sensor != null) {
+            sensorManager.registerListener(this, sensor, SensorManager.SENSOR_DELAY_UI)
+            levelView.sensorAvailable = true
+            status.text = "Green bubble means the phone is level."
+        } else {
+            levelView.sensorAvailable = false
+            status.text = "This device has no accelerometer."
         }
     }
 
@@ -37,40 +61,53 @@ class LevelActivity : AppCompatActivity(), SensorEventListener {
         super.onPause()
     }
 
-    override fun onSensorChanged(e: SensorEvent) {
-        // Tilt angle from gravity vector (portrait assumed).
-        val xAngle = Math.toDegrees(Math.atan2(e.values[0].toDouble(), e.values[2].toDouble()))
-        val yAngle = Math.toDegrees(Math.atan2(e.values[1].toDouble(), e.values[2].toDouble()))
-        view.tiltX = xAngle.toFloat()
-        view.tiltY = yAngle.toFloat()
+    override fun onSensorChanged(event: SensorEvent) {
+        val xAngle = Math.toDegrees(kotlin.math.atan2(event.values[0].toDouble(), event.values[2].toDouble()))
+        val yAngle = Math.toDegrees(kotlin.math.atan2(event.values[1].toDouble(), event.values[2].toDouble()))
+        levelView.tiltX = xAngle.toFloat()
+        levelView.tiltY = yAngle.toFloat()
+        status.text = if (hypot(xAngle, yAngle) < 1.0) "Level · within 1°" else "Tilt X %.1f° · Y %.1f°".format(xAngle, yAngle)
     }
 
-    override fun onAccuracyChanged(s: Sensor?, a: Int) = Unit
+    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
 
     class LevelView(context: Context) : View(context) {
         var tiltX = 0f
-            set(v) { field = v; invalidate() }
+            set(value) { field = value; invalidate() }
         var tiltY = 0f
-            set(v) { field = v; invalidate() }
-        private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { textSize = 40f }
+            set(value) { field = value; invalidate() }
+        var sensorAvailable = true
+            set(value) { field = value; invalidate() }
 
-        override fun onDraw(c: Canvas) {
-            super.onDraw(c)
+        private val ring = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = UiStyle.border(context)
+            style = Paint.Style.STROKE
+            strokeWidth = UiStyle.dp(context, 2f).toFloat()
+        }
+        private val bubble = Paint(Paint.ANTI_ALIAS_FLAG)
+        private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = UiStyle.text(context)
+            textSize = UiStyle.dp(context, 16f).toFloat()
+            textAlign = Paint.Align.CENTER
+            typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
+        }
+
+        override fun onDraw(canvas: Canvas) {
+            super.onDraw(canvas)
             val cx = width / 2f
             val cy = height / 2f
-            val r = minOf(width, height) / 2f - 40f
-            paint.style = Paint.Style.STROKE
-            paint.strokeWidth = 4f
-            c.drawCircle(cx, cy, r, paint)
-            c.drawCircle(cx, cy, 30f, paint)
-            // Bubble moves opposite to tilt, scaled.
-            val bx = cx - (tiltX / 45f * r).coerceIn(-r, r)
-            val by = cy + (tiltY / 45f * r).coerceIn(-r, r)
-            paint.style = Paint.Style.FILL
-            paint.color = if (Math.hypot(tiltX.toDouble(), tiltY.toDouble()) < 1.0) Color.GREEN else Color.RED
-            c.drawCircle(bx, by, 44f, paint)
-            paint.color = Color.BLACK
-            c.drawText("X %.1f°  Y %.1f°".format(tiltX, tiltY), 24f, height - 48f, paint)
+            val radius = min(width, height) * 0.36f
+            canvas.drawCircle(cx, cy, radius, ring)
+            canvas.drawCircle(cx, cy, radius * 0.15f, ring)
+            if (!sensorAvailable) {
+                canvas.drawText("Sensor unavailable", cx, cy + radius + UiStyle.dp(context, 30f), text)
+                return
+            }
+            val bx = cx - (tiltX / 45f * radius).coerceIn(-radius, radius)
+            val by = cy + (tiltY / 45f * radius).coerceIn(-radius, radius)
+            bubble.color = if (hypot(tiltX.toDouble(), tiltY.toDouble()) < 1.0) 0xFF2E9D69.toInt() else UiStyle.accent(context)
+            canvas.drawCircle(bx, by, radius * 0.13f, bubble)
+            canvas.drawText("X %.1f°   Y %.1f°".format(tiltX, tiltY), cx, cy + radius + UiStyle.dp(context, 30f), text)
         }
     }
 }

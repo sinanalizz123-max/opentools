@@ -6,6 +6,7 @@ import android.content.Intent
 import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.os.Bundle
+import android.content.SharedPreferences
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
@@ -18,6 +19,10 @@ class ScreenRecordActivity : AppCompatActivity() {
     private lateinit var toggle: MaterialButton
     private lateinit var status: TextView
     private var recording = false
+    private val recorderPrefs by lazy { getSharedPreferences("screen_recorder", MODE_PRIVATE) }
+    private val stateListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        if (key == "state" || key == "error") runOnUiThread { syncRecordingState() }
+    }
 
     private val capture = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         val data = result.data
@@ -29,7 +34,7 @@ class ScreenRecordActivity : AppCompatActivity() {
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(start) else startService(start)
             recording = true
-            status.text = "Recording started. Use Stop or the notification."
+            status.text = "Starting recording…"
             toggle.text = "Stop recording"
         } else {
             status.text = "Screen capture permission denied"
@@ -51,12 +56,36 @@ class ScreenRecordActivity : AppCompatActivity() {
             setPadding(pad, pad, pad, pad)
             addView(status); addView(toggle)
         }))
+        syncRecordingState()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        recorderPrefs.registerOnSharedPreferenceChangeListener(stateListener)
+        syncRecordingState()
+    }
+
+    override fun onPause() {
+        recorderPrefs.unregisterOnSharedPreferenceChangeListener(stateListener)
+        super.onPause()
+    }
+
+    private fun syncRecordingState() {
+        val state = recorderPrefs.getString("state", "stopped")
+        recording = state == "recording" || state == "starting"
+        when (state) {
+            "starting" -> status.text = "Starting recording…"
+            "recording" -> status.text = "Recording in progress. Use Stop or the notification."
+            "failed" -> status.text = recorderPrefs.getString("error", "Screen recording failed.")
+            else -> status.text = "Ready"
+        }
+        toggle.text = if (recording) "Stop recording" else "Start recording"
     }
 
     private fun stopRecording() {
         startService(Intent(this, ScreenRecordService::class.java).setAction(ScreenRecordService.ACTION_STOP))
         recording = false
-        status.text = "Recording stopped. The file is in app Movies storage."
+        status.text = "Stopping recording…"
         toggle.text = "Start recording"
     }
 }

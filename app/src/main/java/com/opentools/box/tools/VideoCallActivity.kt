@@ -150,7 +150,7 @@ class VideoCallActivity : AppCompatActivity() {
         startAudio(ip, peerToken)
     }
 
-    private fun hangUp() {
+    private fun hangUp(message: String = "Call ended") {
         pendingPeer = null
         pendingPeerToken = null
         callActive = false
@@ -170,7 +170,7 @@ class VideoCallActivity : AppCompatActivity() {
         reader = null
         thread?.quitSafely(); thread = null; handler = null
         latestJpeg.set(null)
-        runOnUiThread { status.text = "Call ended" }
+        runOnUiThread { status.text = message }
     }
 
     private fun startAudio(ip: String, peerToken: String) {
@@ -224,9 +224,7 @@ class VideoCallActivity : AppCompatActivity() {
                 }
                 send.close()
             } catch (error: Exception) {
-                if (callActive) runOnUiThread {
-                    status.text = "Audio connection failed: " + (error.message ?: "audio unavailable")
-                }
+                if (callActive) hangUp("Audio connection failed: " + (error.message ?: "audio unavailable"))
             }
         }.start()
     }
@@ -250,8 +248,7 @@ class VideoCallActivity : AppCompatActivity() {
                     try {
                         startSession(c)
                     } catch (error: Exception) {
-                        runOnUiThread { status.text = "Camera setup failed: " + (error.message ?: "camera unavailable") }
-                        hangUp()
+                        hangUp("Camera setup failed: " + (error.message ?: "camera unavailable"))
                     }
                 }
                 override fun onDisconnected(c: CameraDevice) {
@@ -266,8 +263,7 @@ class VideoCallActivity : AppCompatActivity() {
                 }
             }, handler)
         } catch (error: Exception) {
-            runOnUiThread { status.text = "Could not open camera: " + (error.message ?: "camera unavailable") }
-            hangUp()
+            hangUp("Could not open camera: " + (error.message ?: "camera unavailable"))
         }
     }
 

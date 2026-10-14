@@ -28,6 +28,9 @@ class ScreenRecordService : Service() {
     private var display: VirtualDisplay? = null
     private var outputFile: File? = null
     private var stopping = false
+    private var failureMessage: String? = null
+
+    private fun statePrefs() = getSharedPreferences("screen_recorder", MODE_PRIVATE)
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -37,9 +40,14 @@ class ScreenRecordService : Service() {
             stopSelf(startId)
             return START_NOT_STICKY
         }
+        if (projection != null || recorder != null) return START_NOT_STICKY
+        stopping = false
+        failureMessage = null
+        statePrefs().edit().putString("state", "starting").remove("error").apply()
         val resultCode = intent?.getIntExtra(EXTRA_RESULT_CODE, 0) ?: 0
         val resultData = getResultData(intent)
         if (resultData == null || resultCode == 0) {
+            statePrefs().edit().putString("state", "stopped").putString("error", "Screen capture permission data was missing.").apply()
             stopSelf(startId)
             return START_NOT_STICKY
         }
@@ -61,7 +69,11 @@ class ScreenRecordService : Service() {
             }, android.os.Handler(mainLooper))
             startRecording()
         } catch (error: Exception) {
+            failureMessage = "Screen recording failed: " + (error.message ?: error.javaClass.simpleName)
+            outputFile?.delete()
+            outputFile = null
             stopRecording()
+            statePrefs().edit().putString("state", "failed").putString("error", failureMessage).apply()
             stopSelf(startId)
         }
         return START_NOT_STICKY
@@ -101,6 +113,7 @@ class ScreenRecordService : Service() {
             recorder!!.surface, null, null
         )
         recorder!!.start()
+        statePrefs().edit().putString("state", "recording").remove("error").apply()
         val manager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
         manager.notify(NOTIFICATION_ID, buildNotification())
     }
@@ -116,8 +129,8 @@ class ScreenRecordService : Service() {
         return builder
             .setSmallIcon(android.R.drawable.presence_video_online)
             .setContentTitle("OpenTools screen recorder")
-            .setContentText(if (outputFile == null) "Starting recording…" else "Saving to " + outputFile!!.name)
-            .setOngoing(true)
+            .setContentText(failureMessage ?: if (outputFile == null) "Starting recording…" else "Saving to " + outputFile!!.name)
+            .setOngoing(failureMessage == null && outputFile != null)
             .addAction(Notification.Action.Builder(null, "Stop", pending).build())
             .build()
     }
@@ -139,6 +152,9 @@ class ScreenRecordService : Service() {
         recorder = null
         try { projection?.stop() } catch (_: Exception) { }
         projection = null
+        statePrefs().edit()
+            .putString("state", if (failureMessage == null) "stopped" else "failed")
+            .apply()
         if (Build.VERSION.SDK_INT >= 24) stopForeground(STOP_FOREGROUND_REMOVE) else {
             @Suppress("DEPRECATION")
             stopForeground(true)

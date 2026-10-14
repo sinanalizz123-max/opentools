@@ -2,7 +2,6 @@ package com.opentools.box.tools
 
 import android.os.Bundle
 import android.view.Gravity
-import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
@@ -23,9 +22,9 @@ class CounterActivity : AppCompatActivity() {
             setPadding(UiStyle.dp(context, 16f), UiStyle.dp(context, 28f), UiStyle.dp(context, 16f), UiStyle.dp(context, 28f))
             background = UiStyle.rounded(context, UiStyle.surface(context), 22f, UiStyle.border(context))
         }
-        val plus = Button(this).apply { text = "+1"; UiStyle.styleButton(this) }
-        val minus = Button(this).apply { text = "−1"; UiStyle.styleButton(this, false) }
-        val reset = Button(this).apply { text = "Reset"; UiStyle.styleButton(this, false) }
+        val plus = NativeButton(this).apply { text = "+1" }
+        val minus = NativeButton(this, false).apply { text = "−1" }
+        val reset = NativeButton(this, false).apply { text = "Reset" }
         plus.setOnClickListener { count++; render() }
         minus.setOnClickListener { count--; render() }
         reset.setOnClickListener { count = 0; render() }

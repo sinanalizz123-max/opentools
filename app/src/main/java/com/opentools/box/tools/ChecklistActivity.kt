@@ -5,7 +5,6 @@ import android.os.Bundle
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
-import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
@@ -48,7 +47,7 @@ class ChecklistActivity : AppCompatActivity() {
             UiStyle.styleInput(this)
             setSingleLine(true)
         }
-        val add = Button(this).apply { text = "Add"; UiStyle.styleButton(this) }
+        val add = NativeButton(this).apply { text = "Add" }
         add.setOnClickListener {
             val value = input.text.toString().trim()
             if (value.isNotEmpty()) {

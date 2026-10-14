@@ -4,19 +4,33 @@ import android.os.Bundle
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
-import com.google.android.material.appbar.MaterialToolbar
+import com.opentools.box.ToolScaffold
+import com.opentools.box.UiStyle
 
-/** Help screen. Original implementation. */
+/** Help screen. */
 class HelpActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Help",LinearLayout(this).apply {
+        val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            addView(MaterialToolbar(context).apply { title = "Help" })
+            val pad = UiStyle.dp(context, 20f)
+            setPadding(pad, pad, pad, pad)
+            addView(ToolScaffold.sectionTitle(context, "Using OpenTools"))
             addView(TextView(context).apply {
-                text = "Tap a tool to open it.\nLong-press a checklist item to delete it.\nGrant camera/mic permissions only for the tools that need them."
-                textSize = 16f
+                text = "Choose a tool from the home screen or search by name. Use the category filters to narrow the list, and add your most-used tools to Quick access."
+                UiStyle.styleText(this, 15f)
             })
-        }))
+            addView(ToolScaffold.sectionTitle(context, "Permissions"))
+            addView(TextView(context).apply {
+                text = "Camera, microphone, location, Bluetooth and activity permissions are requested only when a tool needs them. You can revoke permissions at any time in Android Settings."
+                UiStyle.styleText(this, 15f)
+            })
+            addView(ToolScaffold.sectionTitle(context, "Local sharing"))
+            addView(TextView(context).apply {
+                text = "For LAN file sharing, CCTV and video calls, exchange the access token displayed by the device hosting the connection. Only share it with a trusted peer on your local network."
+                UiStyle.styleText(this, 15f)
+            })
+        }
+        setContentView(ToolScaffold.wrap(this, "Help", content))
     }
 }

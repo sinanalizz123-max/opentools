@@ -305,6 +305,8 @@ class MainActivity : AppCompatActivity() {
         PopupMenu(this, anchor).apply {
             menu.add("Toggle dark mode").setOnMenuItemClickListener {
                 val night = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+                val value = if (night) "light" else "dark"
+                getSharedPreferences("home", Context.MODE_PRIVATE).edit().putString("theme_mode", value).apply()
                 AppCompatDelegate.setDefaultNightMode(if (night) AppCompatDelegate.MODE_NIGHT_NO else AppCompatDelegate.MODE_NIGHT_YES)
                 true
             }

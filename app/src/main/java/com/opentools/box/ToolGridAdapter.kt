@@ -44,6 +44,9 @@ class ToolGridAdapter(
         }
         val tile = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
+            layoutParams = RecyclerView.LayoutParams(-1, -2).apply {
+                setMargins(size(4), size(4), size(4), size(4))
+            }
             background = UiStyle.rounded(context, UiStyle.surface(context), 17f, UiStyle.border(context))
             isClickable = true
             isFocusable = true

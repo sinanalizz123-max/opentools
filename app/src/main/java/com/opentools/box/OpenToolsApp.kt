@@ -2,6 +2,7 @@ package com.opentools.box
 
 import android.app.Application
 import android.content.Context
+import androidx.appcompat.app.AppCompatDelegate
 import java.io.PrintWriter
 import java.io.StringWriter
 
@@ -9,6 +10,12 @@ import java.io.StringWriter
 class OpenToolsApp : Application() {
     override fun onCreate() {
         super.onCreate()
+        val themeMode = getSharedPreferences("home", Context.MODE_PRIVATE).getString("theme_mode", "system")
+        AppCompatDelegate.setDefaultNightMode(when (themeMode) {
+            "light" -> AppCompatDelegate.MODE_NIGHT_NO
+            "dark" -> AppCompatDelegate.MODE_NIGHT_YES
+            else -> AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
+        })
         val default = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, error ->
             saveCrash(this@OpenToolsApp, error)

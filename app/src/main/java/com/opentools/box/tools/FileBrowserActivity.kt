@@ -45,8 +45,8 @@ class FileBrowserActivity : AppCompatActivity() {
         adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, labels)
         list.adapter = adapter
         val up = NativeButton(this, false).apply { text = "Up" }
-        val home = MaterialButton(this).apply { text = "App files" }
-        val choose = MaterialButton(this).apply { text = "Choose shared folder" }
+        val home = NativeButton(this).apply { text = "App files" }
+        val choose = NativeButton(this).apply { text = "Choose shared folder" }
         up.setOnClickListener { navigateUp() }
         home.setOnClickListener {
             usingTree = false

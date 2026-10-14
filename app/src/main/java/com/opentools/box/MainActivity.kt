@@ -190,8 +190,8 @@ class MainActivity : AppCompatActivity() {
     private fun buildSearch(): View {
         val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         val searchBar = SearchBar(this).apply { hint = "Search tools" }
-        searchInput = searchBar.textView as? EditText
-        searchInput?.addTextChangedListener(object : TextWatcher {
+        // getTextView() returns TextView (not EditText) — listener works on any TextView.
+        searchBar.textView.addTextChangedListener(object : TextWatcher {
             override fun afterTextChanged(s: Editable?) = runSearch(s.toString())
             override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) = Unit
             override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) = Unit

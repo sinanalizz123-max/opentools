@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!-- Permissions are declared per-tool, minimal scope. -->
     <uses-permission android:name="android.permission.CAMERA" />
@@ -33,8 +34,7 @@
         <activity android:name=".tools.ConverterActivity" android:exported="false" />
         <activity android:name=".tools.RulerActivity" android:exported="false" />
         <activity android:name=".tools.WhiteScreenActivity" android:exported="false" />
-        <activity android:name=".tools.MirrorActivity" android:exported="false" />
-        <activity android:name=".tools.RecorderActivity" android:exported="false" />
+        <activity android:name=".tools.MirrorActivity" android:exported="false" />        <activity android:name=".tools.RecorderActivity" android:exported="false" />
         <activity android:name=".tools.MetronomeActivity" android:exported="false" />
         <activity android:name=".tools.TunerActivity" android:exported="false" />
         <activity android:name=".tools.DecibelActivity" android:exported="false" />
@@ -107,6 +107,23 @@
         <activity android:name=".tools.ScannerActivity" android:exported="false" />
         <activity android:name=".tools.CalorieActivity" android:exported="false" />
         <activity android:name=".tools.AltitudeActivity" android:exported="false" />
+
+        <!-- Kill auto-init providers that run before Application.onCreate.
+             ML Kit lazily initializes when OCR opens; emoji is unused. -->
+        <provider
+            android:name="com.google.mlkit.common.internal.MlKitInitProvider"
+            android:authorities="${applicationId}.mlkitinitprovider"
+            tools:node="remove" />
+        <meta-data
+            android:name="androidx.emoji2.text.EmojiCompatInitializer"
+            android:value="androidx.startup"
+            tools:node="remove" />
+        <!-- No startup initializers are used (no emoji, lifecycle, or work
+             auto-init needed): drop the provider entirely. -->
+        <provider
+            android:name="androidx.startup.InitializationProvider"
+            android:authorities="${applicationId}.androidx-startup"
+            tools:node="remove" />
     </application>
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />

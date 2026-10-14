@@ -109,7 +109,7 @@ class ScreenRecordService : Service() {
         val stopIntent = Intent(this, ScreenRecordService::class.java).setAction(ACTION_STOP)
         val pending = PendingIntent.getService(
             this, 42, stopIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or if (Build.VERSION.SDK_INT >= 23) PendingIntent.FLAG_IMMUTABLE else 0
+            PendingIntent.FLAG_UPDATE_CURRENT or (if (Build.VERSION.SDK_INT >= 23) PendingIntent.FLAG_IMMUTABLE else 0)
         )
         val builder = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(this, CHANNEL_ID)
             else Notification.Builder(this)

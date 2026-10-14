@@ -1,6 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
-    <!-- The CCTV viewer and LAN video-call tools use HTTP on private local networks.
-         Restrict those tools to user-entered LAN addresses in application code. -->
-    <base-config cleartextTrafficPermitted="true" />
+    <base-config cleartextTrafficPermitted="false" />
 </network-security-config>

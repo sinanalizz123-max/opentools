@@ -49,6 +49,7 @@ class VideoCallActivity : AppCompatActivity() {
     private var mjpegClient: CctvLan.MjpegClient? = null
 
     @Volatile private var callActive = false
+    private var pendingPeer: String? = null
     private var audioSocket: DatagramSocket? = null
     private var recorder: AudioRecord? = null
     private var player: AudioTrack? = null
@@ -77,10 +78,11 @@ class VideoCallActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        startCaptureIfAllowed()
+        // Do not activate camera or microphone until the user explicitly joins a call.
     }
 
     private fun startCaptureIfAllowed() {
+        val peer = pendingPeer ?: return
         val need = mutableListOf<String>()
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
             need.add(Manifest.permission.CAMERA)
@@ -98,29 +100,33 @@ class VideoCallActivity : AppCompatActivity() {
         }
         if (mjpegServer == null) mjpegServer = CctvLan.MjpegServer { latestJpeg.get() }.also { it.start() }
         if (camera == null) openCamera()
+        pendingPeer = null
+        beginCall(peer)
     }
 
     override fun onPause() {
         hangUp()
-        mjpegServer?.stop(); mjpegServer = null
-        session?.close(); session = null
-        camera?.close(); camera = null
-        reader?.close(); reader = null
-        thread?.quitSafely(); thread = null
         super.onPause()
     }
 
     private fun joinCall(ip: String) {
-        if (ip.isEmpty() || callActive) return
+        if (ip.isBlank() || callActive || pendingPeer != null) return
+        pendingPeer = ip
+        status.text = "Checking permissions…"
+        startCaptureIfAllowed()
+    }
+
+    private fun beginCall(ip: String) {
         callActive = true
-        status.text = "In call with $ip"
-        mjpegClient = CctvLan.MjpegClient(remoteView) { status.text = it }.also {
-            it.start("http://$ip:${CctvLan.PORT}/")
+        status.text = "In call with " + ip
+        mjpegClient = CctvLan.MjpegClient(remoteView) { message -> status.text = message }.also {
+            it.start("http://" + ip + ":" + CctvLan.PORT + "/")
         }
         startAudio(ip)
     }
 
     private fun hangUp() {
+        pendingPeer = null
         callActive = false
         mjpegClient?.stop(); mjpegClient = null
         try { audioSocket?.close() } catch (_: Exception) { }
@@ -129,6 +135,15 @@ class VideoCallActivity : AppCompatActivity() {
         recorder = null
         try { player?.stop(); player?.release() } catch (_: Exception) { }
         player = null
+        mjpegServer?.stop(); mjpegServer = null
+        try { session?.close() } catch (_: Exception) { }
+        session = null
+        try { camera?.close() } catch (_: Exception) { }
+        camera = null
+        try { reader?.close() } catch (_: Exception) { }
+        reader = null
+        thread?.quitSafely(); thread = null; handler = null
+        latestJpeg.set(null)
         runOnUiThread { status.text = "Call ended" }
     }
 

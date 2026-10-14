@@ -1,28 +1,38 @@
 package com.opentools.box.tools
 
+import android.net.Uri
 import android.os.Bundle
-import android.os.Environment
 import android.widget.ArrayAdapter
 import android.widget.LinearLayout
 import android.widget.ListView
 import android.widget.TextView
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.documentfile.provider.DocumentFile
 import com.google.android.material.button.MaterialButton
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-/** Lightweight file browser. Keeps real File references separate from presentation labels. */
+/** File browser using private files and the Storage Access Framework for shared folders. */
 class FileBrowserActivity : AppCompatActivity() {
-    private var dir: File = Environment.getExternalStorageDirectory()
-    private val entries = mutableListOf<File>()
+    private var localDir: File? = null
+    private var usingTree = false
+    private val localEntries = mutableListOf<File>()
+    private val documentEntries = mutableListOf<DocumentFile>()
     private val labels = mutableListOf<String>()
+    private val treeStack = mutableListOf<DocumentFile>()
     private lateinit var adapter: ArrayAdapter<String>
     private lateinit var path: TextView
 
+    private val treePicker = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri: Uri? ->
+        if (uri != null) openTree(uri)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        localDir = filesDir
         path = TextView(this).apply {
             textSize = 13f
             setPadding(12, 10, 12, 10)
@@ -33,16 +43,30 @@ class FileBrowserActivity : AppCompatActivity() {
         list.adapter = adapter
         val up = MaterialButton(this).apply { text = "Up" }
         val home = MaterialButton(this).apply { text = "App files" }
-        up.setOnClickListener { dir.parentFile?.takeIf { it.canRead() }?.let { dir = it; refresh() } }
-        home.setOnClickListener { dir = filesDir; refresh() }
+        val choose = MaterialButton(this).apply { text = "Choose shared folder" }
+        up.setOnClickListener { navigateUp() }
+        home.setOnClickListener {
+            usingTree = false
+            treeStack.clear()
+            localDir = filesDir
+            refresh()
+        }
+        choose.setOnClickListener { treePicker.launch(null) }
         list.setOnItemClickListener { _, _, position, _ ->
-            val selected = entries.getOrNull(position) ?: return@setOnItemClickListener
-            if (selected.isDirectory && selected.canRead()) {
-                dir = selected
-                refresh()
+            if (usingTree) {
+                val selected = documentEntries.getOrNull(position) ?: return@setOnItemClickListener
+                if (selected.isDirectory) {
+                    treeStack.add(selected)
+                    refresh()
+                }
+            } else {
+                val selected = localEntries.getOrNull(position) ?: return@setOnItemClickListener
+                if (selected.isDirectory && selected.canRead()) {
+                    localDir = selected
+                    refresh()
+                }
             }
         }
-        if (!dir.canRead()) dir = filesDir
         refresh()
         setContentView(com.opentools.box.ToolScaffold.wrap(this, "File Browser", LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -52,27 +76,79 @@ class FileBrowserActivity : AppCompatActivity() {
                 addView(up)
                 addView(home)
             })
+            addView(choose)
             addView(list, LinearLayout.LayoutParams(-1, 0, 1f))
         }))
     }
 
-    private fun refresh() {
-        path.text = dir.absolutePath
-        entries.clear()
-        labels.clear()
-        val fmt = SimpleDateFormat("yyyy-MM-dd", Locale.US)
-        val files = try {
-            dir.listFiles()?.sortedWith(compareBy<File>({ !it.isDirectory }, { it.name.lowercase(Locale.ROOT) }))
-                .orEmpty()
+    private fun openTree(uri: Uri) {
+        try {
+            contentResolver.takePersistableUriPermission(
+                uri,
+                android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            )
         } catch (_: SecurityException) {
-            emptyList()
+            try { contentResolver.takePersistableUriPermission(uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+            catch (_: Exception) { }
         }
-        for (file in files) {
-            entries.add(file)
-            val tag = if (file.isDirectory) "[DIR]" else "[" + humanSize(file.length()) + "]"
-            labels.add(tag + "  " + file.name + "  " + fmt.format(Date(file.lastModified())))
+        val root = DocumentFile.fromTreeUri(this, uri)
+        if (root == null || !root.isDirectory) {
+            path.text = "Could not open that folder."
+            return
         }
-        if (entries.isEmpty()) labels.add("(empty or inaccessible)")
+        usingTree = true
+        treeStack.clear()
+        treeStack.add(root)
+        refresh()
+    }
+
+    private fun navigateUp() {
+        if (usingTree) {
+            if (treeStack.size > 1) {
+                treeStack.removeAt(treeStack.lastIndex)
+                refresh()
+            }
+        } else {
+            val parent = localDir?.parentFile
+            if (parent != null && parent.canRead()) {
+                localDir = parent
+                refresh()
+            }
+        }
+    }
+
+    private fun refresh() {
+        labels.clear()
+        localEntries.clear()
+        documentEntries.clear()
+        if (usingTree) {
+            val current = treeStack.lastOrNull()
+            path.text = "Shared folder: " + (treeStack.mapNotNull { it.name }.joinToString(" / ").ifBlank { current?.uri?.lastPathSegment ?: "Selected folder" })
+            val children = try {
+                current?.listFiles()?.sortedWith(compareBy<DocumentFile>({ !it.isDirectory }, { it.name?.lowercase(Locale.ROOT).orEmpty() })).orEmpty()
+            } catch (_: SecurityException) {
+                emptyList()
+            }
+            for (item in children) {
+                documentEntries.add(item)
+                val kind = if (item.isDirectory) "[DIR]" else "[" + humanSize(item.length()) + "]"
+                labels.add(kind + "  " + (item.name ?: "Unnamed"))
+            }
+        } else {
+            val current = localDir ?: filesDir
+            path.text = current.absolutePath
+            val children = try {
+                current.listFiles()?.sortedWith(compareBy<File>({ !it.isDirectory }, { it.name.lowercase(Locale.ROOT) })).orEmpty()
+            } catch (_: SecurityException) {
+                emptyList()
+            }
+            for (item in children) {
+                localEntries.add(item)
+                val kind = if (item.isDirectory) "[DIR]" else "[" + humanSize(item.length()) + "]"
+                labels.add(kind + "  " + item.name + "  " + SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date(item.lastModified())))
+            }
+        }
+        if (labels.isEmpty()) labels.add("(empty or inaccessible)")
         adapter.notifyDataSetChanged()
     }
 

@@ -176,14 +176,19 @@ class VideoCallActivity : AppCompatActivity() {
                 audioSocket = DatagramSocket(9995)
                 val minIn = AudioRecord.getMinBufferSize(16000,
                     AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
+                if (minIn <= 0) throw IllegalStateException("Microphone audio format is unsupported")
                 recorder = AudioRecord(MediaRecorder.AudioSource.VOICE_COMMUNICATION, 16000,
                     AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, minIn)
+                if (recorder?.state != AudioRecord.STATE_INITIALIZED) throw IllegalStateException("Microphone could not start")
                 recorder?.startRecording()
                 val minOut = AudioTrack.getMinBufferSize(16000,
                     AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT)
+                if (minOut <= 0) throw IllegalStateException("Speaker audio format is unsupported")
                 player = AudioTrack(AudioManager.STREAM_VOICE_CALL, 16000,
                     AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT,
-                    minOut, AudioTrack.MODE_STREAM).also { it?.play() }
+                    minOut, AudioTrack.MODE_STREAM)
+                if (player?.state != AudioTrack.STATE_INITIALIZED) throw IllegalStateException("Speaker could not start")
+                player?.play()
                 // Receiver.
                 Thread {
                     val buf = ByteArray(4096)
@@ -214,7 +219,11 @@ class VideoCallActivity : AppCompatActivity() {
                     }
                 }
                 send.close()
-            } catch (_: Exception) { }
+            } catch (error: Exception) {
+                if (callActive) runOnUiThread {
+                    status.text = "Audio connection failed: " + (error.message ?: "audio unavailable")
+                }
+            }
         }.start()
     }
 
@@ -228,11 +237,34 @@ class VideoCallActivity : AppCompatActivity() {
         } ?: ids.firstOrNull() ?: return
         try {
             cameraManager.openCamera(front, object : CameraDevice.StateCallback() {
-                override fun onOpened(c: CameraDevice) { camera = c; startSession(c) }
-                override fun onDisconnected(c: CameraDevice) { c.close() }
-                override fun onError(c: CameraDevice, e: Int) { c.close() }
+                override fun onOpened(c: CameraDevice) {
+                    if (!callActive) {
+                        c.close()
+                        return
+                    }
+                    camera = c
+                    try {
+                        startSession(c)
+                    } catch (error: Exception) {
+                        runOnUiThread { status.text = "Camera setup failed: " + (error.message ?: "camera unavailable") }
+                        hangUp()
+                    }
+                }
+                override fun onDisconnected(c: CameraDevice) {
+                    if (camera === c) camera = null
+                    c.close()
+                    if (callActive) runOnUiThread { status.text = "Camera disconnected" }
+                }
+                override fun onError(c: CameraDevice, e: Int) {
+                    if (camera === c) camera = null
+                    c.close()
+                    if (callActive) runOnUiThread { status.text = "Camera error (" + e + ")" }
+                }
             }, handler)
-        } catch (_: SecurityException) { }
+        } catch (error: Exception) {
+            runOnUiThread { status.text = "Could not open camera: " + (error.message ?: "camera unavailable") }
+            hangUp()
+        }
     }
 
     private fun startSession(device: CameraDevice) {

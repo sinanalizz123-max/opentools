@@ -154,7 +154,7 @@ class VaultActivity : AppCompatActivity() {
         list.setOnItemClickListener { _, _, position, _ ->
             val name = files.getOrNull(position) ?: return@setOnItemClickListener
             pendingExportName = name
-            exporter.launch(name.substringAfter('-', name).ifBlank { "vault-file.bin" })
+            exporter.launch(name.substringAfter('-', name).removeSuffix(".vault").ifBlank { "vault-file.bin" })
         }
         list.setOnItemLongClickListener { _, _, position, _ ->
             val name = files.getOrNull(position) ?: return@setOnItemLongClickListener true
@@ -200,13 +200,14 @@ class VaultActivity : AppCompatActivity() {
     }
 
     private fun import(uri: Uri) {
+        var dest: File? = null
         try {
             val name = System.currentTimeMillis().toString() + "-" + displayName(uri) + ".vault"
-            val dest = File(vaultDir(), name)
+            dest = File(vaultDir(), name)
             val cipher = Cipher.getInstance("AES/GCM/NoPadding")
             cipher.init(Cipher.ENCRYPT_MODE, vaultKey())
             contentResolver.openInputStream(uri)?.use { input ->
-                FileOutputStream(dest).use { fileOut ->
+                FileOutputStream(dest!!).use { fileOut ->
                     fileOut.write(MAGIC)
                     fileOut.write(cipher.iv.size)
                     fileOut.write(cipher.iv)
@@ -217,6 +218,7 @@ class VaultActivity : AppCompatActivity() {
             refresh()
             if (::adapter.isInitialized) adapter.notifyDataSetChanged()
         } catch (e: Exception) {
+            dest?.delete()
             status.text = "Import failed: " + (e.message ?: "storage error")
         }
     }

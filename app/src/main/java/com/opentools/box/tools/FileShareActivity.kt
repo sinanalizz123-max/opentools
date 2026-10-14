@@ -21,6 +21,7 @@ import java.net.Socket
 import java.security.MessageDigest
 import java.security.SecureRandom
 import java.util.Collections
+import java.util.concurrent.Semaphore
 
 /** Authenticated LAN file transfer with bounded memory use and private, local-only storage. */
 class FileShareActivity : AppCompatActivity() {
@@ -30,6 +31,7 @@ class FileShareActivity : AppCompatActivity() {
     @Volatile private var serving = false
     @Volatile private var sessionToken = ""
     private val shared = Collections.synchronizedList(mutableListOf<Uri>())
+    private val clientSlots = Semaphore(4)
     private lateinit var status: TextView
     private lateinit var adapter: ArrayAdapter<String>
     private val log = mutableListOf<String>()
@@ -95,7 +97,14 @@ class FileShareActivity : AppCompatActivity() {
                 }
                 while (serving) {
                     val client = socket.accept()
-                    Thread { serve(client) }.start()
+                    if (!clientSlots.tryAcquire()) {
+                        client.close()
+                        continue
+                    }
+                    Thread {
+                        try { serve(client) }
+                        finally { clientSlots.release() }
+                    }.start()
                 }
             } catch (error: Exception) {
                 if (serving) runOnUiThread {
@@ -219,22 +228,26 @@ class FileShareActivity : AppCompatActivity() {
                         if (size > MAX_FILE_BYTES) throw IOException("Peer sent an oversized file")
                         val folder = getExternalFilesDir(null) ?: filesDir
                         val temp = File(folder, "incoming-" + System.currentTimeMillis() + ".tmp")
-                        temp.outputStream().buffered().use { out ->
-                            val buffer = ByteArray(16 * 1024)
-                            var remaining = size
-                            while (remaining > 0) {
-                                val count = input.read(buffer, 0, minOf(buffer.size.toLong(), remaining).toInt())
-                                if (count < 0) throw EOFException("File transfer ended early")
-                                out.write(buffer, 0, count)
-                                remaining -= count.toLong()
+                        try {
+                            temp.outputStream().buffered().use { out ->
+                                val buffer = ByteArray(16 * 1024)
+                                var remaining = size
+                                while (remaining > 0) {
+                                    val count = input.read(buffer, 0, minOf(buffer.size.toLong(), remaining).toInt())
+                                    if (count < 0) throw EOFException("File transfer ended early")
+                                    out.write(buffer, 0, count)
+                                    remaining -= count.toLong()
+                                }
                             }
-                        }
-                        val rawName = input.readUTF().substringAfterLast('/').takeLast(80)
-                        val safeName = rawName.replace(Regex("[^A-Za-z0-9._-]"), "_").ifBlank { "file" }
-                        var dest = File(folder, "recv-" + safeName)
-                        if (dest.exists()) dest = File(folder, "recv-" + System.currentTimeMillis() + "-" + safeName)
-                        if (!temp.renameTo(dest)) {
-                            temp.copyTo(dest, overwrite = true)
+                            val rawName = input.readUTF().substringAfterLast('/').takeLast(80)
+                            val safeName = rawName.replace(Regex("[^A-Za-z0-9._-]"), "_").ifBlank { "file" }
+                            var dest = File(folder, "recv-" + safeName)
+                            if (dest.exists()) dest = File(folder, "recv-" + System.currentTimeMillis() + "-" + safeName)
+                            if (!temp.renameTo(dest)) {
+                                temp.copyTo(dest, overwrite = true)
+                                temp.delete()
+                            }
+                        } finally {
                             temp.delete()
                         }
                         received++

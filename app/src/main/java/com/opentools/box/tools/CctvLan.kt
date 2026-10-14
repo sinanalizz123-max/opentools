@@ -12,14 +12,18 @@ import java.io.IOException
 import java.net.InetSocketAddress
 import java.net.Socket
 import java.net.URL
+import java.util.concurrent.Semaphore
 
 /** Shared LAN video helpers: MJPEG server + client. */
 object CctvLan {
     const val PORT = 9996
 
-    class MjpegServer(private val frames: () -> ByteArray?, private val token: String? = null) {
+    class MjpegServer(private val frames: () -> ByteArray?, private val token: String) {
         @Volatile var running = false
         @Volatile private var server: SocketServer? = null
+        private val clientSlots = Semaphore(4)
+
+        init { require(token.isNotBlank()) { "Camera access token must not be blank" } }
 
         fun start() {
             if (running) return
@@ -29,7 +33,14 @@ object CctvLan {
                     server = SocketServer(java.net.ServerSocket(PORT))
                     while (running) {
                         val socket = server?.socket?.accept() ?: break
-                        Thread { serve(socket) }.start()
+                        if (!clientSlots.tryAcquire()) {
+                            socket.close()
+                            continue
+                        }
+                        Thread {
+                            try { serve(socket) }
+                            finally { clientSlots.release() }
+                        }.start()
                     }
                 } catch (_: Exception) {
                 } finally {
@@ -52,7 +63,7 @@ object CctvLan {
                         if (it.startsWith("Bearer ", ignoreCase = true)) it.substring(7).trim() else ""
                     }.orEmpty()
                     val out = client.getOutputStream()
-                    if (token != null && !MessageDigest.isEqual(token.toByteArray(), supplied.toByteArray())) {
+                    if (!MessageDigest.isEqual(token.toByteArray(), supplied.toByteArray())) {
                         out.write("HTTP/1.0 401 Unauthorized\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".toByteArray(Charsets.US_ASCII))
                         out.flush()
                         return
@@ -116,7 +127,8 @@ object CctvLan {
         @Volatile var running = false
         @Volatile private var connection: Socket? = null
 
-        fun start(url: String, token: String? = null) {
+        fun start(url: String, token: String) {
+            require(token.isNotBlank()) { "Camera access token must not be blank" }
             stop()
             running = true
             Thread {
@@ -129,7 +141,7 @@ object CctvLan {
                     socket!!.connect(InetSocketAddress(parsed.host, if (parsed.port > 0) parsed.port else PORT), 8000)
                     socket!!.soTimeout = 10000
                     val requestPath = parsed.file.ifBlank { "/" }
-                    val authorization = token?.takeIf { it.isNotBlank() }?.let { "Authorization: Bearer " + it + "\r\n" }.orEmpty()
+                    val authorization = "Authorization: Bearer " + token + "\r\n"
                     socket!!.getOutputStream().apply {
                         write(("GET " + requestPath + " HTTP/1.0\r\nHost: " + parsed.host +
                             "\r\n" + authorization + "Connection: close\r\n\r\n").toByteArray(Charsets.US_ASCII))

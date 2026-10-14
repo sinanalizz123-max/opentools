@@ -14,7 +14,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
-import com.google.android.material.button.MaterialButton
+import com.opentools.box.UiStyle
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
@@ -35,9 +35,22 @@ class WalkieActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        peerInput = EditText(this).apply { hint = "Peer IP, e.g. 192.168.1.5" }
-        status = TextView(this).apply { textSize = 16f; text = "Listening on :9998" }
-        val talk = MaterialButton(this).apply { text = "HOLD TO TALK" }
+        peerInput = EditText(this).apply {
+            hint = "Peer IP address"
+            UiStyle.styleInput(this)
+            setSingleLine(true)
+        }
+        status = TextView(this).apply {
+            text = "Listening on port 9998. Enter your peer's IP address."
+            UiStyle.styleText(this, 14f, false, UiStyle.muted(context))
+            setPadding(UiStyle.dp(context, 14f), UiStyle.dp(context, 12f),
+                UiStyle.dp(context, 14f), UiStyle.dp(context, 12f))
+            background = UiStyle.rounded(context, UiStyle.surface(context), 14f, UiStyle.border(context))
+        }
+        val talk = NativeButton(this).apply {
+            text = "Hold to talk"
+            contentDescription = "Press and hold to transmit voice to the peer"
+        }
         talk.setOnTouchListener { view, e ->
             when (e.action) {
                 MotionEvent.ACTION_DOWN -> startTalking()
@@ -48,11 +61,23 @@ class WalkieActivity : AppCompatActivity() {
             }
             true
         }
-        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Walkie-Talkie",LinearLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Walkie-Talkie", LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            val pad = (16 * resources.displayMetrics.density).toInt()
+            val pad = UiStyle.dp(context, 20f)
             setPadding(pad, pad, pad, pad)
-            addView(peerInput); addView(status); addView(talk)
+            addView(TextView(context).apply { text = "Push-to-talk"; UiStyle.styleText(this, 24f, true) })
+            addView(TextView(context).apply {
+                text = "Both devices should be on the same reachable network."
+                UiStyle.styleText(this, 14f, false, UiStyle.muted(context))
+                setPadding(0, UiStyle.dp(context, 4f), 0, UiStyle.dp(context, 16f))
+            })
+            addView(peerInput, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = UiStyle.dp(context, 12f)
+            })
+            addView(status, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = UiStyle.dp(context, 18f)
+            })
+            addView(talk, LinearLayout.LayoutParams(-1, UiStyle.dp(context, 64f)))
         }))
     }
 

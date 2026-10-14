@@ -61,34 +61,104 @@ class HomeActivity : AppCompatActivity() {
 
     private var searchInput: EditText? = null
 
+    private lateinit var reportView: TextView
+
+    private fun mark(@Suppress("UNUSED_PARAMETER") step: String) = Unit
+
     override fun onCreate(savedInstanceState: Bundle?) {
-        mark("super.onCreate.start")
         super.onCreate(savedInstanceState)
-        mark("super.onCreate.done")
-        val pendingCrash = OpenToolsApp.takeLastCrash(this)
-        val lastStep = OpenToolsApp.prefs(this).getString("last_step", "?")
-        mark("dispatch")
-        try {
-            buildExpressiveUI()
-            mark("expressive.done")
-        } catch (e: Throwable) {
-            OpenToolsApp.saveCrash(this, e)
-            mark("expressive.failed:" + e.javaClass.simpleName)
-            buildFallbackUI()
+        reportView = TextView(this).apply {
+            textSize = 13f
+            setTextIsSelectable(true)
         }
-        val report = listOfNotNull(
-            pendingCrash,
-            if (lastStep != null && lastStep != "expressive.done") "Last reached step: $lastStep" else null,
-        ).joinToString("\n\n").take(4000)
-        if (report.isNotBlank()) {
-            window.decorView.post { showCrash(report) }
+        val copy = android.widget.Button(this).apply { text = "Copy report" }
+        copy.setOnClickListener {
+            val cm = getSystemService(CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            cm.setPrimaryClip(android.content.ClipData.newPlainText("home", reportView.text.toString()))
+        }
+        val show = android.widget.Button(this).apply { text = "Show home anyway" }
+        show.setOnClickListener {
+            try {
+                buildExpressiveUI()
+                say("home attached")
+            } catch (e: Throwable) {
+                say("ATTACH FAILED: " + errText(e))
+            }
+        }
+        setContentView(android.widget.ScrollView(this).apply {
+            addView(android.widget.LinearLayout(context).apply {
+                orientation = android.widget.LinearLayout.VERTICAL
+                addView(copy)
+                addView(show)
+                addView(reportView)
+            })
+        })
+        say("HomeActivity opened, assembling offscreen…")
+        assemble()
+    }
+
+    private fun say(line: String) {
+        reportView.text = (reportView.text.toString() + "\n" + line).trim()
+    }
+
+    private fun errText(e: Throwable): String {
+        val sw = java.io.StringWriter()
+        e.printStackTrace(java.io.PrintWriter(sw))
+        return e.javaClass.name + ": " + e.message + "\n" +
+            sw.toString().lines().take(10).joinToString("\n")
+    }
+
+    private fun step(name: String, block: () -> Unit) {
+        try {
+            block()
+            say("PASS $name")
+        } catch (e: Throwable) {
+            say("FAIL $name\n" + errText(e))
         }
     }
 
-    private fun mark(step: String) {
-        try {
-            OpenToolsApp.prefs(this).edit().putString("last_step", step).commit()
-        } catch (_: Exception) { }
+    /** Assemble the whole expressive home OFFSCREEN, reporting each step. */
+    private fun assemble() {
+        val scratch = android.widget.FrameLayout(this)
+        step("header") { scratch.addView(buildHeader()) }
+        step("search") { scratch.addView(buildSearch()) }
+        step("search.listener") {
+            val bar = com.google.android.material.search.SearchBar(this)
+            bar.textView.addTextChangedListener(object : android.text.TextWatcher {
+                override fun afterTextChanged(s: android.text.Editable?) = Unit
+                override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) = Unit
+                override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) = Unit
+            })
+        }
+        step("featured.build") { scratch.addView(buildFeatured()) }
+        step("featured.bind") {
+            val adapter = FeaturedAdapter(
+                ToolRegistry.tools.filter {
+                    listOf("torch", "qrgenerate", "compass", "recorder").contains(it.id)
+                }) { }
+            val holder = adapter.onCreateViewHolder(scratch, 0)
+            adapter.onBindViewHolder(holder, 0)
+        }
+        step("shortcuts") {
+            shortcutRow = android.widget.LinearLayout(this).apply {
+                orientation = android.widget.LinearLayout.HORIZONTAL
+            }
+            scratch.addView(shortcutRow)
+            refreshShortcuts()
+        }
+        step("categories") { scratch.addView(buildCategorySection()) }
+        step("grid.select+bind") {
+            selectCategory(category)
+            val holder = gridAdapter.onCreateViewHolder(scratch, 0)
+            if (gridAdapter.itemCount > 0) gridAdapter.onBindViewHolder(holder, 0)
+        }
+        step("common") { scratch.addView(buildCommonCard()) }
+        step("recommended") { scratch.addView(buildRecommended()) }
+        step("page.callback") {
+            androidx.viewpager2.widget.ViewPager2(this).registerOnPageChangeCallback(
+                object : androidx.viewpager2.widget.ViewPager2.OnPageChangeCallback() { })
+        }
+        say("--- done: tap 'Show home anyway' or send this report ---")
     }
 
     /** Simple grid fallback — always works, used if expressive UI fails. */

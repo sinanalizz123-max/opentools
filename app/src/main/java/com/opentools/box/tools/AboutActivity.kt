@@ -7,7 +7,6 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
-import com.opentools.box.BuildConfig
 import com.opentools.box.ToolScaffold
 import com.opentools.box.UiStyle
 
@@ -15,6 +14,9 @@ import com.opentools.box.UiStyle
 class AboutActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val packageInfo = packageManager.getPackageInfo(packageName, 0)
+        val versionName = packageInfo.versionName ?: "unknown"
+        val versionCode = androidx.core.content.pm.PackageInfoCompat.getLongVersionCode(packageInfo)
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             val pad = UiStyle.dp(context, 20f)
@@ -45,7 +47,7 @@ class AboutActivity : AppCompatActivity() {
             })
             addView(ToolScaffold.sectionTitle(context, "Version"))
             addView(TextView(context).apply {
-                text = "Version ${BuildConfig.VERSION_NAME} · Build ${BuildConfig.VERSION_CODE}"
+                text = "Version $versionName · Build $versionCode"
                 UiStyle.styleText(this, 14f, false, UiStyle.muted(context))
             })
             addView(NativeButton(context, false).apply {

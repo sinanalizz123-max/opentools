@@ -8,7 +8,9 @@ import android.media.AudioRecord
 import android.media.AudioTrack
 import android.media.MediaRecorder
 import android.os.Bundle
-import android.widget.EditText
+import android.net.nsd.NsdServiceInfo
+import android.widget.ArrayAdapter
+import android.widget.ListView
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
@@ -33,13 +35,59 @@ class MicShareActivity : AppCompatActivity() {
     private lateinit var status: TextView
     private lateinit var streamButton: NativeButton
     private lateinit var listenButton: NativeButton
+    private var hostHandle: AutoCloseable? = null
+    private var browseHandle: AutoCloseable? = null
+    private var hostingNsd = false
+    private var hostName = ""
+    private var selectedIp = ""
+    private var selectedPort = 0
+    private val peers = mutableListOf<NsdServiceInfo>()
+    private lateinit var peerAdapter: ArrayAdapter<String>
+    private val svcType = "_opentools-mic._udp."
+    private fun peerLabel(s: NsdServiceInfo): String {
+        val ip = try { s.host?.hostAddress ?: "?" } catch (_: Exception) { "?" }
+        return (s.serviceName ?: "?") + " · " + ip + ":" + s.port
+    }
+    private fun ensureLocBrowse() {
+        try { browseHandle?.close() } catch (_: Exception) { }
+        browseHandle = null
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.ACCESS_FINE_LOCATION), 9001)
+            return
+        }
+        startBrowse()
+    }
+    private fun startBrowse() {
+        try { browseHandle?.close() } catch (_: Exception) { }
+        browseHandle = LanDiscovery.browse(this, svcType) { list ->
+            runOnUiThread {
+                peers.clear(); peers.addAll(list.filter { it.serviceName != hostName })
+                if (::peerAdapter.isInitialized) {
+                    peerAdapter.clear(); peerAdapter.addAll(peers.map { peerLabel(it) })
+                    if (peers.isEmpty()) peerAdapter.add("(searching for hosts…)")
+                    peerAdapter.notifyDataSetChanged()
+                }
+            }
+        }
+    }
+    private fun stopDiscovery() {
+        try { hostHandle?.close() } catch (_: Exception) { }
+        try { browseHandle?.close() } catch (_: Exception) { }
+        hostHandle = null; browseHandle = null; hostingNsd = false
+    }
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val peer = EditText(this).apply {
-            hint = "Peer IP address"
-            UiStyle.styleInput(this)
-            setSingleLine(true)
+        peerAdapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, mutableListOf("(searching for hosts…)"))
+        val peerList = ListView(this).apply { adapter = peerAdapter }
+        val hostBtn = NativeButton(this, false).apply { text = "Start hosting" }
+        hostBtn.setOnClickListener {
+            if (hostingNsd) { try { hostHandle?.close() } catch (_: Exception) { }; hostHandle = null; hostingNsd = false; hostBtn.text = "Start hosting"; status.text = "Idle"; ensureLocBrowse() }
+            else { startListen(); hostHandle = LanDiscovery.host(this, svcType, 9997, (android.os.Build.MODEL ?: "mic").replace(" ","-") + "-" + (0..999).random(), onRegistered = { n -> runOnUiThread { hostName = n; status.text = "Hosting as " + n + " · listening on :9997" } }, onError = { m -> runOnUiThread { status.text = "Host error: " + m } }); hostingNsd = true; hostBtn.text = "Stop hosting" }
+        }
+        peerList.setOnItemClickListener { _, _, pos, _ ->
+            peers.getOrNull(pos)?.let { s -> try { selectedIp = s.host?.hostAddress ?: "" } catch (_: Exception) { }; selectedPort = s.port; status.text = "Peer: " + peerLabel(s); if (!streaming) startStream(selectedIp) }
         }
         status = TextView(this).apply {
             text = "Idle · choose whether to stream your microphone or listen for a peer."
@@ -51,7 +99,7 @@ class MicShareActivity : AppCompatActivity() {
         streamButton = NativeButton(this).apply { text = "Start microphone stream" }
         listenButton = NativeButton(this, false).apply { text = "Listen on port 9997" }
         streamButton.setOnClickListener {
-            if (streaming) stopStream() else startStream(peer.text.toString().trim())
+            if (streaming) stopStream() else startStream(selectedIp)
         }
         listenButton.setOnClickListener {
             if (listening) stopListen() else startListen()
@@ -69,7 +117,10 @@ class MicShareActivity : AppCompatActivity() {
                 UiStyle.styleText(this, 14f, false, UiStyle.muted(context))
                 setPadding(0, UiStyle.dp(context, 4f), 0, UiStyle.dp(context, 18f))
             })
-            addView(peer, LinearLayout.LayoutParams(-1, -2).apply {
+            addView(hostBtn, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = UiStyle.dp(context, 8f)
+            })
+            addView(peerList, LinearLayout.LayoutParams(-1, UiStyle.dp(context, 140f)).apply {
                 bottomMargin = UiStyle.dp(context, 10f)
             })
             addView(streamButton, LinearLayout.LayoutParams(-1, -2).apply {
@@ -84,6 +135,7 @@ class MicShareActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        ensureLocBrowse()
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
             != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.RECORD_AUDIO), 1)
@@ -91,7 +143,7 @@ class MicShareActivity : AppCompatActivity() {
     }
 
     private fun startStream(ip: String) {
-        if (ip.isBlank()) { status.text = "Enter peer IP"; return }
+        if (ip.isBlank()) { status.text = "Tap a peer in the list first"; return }
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.RECORD_AUDIO), 1)
             return
@@ -192,6 +244,7 @@ class MicShareActivity : AppCompatActivity() {
     }
 
     override fun onPause() {
+        stopDiscovery()
         stopStream()
         stopListen()
         super.onPause()
@@ -199,6 +252,7 @@ class MicShareActivity : AppCompatActivity() {
 
     override fun onRequestPermissionsResult(code: Int, perms: Array<String>, results: IntArray) {
         super.onRequestPermissionsResult(code, perms, results)
+        if (code == 9001) { if (results.firstOrNull() == PackageManager.PERMISSION_GRANTED) startBrowse(); return }
         if (code != 1) return
         if (results.firstOrNull() != PackageManager.PERMISSION_GRANTED) finish()
     }

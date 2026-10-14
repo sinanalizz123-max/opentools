@@ -19,7 +19,9 @@ import android.media.MediaRecorder
 import android.os.Bundle
 import android.os.Handler
 import android.os.HandlerThread
-import android.widget.EditText
+import android.net.nsd.NsdServiceInfo
+import android.widget.ArrayAdapter
+import android.widget.ListView
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -52,7 +54,39 @@ class VideoCallActivity : AppCompatActivity() {
 
     @Volatile private var callActive = false
     private val accessToken = java.util.UUID.randomUUID().toString().replace("-", "")
-    private var pendingPeer: String? = null
+    private var hostHandle: AutoCloseable? = null
+    private var browseHandle: AutoCloseable? = null
+    private var hostingNsd = false
+    private var hostName = ""
+    private val peers = mutableListOf<NsdServiceInfo>()
+    private lateinit var peerAdapter: ArrayAdapter<String>
+    private val svcType = "_opentools-call._tcp."
+    private var pickedIp = ""
+    private fun peerLabel(s: NsdServiceInfo): String {
+        val ip = try { s.host?.hostAddress ?: "?" } catch (_: Exception) { "?" }
+        return (s.serviceName ?: "?") + " · " + ip + ":" + s.port
+    }
+    private fun ensureLocBrowse() {
+        if (ActivityCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION), 9001)
+            return
+        }
+        startBrowse()
+    }
+    private fun startBrowse() {
+        try { browseHandle?.close() } catch (_: Exception) { }
+        browseHandle = LanDiscovery.browse(this, svcType) { list ->
+            runOnUiThread {
+                peers.clear(); peers.addAll(list.filter { it.serviceName != hostName })
+                if (::peerAdapter.isInitialized) {
+                    peerAdapter.clear(); peerAdapter.addAll(peers.map { peerLabel(it) })
+                    if (peers.isEmpty()) peerAdapter.add("(searching for callers…)")
+                    peerAdapter.notifyDataSetChanged()
+                }
+            }
+        }
+    }
+    private fun pendingPeer(): String? = if (pickedIp.isBlank()) null else pickedIp
     private var pendingPeerToken: String? = null
     private var audioSocket: DatagramSocket? = null
     private var recorder: AudioRecord? = null
@@ -61,12 +95,10 @@ class VideoCallActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         cameraManager = getSystemService(Context.CAMERA_SERVICE) as CameraManager
-        val ip = EditText(this).apply {
-            hint = "Peer IP address"
-            UiStyle.styleInput(this)
-            setSingleLine(true)
-        }
-        val peerToken = EditText(this).apply {
+        peerAdapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, mutableListOf("(searching for callers…)"))
+        val peerList = ListView(this).apply { adapter = peerAdapter }
+        val hostBtn = NativeButton(this, false).apply { text = "Start hosting" }
+        val peerToken = android.widget.EditText(this).apply {
             hint = "Peer camera/audio token"
             inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
             UiStyle.styleInput(this)
@@ -106,7 +138,14 @@ class VideoCallActivity : AppCompatActivity() {
         }
         val join = NativeButton(this).apply { text = "Join call" }
         val hangup = NativeButton(this, false).apply { text = "Hang up" }
-        join.setOnClickListener { joinCall(ip.text.toString().trim(), peerToken.text.toString().trim()) }
+        peerList.setOnItemClickListener { _, _, pos, _ ->
+            peers.getOrNull(pos)?.let { s -> try { pickedIp = s.host?.hostAddress ?: "" } catch (_: Exception) { }; status.text = "Peer: " + peerLabel(s) }
+        }
+        hostBtn.setOnClickListener {
+            if (hostingNsd) { try { hostHandle?.close() } catch (_: Exception) { }; hostHandle = null; hostingNsd = false; hostBtn.text = "Start hosting"; ensureLocBrowse() }
+            else { hostHandle = LanDiscovery.host(this, svcType, CctvLan.PORT, (android.os.Build.MODEL ?: "call").replace(" ","-") + "-" + (0..999).random(), onRegistered = { n -> runOnUiThread { hostName = n; status.text = "Hosting as " + n } }, onError = { }); hostingNsd = true; hostBtn.text = "Stop hosting" }
+        }
+        join.setOnClickListener { joinCall(pickedIp, peerToken.text.toString().trim()) }
         hangup.setOnClickListener { hangUp() }
         setContentView(com.opentools.box.ToolScaffold.wrap(this, "LAN Video Call", LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -122,7 +161,8 @@ class VideoCallActivity : AppCompatActivity() {
                 UiStyle.styleText(this, 13f, false, UiStyle.muted(context))
                 setPadding(0, 0, 0, UiStyle.dp(context, 14f))
             })
-            addView(ip, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = UiStyle.dp(context, 8f) })
+            addView(hostBtn, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = UiStyle.dp(context, 8f) })
+            addView(peerList, LinearLayout.LayoutParams(-1, UiStyle.dp(context, 130f)).apply { bottomMargin = UiStyle.dp(context, 8f) })
             addView(peerToken, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = UiStyle.dp(context, 8f) })
             addView(LinearLayout(context).apply {
                 orientation = LinearLayout.HORIZONTAL
@@ -145,11 +185,11 @@ class VideoCallActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        // Do not activate camera or microphone until the user explicitly joins a call.
+        ensureLocBrowse()
     }
 
     private fun startCaptureIfAllowed() {
-        val peer = pendingPeer ?: return
+        val peer = pendingPeer() ?: return
         val need = mutableListOf<String>()
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
             need.add(Manifest.permission.CAMERA)
@@ -172,25 +212,25 @@ class VideoCallActivity : AppCompatActivity() {
         ).also { it.start() }
         if (camera == null) openCamera()
         val peerSecret = pendingPeerToken ?: return
-        pendingPeer = null
         pendingPeerToken = null
         beginCall(peer, peerSecret)
     }
 
     override fun onPause() {
-        // A permission prompt can briefly pause the activity; don't discard a pending join
-        // before its permission result arrives.
         if (callActive || mjpegServer != null || camera != null) hangUp()
+        try { hostHandle?.close() } catch (_: Exception) { }
+        try { browseHandle?.close() } catch (_: Exception) { }
+        hostHandle = null; browseHandle = null; hostingNsd = false
         super.onPause()
     }
 
     private fun joinCall(ip: String, peerToken: String) {
         if (ip.isBlank() || peerToken.isBlank()) {
-            status.text = "Enter both the peer IP and token."
+            status.text = "Tap a peer and enter their token."
             return
         }
         if (callActive) return
-        pendingPeer = ip
+        pickedIp = ip
         pendingPeerToken = peerToken
         status.text = "Checking permissions…"
         startCaptureIfAllowed()
@@ -210,7 +250,7 @@ class VideoCallActivity : AppCompatActivity() {
     }
 
     private fun hangUp(message: String = "Call ended") {
-        pendingPeer = null
+        pickedIp = ""
         pendingPeerToken = null
         callActive = false
         mjpegClient?.stop(); mjpegClient = null
@@ -383,10 +423,11 @@ class VideoCallActivity : AppCompatActivity() {
     @Deprecated("Deprecated in Android API; retained for compatibility with minSdk 26")
     override fun onRequestPermissionsResult(code: Int, perms: Array<String>, results: IntArray) {
         super.onRequestPermissionsResult(code, perms, results)
+        if (code == 9001) { if (results.firstOrNull() == PackageManager.PERMISSION_GRANTED) startBrowse(); return }
         if (code != 1) return
         if (results.isNotEmpty() && results.all { it == PackageManager.PERMISSION_GRANTED }) startCaptureIfAllowed()
         else {
-            pendingPeer = null
+            pickedIp = ""
             pendingPeerToken = null
             finish()
         }

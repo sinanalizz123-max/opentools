@@ -43,6 +43,8 @@ class TxtRecogLiveActivity : AppCompatActivity() {
     private var handler: Handler? = null
     @Volatile private var busy = false
     private var openingCamera = false
+    private var previewRequest: CaptureRequest.Builder? = null
+    private var zoomHelper: CameraZoom? = null
     private var rotationDegrees = 0
     private val recognizer = TextRecognition.getClient(TextRecognizerOptions.Builder().build())
 
@@ -108,12 +110,16 @@ class TxtRecogLiveActivity : AppCompatActivity() {
         super.onResume()
         thread = HandlerThread("live-ocr").also { it.start() }
         handler = Handler(thread!!.looper)
+        zoomHelper = CameraZoom(preview) { applyPinchZoom(it) }.also {
+            try { it.maxZoom = maxZoomFor(activeCameraId); it.attach() } catch (_: Exception) { }
+        }
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.CAMERA), REQUEST_CAMERA)
         } else if (preview.isAvailable) openCamera()
     }
 
     override fun onPause() {
+        zoomHelper?.detach(); zoomHelper = null
         session?.close(); session = null
         camera?.close(); camera = null
         reader?.close(); reader = null
@@ -221,6 +227,8 @@ class TxtRecogLiveActivity : AppCompatActivity() {
             addTarget((reader ?: return).surface)
             set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE)
         }
+        previewRequest = request
+        zoomHelper?.let { try { it.maxZoom = maxZoomFor(activeCameraId) } catch (_: Exception) { } }
         try {
             device.createCaptureSession(listOf(surface, (reader ?: return).surface), object : CameraCaptureSession.StateCallback() {
                 override fun onConfigured(configured: CameraCaptureSession) {
@@ -241,6 +249,30 @@ class TxtRecogLiveActivity : AppCompatActivity() {
         } catch (_: Exception) {
             status.text = "Could not start camera preview."
         }
+    }
+
+    private fun maxZoomFor(id: String?): Float {
+        if (id == null) return 4f
+        return try {
+            cameraManager.getCameraCharacteristics(id)
+                .get(CameraCharacteristics.SCALER_AVAILABLE_MAX_DIGITAL_ZOOM) ?: 4f
+        } catch (_: Exception) { 4f }.coerceAtLeast(1f)
+    }
+
+    private fun applyPinchZoom(z: Float) {
+        val req = previewRequest ?: return
+        val id = activeCameraId ?: return
+        val active = try {
+            cameraManager.getCameraCharacteristics(id)
+                .get(CameraCharacteristics.SENSOR_INFO_ACTIVE_ARRAY_SIZE)
+        } catch (_: Exception) { null } ?: return
+        val actual = z.coerceIn(1f, maxZoomFor(id))
+        val w = (active.width() / actual).toInt().coerceAtLeast(1)
+        val h = (active.height() / actual).toInt().coerceAtLeast(1)
+        val cx = active.centerX(); val cy = active.centerY()
+        req.set(CaptureRequest.SCALER_CROP_REGION,
+            android.graphics.Rect(cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2))
+        try { session?.setRepeatingRequest(req.build(), null, handler) } catch (_: Exception) { }
     }
 
     override fun onRequestPermissionsResult(code: Int, permissions: Array<String>, results: IntArray) {

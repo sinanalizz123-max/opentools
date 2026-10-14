@@ -45,6 +45,8 @@ class ScannerActivity : AppCompatActivity() {
     @Volatile private var found = false
     @Volatile private var lastAttempt = 0L
     private var openingCamera = false
+    private var previewRequest: CaptureRequest.Builder? = null
+    private var zoomHelper: CameraZoom? = null
     private val decoder = MultiFormatReader()
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -113,12 +115,16 @@ class ScannerActivity : AppCompatActivity() {
         super.onResume()
         thread = HandlerThread("barcode-scan").also { it.start() }
         handler = Handler(thread!!.looper)
+        zoomHelper = CameraZoom(preview) { applyPinchZoom(it) }.also {
+            try { it.maxZoom = maxZoomFor(activeCameraId); it.attach() } catch (_: Exception) { }
+        }
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.CAMERA), REQUEST_CAMERA)
         } else if (preview.isAvailable) openCamera()
     }
 
     override fun onPause() {
+        zoomHelper?.detach(); zoomHelper = null
         session?.close(); session = null
         camera?.close(); camera = null
         reader?.close(); reader = null
@@ -198,6 +204,8 @@ class ScannerActivity : AppCompatActivity() {
             addTarget((reader ?: return).surface)
             set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE)
         }
+        previewRequest = request
+        zoomHelper?.let { try { it.maxZoom = maxZoomFor(activeCameraId) } catch (_: Exception) { } }
         try {
             device.createCaptureSession(listOf(surface, (reader ?: return).surface), object : CameraCaptureSession.StateCallback() {
                 override fun onConfigured(configured: CameraCaptureSession) {
@@ -214,6 +222,31 @@ class ScannerActivity : AppCompatActivity() {
         } catch (_: Exception) {
             status.text = "Could not start camera preview."
         }
+    }
+
+    private fun maxZoomFor(id: String?): Float {
+        if (id == null) return 4f
+        return try {
+            cameraManager.getCameraCharacteristics(id)
+                .get(android.hardware.camera2.CameraCharacteristics.SCALER_AVAILABLE_MAX_DIGITAL_ZOOM)
+                ?: 4f
+        } catch (_: Exception) { 4f }.coerceAtLeast(1f)
+    }
+
+    private fun applyPinchZoom(z: Float) {
+        val req = previewRequest ?: return
+        val id = activeCameraId ?: return
+        val active = try {
+            cameraManager.getCameraCharacteristics(id)
+                .get(android.hardware.camera2.CameraCharacteristics.SENSOR_INFO_ACTIVE_ARRAY_SIZE)
+        } catch (_: Exception) { null } ?: return
+        val actual = z.coerceIn(1f, maxZoomFor(id))
+        val w = (active.width() / actual).toInt().coerceAtLeast(1)
+        val h = (active.height() / actual).toInt().coerceAtLeast(1)
+        val cx = active.centerX(); val cy = active.centerY()
+        req.set(CaptureRequest.SCALER_CROP_REGION,
+            android.graphics.Rect(cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2))
+        try { session?.setRepeatingRequest(req.build(), null, handler) } catch (_: Exception) { }
     }
 
     private fun decode(image: android.media.Image) {

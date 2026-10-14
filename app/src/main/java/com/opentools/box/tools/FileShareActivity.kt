@@ -2,10 +2,13 @@ package com.opentools.box.tools
 
 import android.net.Uri
 import android.os.Bundle
+import android.Manifest
+import android.content.pm.PackageManager
+import android.net.nsd.NsdServiceInfo
 import android.widget.ArrayAdapter
-import android.widget.EditText
-import android.widget.LinearLayout
 import android.widget.ListView
+import androidx.core.app.ActivityCompat
+import android.widget.LinearLayout
 import android.widget.TextView
 import android.view.View
 import android.view.ViewGroup
@@ -37,6 +40,47 @@ class FileShareActivity : AppCompatActivity() {
     private val clientSlots = Semaphore(4)
     private lateinit var status: TextView
     private lateinit var adapter: ArrayAdapter<String>
+    private var hostHandle: AutoCloseable? = null
+    private var browseHandle: AutoCloseable? = null
+    private var hostingNsd = false
+    private var hostName = ""
+    private var selectedIp = ""
+    private var selectedPort = 0
+    private val peers = mutableListOf<NsdServiceInfo>()
+    private lateinit var peerAdapter: ArrayAdapter<String>
+    private val svcType = "_opentools-file._tcp."
+    private fun peerLabel(s: NsdServiceInfo): String {
+        val ip = try { s.host?.hostAddress ?: "?" } catch (_: Exception) { "?" }
+        return (s.serviceName ?: "?") + " · " + ip + ":" + s.port
+    }
+    private fun ensureLocBrowse() {
+        try { browseHandle?.close() } catch (_: Exception) { }
+        browseHandle = null
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.ACCESS_FINE_LOCATION), 9001)
+            return
+        }
+        startBrowse()
+    }
+    private fun startBrowse() {
+        try { browseHandle?.close() } catch (_: Exception) { }
+        browseHandle = LanDiscovery.browse(this, svcType) { list ->
+            runOnUiThread {
+                peers.clear(); peers.addAll(list.filter { it.serviceName != hostName })
+                if (::peerAdapter.isInitialized) {
+                    peerAdapter.clear(); peerAdapter.addAll(peers.map { peerLabel(it) })
+                    if (peers.isEmpty()) peerAdapter.add("(searching for hosts…)")
+                    peerAdapter.notifyDataSetChanged()
+                }
+            }
+        }
+    }
+    private fun stopDiscovery() {
+        try { hostHandle?.close() } catch (_: Exception) { }
+        try { browseHandle?.close() } catch (_: Exception) { }
+        hostHandle = null; browseHandle = null; hostingNsd = false
+    }
+
     private val log = mutableListOf<String>()
 
     private val picker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
@@ -77,16 +121,25 @@ class FileShareActivity : AppCompatActivity() {
         list.adapter = adapter
         val share = NativeButton(this).apply { text = "Add file to share" }
         val toggle = NativeButton(this).apply { text = "Start server :9999" }
-        val peer = EditText(this).apply {
-            hint = "Peer IP address"
-            UiStyle.styleInput(this)
-            setSingleLine(true)
-        }
-        val token = EditText(this).apply {
+        val token = android.widget.EditText(this).apply {
             hint = "Peer access token"
             inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
             UiStyle.styleInput(this)
             setSingleLine(true)
+        }
+        peerAdapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, mutableListOf("(searching for hosts…)"))
+        val peerList = ListView(this).apply { adapter = peerAdapter }
+        val hostBtn = NativeButton(this, false).apply { text = "Start hosting" }
+        hostBtn.setOnClickListener {
+            if (hostingNsd) { try { hostHandle?.close() } catch (_: Exception) { }; hostHandle = null; hostingNsd = false; hostBtn.text = "Start hosting"; status.text = "Hosting stopped."; ensureLocBrowse() }
+            else {
+                if (!serving) startServer()
+                hostHandle = LanDiscovery.host(this, svcType, 9999, (android.os.Build.MODEL ?: "file").replace(" ","-") + "-" + (0..999).random(), onRegistered = { n -> runOnUiThread { hostName = n; status.text = "Hosting as " + n + "\nShare token: " + sessionToken } }, onError = { m -> runOnUiThread { status.text = "Host error: " + m } })
+                hostingNsd = true; hostBtn.text = "Stop hosting"
+            }
+        }
+        peerList.setOnItemClickListener { _, _, pos, _ ->
+            peers.getOrNull(pos)?.let { s -> try { selectedIp = s.host?.hostAddress ?: "" } catch (_: Exception) { }; selectedPort = s.port; fetchFrom(selectedIp, token.text.toString().trim()) }
         }
         val fetch = NativeButton(this).apply { text = "Fetch files" }
         share.setOnClickListener { picker.launch(arrayOf("*/*")) }
@@ -94,7 +147,7 @@ class FileShareActivity : AppCompatActivity() {
             if (serving) stopServer() else startServer()
             toggle.text = if (serving) "Stop server" else "Start server :9999"
         }
-        fetch.setOnClickListener { fetchFrom(peer.text.toString().trim(), token.text.toString().trim()) }
+        fetch.setOnClickListener { fetchFrom(selectedIp, token.text.toString().trim()) }
         setContentView(com.opentools.box.ToolScaffold.wrap(this, "LAN File Share", LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             val pad = UiStyle.dp(context, 16f)
@@ -113,7 +166,10 @@ class FileShareActivity : AppCompatActivity() {
             addView(toggle, LinearLayout.LayoutParams(-1, -2).apply {
                 bottomMargin = UiStyle.dp(context, 14f)
             })
-            addView(peer, LinearLayout.LayoutParams(-1, -2).apply {
+            addView(hostBtn, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = UiStyle.dp(context, 8f)
+            })
+            addView(peerList, LinearLayout.LayoutParams(-1, UiStyle.dp(context, 130f)).apply {
                 bottomMargin = UiStyle.dp(context, 8f)
             })
             addView(token, LinearLayout.LayoutParams(-1, -2).apply {
@@ -246,7 +302,11 @@ class FileShareActivity : AppCompatActivity() {
     }
 
     private fun fetchFrom(ip: String, token: String) {
-        if (ip.isBlank() || token.isBlank()) {
+        if (ip.isBlank()) {
+            status.text = "Tap a peer in the list first."
+            return
+        }
+        if (token.isBlank()) {
             status.text = "Enter the peer IP and the token shown on their server."
             return
         }
@@ -319,7 +379,20 @@ class FileShareActivity : AppCompatActivity() {
         }.start()
     }
 
+    override fun onResume() {
+        super.onResume()
+        ensureLocBrowse()
+    }
+    override fun onRequestPermissionsResult(code: Int, perms: Array<String>, results: IntArray) {
+        super.onRequestPermissionsResult(code, perms, results)
+        if (code == 9001 && results.firstOrNull() == PackageManager.PERMISSION_GRANTED) startBrowse()
+    }
+    override fun onPause() {
+        stopDiscovery()
+        super.onPause()
+    }
     override fun onDestroy() {
+        stopDiscovery()
         stopServer()
         super.onDestroy()
     }

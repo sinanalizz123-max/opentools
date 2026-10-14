@@ -44,6 +44,8 @@ class ColorDetectActivity : AppCompatActivity() {
     @Volatile private var tapX = 0.5f
     @Volatile private var tapY = 0.5f
     @Volatile private var lastSample = 0L
+    private var previewRequest: CaptureRequest.Builder? = null
+    private var zoomHelper: CameraZoom? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -63,6 +65,7 @@ class ColorDetectActivity : AppCompatActivity() {
                 override fun onSurfaceTextureUpdated(surface: SurfaceTexture) = Unit
             }
             setOnTouchListener { view, event ->
+                zoomHelper?.let { if (it.onTouchEvent(event)) return@setOnTouchListener true }
                 when (event.action) {
                     MotionEvent.ACTION_DOWN -> {
                         if (width > 0 && height > 0) {
@@ -109,6 +112,8 @@ class ColorDetectActivity : AppCompatActivity() {
         super.onResume()
         thread = HandlerThread("color-sampler").also { it.start() }
         handler = Handler(thread!!.looper)
+        zoomHelper = CameraZoom(preview) { applyPinchZoom(it) }
+        try { zoomHelper?.maxZoom = maxZoomFor(activeCameraId) } catch (_: Exception) { }
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.CAMERA), REQUEST_CAMERA)
             return
@@ -117,6 +122,7 @@ class ColorDetectActivity : AppCompatActivity() {
     }
 
     override fun onPause() {
+        zoomHelper = null
         session?.close()
         session = null
         camera?.close()
@@ -188,6 +194,8 @@ class ColorDetectActivity : AppCompatActivity() {
                 addTarget(surface)
                 addTarget((reader ?: return).surface)
             }
+            previewRequest = request
+            zoomHelper?.let { try { it.maxZoom = maxZoomFor(activeCameraId) } catch (_: Exception) { } }
             device.createCaptureSession(listOf(surface, (reader ?: return).surface),
                 object : CameraCaptureSession.StateCallback() {
                     override fun onConfigured(configured: CameraCaptureSession) {
@@ -211,6 +219,31 @@ class ColorDetectActivity : AppCompatActivity() {
         } catch (_: Exception) {
             instruction.text = "Could not start the camera preview."
         }
+    }
+
+    private fun maxZoomFor(id: String?): Float {
+        if (id == null) return 4f
+        return try {
+            cameraManager.getCameraCharacteristics(id)
+                .get(android.hardware.camera2.CameraCharacteristics.SCALER_AVAILABLE_MAX_DIGITAL_ZOOM)
+                ?: 4f
+        } catch (_: Exception) { 4f }.coerceAtLeast(1f)
+    }
+
+    private fun applyPinchZoom(z: Float) {
+        val req = previewRequest ?: return
+        val id = activeCameraId ?: return
+        val active = try {
+            cameraManager.getCameraCharacteristics(id)
+                .get(android.hardware.camera2.CameraCharacteristics.SENSOR_INFO_ACTIVE_ARRAY_SIZE)
+        } catch (_: Exception) { null } ?: return
+        val actual = z.coerceIn(1f, maxZoomFor(id))
+        val w = (active.width() / actual).toInt().coerceAtLeast(1)
+        val h = (active.height() / actual).toInt().coerceAtLeast(1)
+        val cx = active.centerX(); val cy = active.centerY()
+        req.set(CaptureRequest.SCALER_CROP_REGION,
+            android.graphics.Rect(cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2))
+        try { session?.setRepeatingRequest(req.build(), null, handler) } catch (_: Exception) { }
     }
 
     private fun sample(image: android.media.Image) {

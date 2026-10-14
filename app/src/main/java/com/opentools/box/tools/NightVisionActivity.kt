@@ -37,6 +37,7 @@ class NightVisionActivity : AppCompatActivity() {
     private var request: CaptureRequest.Builder? = null
     private var previewSurface: Surface? = null
     private var openingCamera = false
+    private var zoomHelper: CameraZoom? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -97,12 +98,16 @@ class NightVisionActivity : AppCompatActivity() {
         super.onResume()
         thread = HandlerThread("night-vision").also { it.start() }
         handler = Handler(thread!!.looper)
+        zoomHelper = CameraZoom(preview) { applyPinchZoom(it) }.also {
+            try { it.maxZoom = maxZoomFor(activeCameraId); it.attach() } catch (_: Exception) { }
+        }
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.CAMERA), REQUEST_CAMERA)
         } else if (preview.isAvailable) openCamera()
     }
 
     override fun onPause() {
+        zoomHelper?.detach(); zoomHelper = null
         session?.close(); session = null
         camera?.close(); camera = null
         previewSurface?.release(); previewSurface = null
@@ -168,6 +173,7 @@ class NightVisionActivity : AppCompatActivity() {
             addTarget(surface)
             set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE)
         }
+        zoomHelper?.let { try { it.maxZoom = maxZoomFor(activeCameraId) } catch (_: Exception) { } }
         try {
             device.createCaptureSession(listOf(surface), object : CameraCaptureSession.StateCallback() {
                 override fun onConfigured(s: CameraCaptureSession) {
@@ -183,6 +189,31 @@ class NightVisionActivity : AppCompatActivity() {
         } catch (_: Exception) {
             gainLabel.text = "Could not start preview"
         }
+    }
+
+    private fun maxZoomFor(id: String?): Float {
+        if (id == null) return 4f
+        return try {
+            cameraManager.getCameraCharacteristics(id)
+                .get(android.hardware.camera2.CameraCharacteristics.SCALER_AVAILABLE_MAX_DIGITAL_ZOOM)
+                ?: 4f
+        } catch (_: Exception) { 4f }.coerceAtLeast(1f)
+    }
+
+    private fun applyPinchZoom(z: Float) {
+        val req = request ?: return
+        val id = activeCameraId ?: return
+        val active = try {
+            cameraManager.getCameraCharacteristics(id)
+                .get(android.hardware.camera2.CameraCharacteristics.SENSOR_INFO_ACTIVE_ARRAY_SIZE)
+        } catch (_: Exception) { null } ?: return
+        val actual = z.coerceIn(1f, maxZoomFor(id))
+        val w = (active.width() / actual).toInt().coerceAtLeast(1)
+        val h = (active.height() / actual).toInt().coerceAtLeast(1)
+        val cx = active.centerX(); val cy = active.centerY()
+        req.set(CaptureRequest.SCALER_CROP_REGION,
+            android.graphics.Rect(cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2))
+        applyExposure()
     }
 
     private fun applyExposure() {

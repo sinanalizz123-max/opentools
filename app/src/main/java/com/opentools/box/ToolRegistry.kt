@@ -134,7 +134,7 @@ object ToolRegistry {
         ToolEntry("vidply", "Video Player", ToolCategory.AUDIO, VideoPlayerActivity::class.java),
         ToolEntry("gallery", "Gallery", ToolCategory.CAMERA, GalleryActivity::class.java),
         ToolEntry("pdfviewer", "PDF Viewer", ToolCategory.EDITORS, PdfViewerActivity::class.java),
-        ToolEntry("wifispeed", "WiFi Speed", ToolCategory.WIFI, WifiSpeedActivity::class.java),
+        ToolEntry("wifispeed", "Internet Speed", ToolCategory.WIFI, WifiSpeedActivity::class.java),
         ToolEntry("wifiscan", "WiFi Scanner", ToolCategory.WIFI, WifiScanActivity::class.java),
         ToolEntry("wifiscanip", "LAN Scanner", ToolCategory.WIFI, LanScanActivity::class.java),
         ToolEntry("devinfo", "Device Info", ToolCategory.BASIC, DevInfoActivity::class.java),

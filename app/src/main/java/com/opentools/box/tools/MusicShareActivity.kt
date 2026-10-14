@@ -8,7 +8,12 @@ import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.net.Uri
 import android.os.Bundle
-import android.widget.EditText
+import android.Manifest
+import android.content.pm.PackageManager
+import android.net.nsd.NsdServiceInfo
+import android.widget.ArrayAdapter
+import android.widget.ListView
+import androidx.core.app.ActivityCompat
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
@@ -30,6 +35,47 @@ class MusicShareActivity : AppCompatActivity() {
     @Volatile private var joining = false
     private var recvSocket: DatagramSocket? = null
     private var track: AudioTrack? = null
+    private var hostHandle: AutoCloseable? = null
+    private var browseHandle: AutoCloseable? = null
+    private var hostingNsd = false
+    private var hostName = ""
+    private var selectedIp = ""
+    private var selectedPort = 0
+    private val peers = mutableListOf<NsdServiceInfo>()
+    private lateinit var peerAdapter: ArrayAdapter<String>
+    private val svcType = "_opentools-music._udp."
+    private fun peerLabel(s: NsdServiceInfo): String {
+        val ip = try { s.host?.hostAddress ?: "?" } catch (_: Exception) { "?" }
+        return (s.serviceName ?: "?") + " · " + ip + ":" + s.port
+    }
+    private fun ensureLocBrowse() {
+        try { browseHandle?.close() } catch (_: Exception) { }
+        browseHandle = null
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.ACCESS_FINE_LOCATION), 9001)
+            return
+        }
+        startBrowse()
+    }
+    private fun startBrowse() {
+        try { browseHandle?.close() } catch (_: Exception) { }
+        browseHandle = LanDiscovery.browse(this, svcType) { list ->
+            runOnUiThread {
+                peers.clear(); peers.addAll(list.filter { it.serviceName != hostName })
+                if (::peerAdapter.isInitialized) {
+                    peerAdapter.clear(); peerAdapter.addAll(peers.map { peerLabel(it) })
+                    if (peers.isEmpty()) peerAdapter.add("(searching for hosts…)")
+                    peerAdapter.notifyDataSetChanged()
+                }
+            }
+        }
+    }
+    private fun stopDiscovery() {
+        try { hostHandle?.close() } catch (_: Exception) { }
+        try { browseHandle?.close() } catch (_: Exception) { }
+        hostHandle = null; browseHandle = null; hostingNsd = false
+    }
+
 
     private val picker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
         uri?.let { host(it) }
@@ -44,16 +90,21 @@ class MusicShareActivity : AppCompatActivity() {
                 UiStyle.dp(context, 14f), UiStyle.dp(context, 12f))
             background = UiStyle.rounded(context, UiStyle.surface(context), 14f, UiStyle.border(context))
         }
-        val peer = EditText(this).apply {
-            hint = "Peer IP address"
-            UiStyle.styleInput(this)
-            setSingleLine(true)
+        peerAdapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, mutableListOf("(searching for hosts…)"))
+        val peerList = ListView(this).apply { adapter = peerAdapter }
+        peerList.setOnItemClickListener { _, _, pos, _ ->
+            peers.getOrNull(pos)?.let { s -> try { selectedIp = s.host?.hostAddress ?: "" } catch (_: Exception) { }; selectedPort = s.port; status.text = "Peer: " + peerLabel(s) }
         }
-        val hostBtn = NativeButton(this).apply { text = "Host audio file" }
+        val hostBtn = NativeButton(this).apply { text = "Start hosting" }
+        val pickBtn = NativeButton(this).apply { text = "Host audio file" }
         val stopHost = NativeButton(this, false).apply { text = "Stop hosting" }
         val joinBtn = NativeButton(this, false).apply { text = "Join audio stream" }
         val stopJoin = NativeButton(this, false).apply { text = "Stop listening" }
-        hostBtn.setOnClickListener { picker.launch(arrayOf("audio/*")) }
+        hostBtn.setOnClickListener {
+            if (hostingNsd) { try { hostHandle?.close() } catch (_: Exception) { }; hostHandle = null; hostingNsd = false; hostBtn.text = "Start hosting"; status.text = "Idle"; ensureLocBrowse() }
+            else { hostHandle = LanDiscovery.host(this, svcType, 9994, (android.os.Build.MODEL ?: "music").replace(" ","-") + "-" + (0..999).random(), onRegistered = { n -> runOnUiThread { hostName = n; status.text = "Hosting as " + n + " · pick a file to stream" } }, onError = { m -> runOnUiThread { status.text = "Host error: " + m } }); hostingNsd = true; hostBtn.text = "Stop hosting" }
+        }
+        pickBtn.setOnClickListener { picker.launch(arrayOf("audio/*")) }
         stopHost.setOnClickListener { hosting = false; status.text = "Idle" }
         joinBtn.setOnClickListener { if (!joining) join() }
         stopJoin.setOnClickListener {
@@ -63,7 +114,7 @@ class MusicShareActivity : AppCompatActivity() {
             track = null
             status.text = "Listening stopped."
         }
-        pendingPeer = peer
+        pendingUri = null
         setContentView(com.opentools.box.ToolScaffold.wrap(this, "Music Share", LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             val pad = UiStyle.dp(context, 20f)
@@ -77,10 +128,10 @@ class MusicShareActivity : AppCompatActivity() {
             addView(status, LinearLayout.LayoutParams(-1, -2).apply {
                 bottomMargin = UiStyle.dp(context, 12f)
             })
-            addView(peer, LinearLayout.LayoutParams(-1, -2).apply {
+            addView(peerList, LinearLayout.LayoutParams(-1, UiStyle.dp(context, 140f)).apply {
                 bottomMargin = UiStyle.dp(context, 10f)
             })
-            listOf(hostBtn, stopHost, joinBtn, stopJoin).forEach { button ->
+            listOf(hostBtn, pickBtn, stopHost, joinBtn, stopJoin).forEach { button ->
                 addView(button, LinearLayout.LayoutParams(-1, -2).apply {
                     bottomMargin = UiStyle.dp(context, 8f)
                 })
@@ -88,11 +139,12 @@ class MusicShareActivity : AppCompatActivity() {
         }))
     }
 
-    private var pendingPeer: EditText? = null
+    private var pendingUri: android.net.Uri? = null
 
     private fun host(uri: Uri) {
-        val ip = pendingPeer?.text?.toString()?.trim().orEmpty()
-        if (ip.isEmpty()) { status.text = "Enter peer IP first"; return }
+        val ip = selectedIp
+        if (ip.isEmpty()) { status.text = "Tap a peer in the list first"; return }
+        if (!hostingNsd) { hostHandle = LanDiscovery.host(this, svcType, 9994, (android.os.Build.MODEL ?: "music").replace(" ","-") + "-" + (0..999).random(), onRegistered = { n -> runOnUiThread { hostName = n } }, onError = { }); hostingNsd = true }
         hosting = true
         status.text = "Streaming…"
         Thread {
@@ -207,7 +259,16 @@ class MusicShareActivity : AppCompatActivity() {
         }.start()
     }
 
+    override fun onResume() {
+        super.onResume()
+        ensureLocBrowse()
+    }
+    override fun onRequestPermissionsResult(code: Int, perms: Array<String>, results: IntArray) {
+        super.onRequestPermissionsResult(code, perms, results)
+        if (code == 9001 && results.firstOrNull() == PackageManager.PERMISSION_GRANTED) startBrowse()
+    }
     override fun onPause() {
+        stopDiscovery()
         hosting = false
         joining = false
         try { recvSocket?.close() } catch (_: Exception) { }

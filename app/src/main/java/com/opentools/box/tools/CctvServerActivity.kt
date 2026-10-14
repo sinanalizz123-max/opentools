@@ -17,6 +17,9 @@ import android.os.HandlerThread
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import android.net.nsd.NsdServiceInfo
+import android.widget.ArrayAdapter
+import android.widget.ListView
 import androidx.core.app.ActivityCompat
 import com.opentools.box.UiStyle
 import java.util.concurrent.atomic.AtomicReference
@@ -36,6 +39,8 @@ class CctvServerActivity : AppCompatActivity() {
     private val latestJpeg = AtomicReference<ByteArray?>(null)
     private val accessToken = java.util.UUID.randomUUID().toString().replace("-", "")
     private var server: CctvLan.MjpegServer? = null
+    private var hostHandle: AutoCloseable? = null
+    private var hostName2 = ""
     @Volatile private var active = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -100,6 +105,13 @@ class CctvServerActivity : AppCompatActivity() {
             thread = HandlerThread("cctv").also { it.start() }
             handler = Handler(thread!!.looper)
         }
+        if (hostHandle == null) {
+            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.ACCESS_FINE_LOCATION), 9001)
+            } else {
+                hostHandle = LanDiscovery.host(this, "_opentools-cam._tcp.", CctvLan.PORT, (android.os.Build.MODEL ?: "cam").replace(" ","-") + "-" + (0..999).random(), onRegistered = { n -> runOnUiThread { hostName2 = n; status.text = "Hosting as " + n + " on port " + CctvLan.PORT + "\nViewer access token: " + accessToken } }, onError = { })
+            }
+        }
         if (server == null) server = CctvLan.MjpegServer(
             { latestJpeg.get() },
             accessToken,
@@ -113,6 +125,8 @@ class CctvServerActivity : AppCompatActivity() {
 
     private fun stopCapture() {
         active = false
+        try { hostHandle?.close() } catch (_: Exception) { }
+        hostHandle = null
         server?.stop(); server = null
         session?.close(); session = null
         camera?.close(); camera = null
@@ -234,6 +248,7 @@ class CctvServerActivity : AppCompatActivity() {
     @Deprecated("Deprecated in Android API; retained for compatibility with minSdk 26")
     override fun onRequestPermissionsResult(code: Int, perms: Array<String>, results: IntArray) {
         super.onRequestPermissionsResult(code, perms, results)
+        if (code == 9001) return
         if (code != REQUEST_CAMERA) return
         if (results.firstOrNull() == PackageManager.PERMISSION_GRANTED) {
             startCaptureIfAllowed()

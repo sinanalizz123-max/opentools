@@ -2,7 +2,13 @@ package com.opentools.box.tools
 
 import android.os.Bundle
 import android.view.Gravity
+import android.Manifest
+import android.content.pm.PackageManager
+import android.net.nsd.NsdServiceInfo
+import android.widget.ArrayAdapter
 import android.widget.EditText
+import android.widget.ListView
+import androidx.core.app.ActivityCompat
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -13,14 +19,50 @@ import com.opentools.box.UiStyle
 /** Token-authenticated CCTV viewer for a camera on the local network. */
 class CctvViewerActivity : AppCompatActivity() {
     private var client: CctvLan.MjpegClient? = null
+    private var browseHandle: AutoCloseable? = null
+    private val peers = mutableListOf<NsdServiceInfo>()
+    private lateinit var peerAdapter: ArrayAdapter<String>
+    private fun peerLabel(s: NsdServiceInfo): String {
+        val ip = try { s.host?.hostAddress ?: "?" } catch (_: Exception) { "?" }
+        return (s.serviceName ?: "?") + " · " + ip + ":" + s.port
+    }
+    private fun ensureLocBrowse() {
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.ACCESS_FINE_LOCATION), 9001)
+            return
+        }
+        startBrowse()
+    }
+    private fun startBrowse() {
+        try { browseHandle?.close() } catch (_: Exception) { }
+        browseHandle = LanDiscovery.browse(this, "_opentools-cam._tcp.") { list ->
+            runOnUiThread {
+                peers.clear(); peers.addAll(list)
+                if (::peerAdapter.isInitialized) {
+                    peerAdapter.clear(); peerAdapter.addAll(peers.map { peerLabel(it) })
+                    if (peers.isEmpty()) peerAdapter.add("(searching for cameras…)")
+                    peerAdapter.notifyDataSetChanged()
+                }
+            }
+        }
+    }
+    private fun connectTo(ip: String, secret: String, status: android.widget.TextView, watch: NativeButton, view: android.widget.ImageView) {
+        if (ip.isBlank() || secret.isBlank()) { status.text = "Tap a camera and enter its access token."; return }
+        client?.stop(); client = null
+        status.text = "Connecting to camera…"
+        watch.isEnabled = false
+        client = CctvLan.MjpegClient(view,
+            { message -> runOnUiThread { status.text = message; watch.isEnabled = true } },
+            { runOnUiThread { status.text = "Connected to camera"; watch.isEnabled = true } }
+        ).also { it.start("http://" + ip + ":" + CctvLan.PORT + "/", secret) }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val ip = EditText(this).apply {
-            hint = "Camera IP address"
-            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
-            UiStyle.styleInput(this)
-        }
+        peerAdapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, mutableListOf("(searching for cameras…)"))
+        val peerList = ListView(this).apply { adapter = peerAdapter }
+        var pickedIp = ""
+        var pickedLabel = ""
         val token = EditText(this).apply {
             hint = "Camera access token"
             UiStyle.styleInput(this)
@@ -40,25 +82,14 @@ class CctvViewerActivity : AppCompatActivity() {
             setBackgroundColor(android.graphics.Color.BLACK)
         }
         val watch = NativeButton(this).apply { text = "Connect to camera" }
-        watch.setOnClickListener {
-            client?.stop()
-            client = null
-            val address = ip.text.toString().trim()
-            val secret = token.text.toString().trim()
-            if (address.isBlank() || secret.isBlank()) {
-                status.text = "Enter both the camera IP and access token."
-                return@setOnClickListener
-            }
-            status.text = "Connecting to camera…"
-            watch.isEnabled = false
-            client = CctvLan.MjpegClient(
-                view,
-                { message -> runOnUiThread { status.text = message; watch.isEnabled = true } },
-                { runOnUiThread { status.text = "Connected to camera"; watch.isEnabled = true } }
-            ).also {
-                it.start("http://" + address + ":" + CctvLan.PORT + "/", secret)
+        peerList.setOnItemClickListener { _, _, pos, _ ->
+            peers.getOrNull(pos)?.let { s ->
+                try { pickedIp = s.host?.hostAddress ?: "" } catch (_: Exception) { }
+                pickedLabel = peerLabel(s)
+                status.text = "Selected: " + pickedLabel + " · enter token, tap Connect."
             }
         }
+        watch.setOnClickListener { connectTo(pickedIp, token.text.toString().trim(), status, watch, view) }
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             val pad = UiStyle.dp(context, 16f)
@@ -69,7 +100,7 @@ class CctvViewerActivity : AppCompatActivity() {
                 UiStyle.styleText(this, 13f, false, UiStyle.muted(context))
                 setPadding(0, UiStyle.dp(context, 4f), 0, UiStyle.dp(context, 14f))
             })
-            addView(ip, LinearLayout.LayoutParams(-1, -2).apply {
+            addView(peerList, LinearLayout.LayoutParams(-1, UiStyle.dp(context, 150f)).apply {
                 bottomMargin = UiStyle.dp(context, 8f)
             })
             addView(token, LinearLayout.LayoutParams(-1, -2).apply {
@@ -86,7 +117,17 @@ class CctvViewerActivity : AppCompatActivity() {
         setContentView(ToolScaffold.wrap(this, "CCTV Viewer", content))
     }
 
+    override fun onResume() {
+        super.onResume()
+        ensureLocBrowse()
+    }
+    override fun onRequestPermissionsResult(code: Int, perms: Array<String>, results: IntArray) {
+        super.onRequestPermissionsResult(code, perms, results)
+        if (code == 9001 && results.firstOrNull() == PackageManager.PERMISSION_GRANTED) startBrowse()
+    }
     override fun onPause() {
+        try { browseHandle?.close() } catch (_: Exception) { }
+        browseHandle = null
         client?.stop()
         client = null
         super.onPause()

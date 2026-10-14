@@ -34,6 +34,7 @@ class MagnifierActivity : AppCompatActivity() {
     private var maxZoom = 4f
     private var zoom = 1f
     private var openingCamera = false
+    private var zoomHelper: CameraZoom? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -97,12 +98,19 @@ class MagnifierActivity : AppCompatActivity() {
         super.onResume()
         thread = HandlerThread("magnifier").also { it.start() }
         handler = Handler(thread!!.looper)
+        zoomHelper = CameraZoom(preview) { z ->
+            zoom = z.coerceIn(1f, maxZoom)
+            zoomSeek.progress = ((zoom - 1f) * 10f).toInt().coerceIn(0, zoomSeek.max)
+            updateZoomLabel()
+            applyZoom()
+        }.also { try { it.maxZoom = maxZoom; it.attach() } catch (_: Exception) { } }
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.CAMERA), REQUEST_CAMERA)
         } else if (preview.isAvailable) openCamera()
     }
 
     override fun onPause() {
+        zoomHelper?.detach(); zoomHelper = null
         session?.close()
         session = null
         camera?.close()
@@ -175,6 +183,9 @@ class MagnifierActivity : AppCompatActivity() {
         }
         currentRequest = request
         currentId = id
+        zoomHelper?.let {
+            try { it.maxZoom = maxZoom; it.setZoom(zoom) } catch (_: Exception) { }
+        }
         applyZoom()
         try {
             device.createCaptureSession(listOf(surface), object : CameraCaptureSession.StateCallback() {

@@ -61,18 +61,19 @@ object CameraPreview {
             }
             val matrix = Matrix()
             val viewRect = RectF(0f, 0f, vw.toFloat(), vh.toFloat())
-            // Sensor buffers are landscape; swap when the display is portrait.
-            val bufferRect = RectF(0f, 0f, previewHeight.toFloat(), previewWidth.toFloat())
+            // Sensor buffer is landscape; when the device is portrait (0/180)
+            // the buffer axes are swapped relative to the view.
+            val portrait = rotation == Surface.ROTATION_0 || rotation == Surface.ROTATION_180
+            val bufW = if (portrait) previewHeight.toFloat() else previewWidth.toFloat()
+            val bufH = if (portrait) previewWidth.toFloat() else previewHeight.toFloat()
+            val bufferRect = RectF(0f, 0f, bufW, bufH)
             val centerX = viewRect.centerX()
             val centerY = viewRect.centerY()
+            bufferRect.offset(centerX - bufferRect.centerX(), centerY - bufferRect.centerY())
+            matrix.setRectToRect(viewRect, bufferRect, Matrix.ScaleToFit.FILL)
+            val scale = maxOf(vw / bufW, vh / bufH)
+            matrix.postScale(scale, scale, centerX, centerY)
             if (rotation == Surface.ROTATION_90 || rotation == Surface.ROTATION_270) {
-                bufferRect.offset(centerX - bufferRect.centerX(), centerY - bufferRect.centerY())
-                matrix.setRectToRect(viewRect, bufferRect, Matrix.ScaleToFit.FILL)
-                val scale = maxOf(
-                    vh.toFloat() / previewHeight,
-                    vw.toFloat() / previewWidth,
-                )
-                matrix.postScale(scale, scale, centerX, centerY)
                 matrix.postRotate((90 * (rotation - 2)).toFloat(), centerX, centerY)
             }
             view.setTransform(matrix)

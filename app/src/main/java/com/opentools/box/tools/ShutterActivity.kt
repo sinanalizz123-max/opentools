@@ -18,7 +18,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
-import com.google.android.material.button.MaterialButton
+import com.opentools.box.UiStyle
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -38,14 +38,32 @@ class ShutterActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         cameraManager = getSystemService(Context.CAMERA_SERVICE) as CameraManager
-        status = TextView(this).apply { textSize = 18f; text = "Ready" }
-        val snap = MaterialButton(this).apply { text = "Capture photo" }
+        status = TextView(this).apply {
+            text = "Ready to capture a still photo."
+            UiStyle.styleText(this, 14f, false, UiStyle.muted(context))
+            setPadding(UiStyle.dp(context, 14f), UiStyle.dp(context, 12f),
+                UiStyle.dp(context, 14f), UiStyle.dp(context, 12f))
+            background = UiStyle.rounded(context, UiStyle.surface(context), 14f, UiStyle.border(context))
+        }
+        val snap = NativeButton(this).apply { text = "Capture photo" }
         snap.setOnClickListener { capture() }
-        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Quick Camera",LinearLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Quick Camera", LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            val pad = (16 * resources.displayMetrics.density).toInt()
+            val pad = UiStyle.dp(context, 20f)
             setPadding(pad, pad, pad, pad)
-            addView(status); addView(snap)
+            addView(TextView(context).apply {
+                text = "Quiet camera"
+                UiStyle.styleText(this, 24f, true)
+            })
+            addView(TextView(context).apply {
+                text = "Capture a still photo without a preview. Images are saved in app storage."
+                UiStyle.styleText(this, 14f, false, UiStyle.muted(context))
+                setPadding(0, UiStyle.dp(context, 4f), 0, UiStyle.dp(context, 18f))
+            })
+            addView(status, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = UiStyle.dp(context, 14f)
+            })
+            addView(snap, LinearLayout.LayoutParams(-1, -2))
         }))
     }
 

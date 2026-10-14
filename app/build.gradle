@@ -66,11 +66,7 @@ dependencies {
     implementation("com.google.android.gms:play-services-mlkit-text-recognition:19.0.1")
 }
 
-// emoji2 is pulled in transitively by appcompat/core but is unused (no
-// AppCompatTextView with emoji in this app). Exclude it so its auto-init
-// never runs and its classes stay out of the APK. Manifest surgery cannot
-// remove the initializer (it lives inside androidx.startup's provider,
-// which we cannot re-declare without a compile dependency on it).
-configurations.configureEach {
-    exclude group: "androidx.emoji2"
-}
+// NOTE: do NOT exclude androidx.emoji2 here. AppCompat's text widgets
+// reference EmojiTextViewHelper at class-init; excluding the group crashes
+// every screen with NoClassDefFoundError. The emoji auto-init provider is
+// harmless (tiny, runs once) and is intentionally left merged.

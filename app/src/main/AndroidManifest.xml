@@ -142,15 +142,10 @@
             android:exported="false"
             android:foregroundServiceType="mediaProjection" />
 
-        <!-- Emoji auto-init is excluded at the dependency level in
-             app/build.gradle (configurations.exclude androidx.emoji2) —
-             no manifest surgery is needed or possible here: a bare
-             <meta-data tools:node="remove"> under <application> never
-             matched the initializer (which lives as a child of
-             androidx.startup.InitializationProvider), and re-declaring
-             that provider here makes lint fail with MissingClass because
-             androidx.startup is not a compile dependency. The ML Kit init
-             provider (a separate <provider>) is untouched: the
+        <!-- Emoji auto-init is intentionally left merged: AppCompat's
+             text widgets need the emoji2 classes at runtime, so excluding
+             the library crashes the app (NoClassDefFoundError). The ML Kit
+             init provider (a separate <provider>) is untouched: the
              Play-services OCR client requires it (removing it crashes OCR
              on open with "MlKitContext has not been initialized"). -->
     </application>

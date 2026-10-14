@@ -9,12 +9,13 @@
   available in this project's SDK; applying them breaks the build (verified).
 - Manifest audit: all 78 `ToolRegistry` activities registered; `ScreenRecordService`
   declared with `mediaProjection` type; auto-init is minimized, not eliminated:
-  the emoji initializer is removed *inside*
-  `androidx.startup.InitializationProvider` (a top-level `<meta-data
-  tools:node="remove">` never matched it — verified absent from
-  `app/build/intermediates/merged_manifest/debug/.../AndroidManifest.xml` after
-  the fix), the provider itself still runs the ProfileInstaller/lifecycle
-  initializers, and the ML Kit init provider is deliberately KEPT (Play-services
+  the emoji initializer is intentionally LEFT merged — AppCompat's text
+  widgets need the emoji2 classes at runtime (excluding the library crashes
+  every screen with NoClassDefFoundError; removing the initializer is
+  impossible without a compile dependency on androidx.startup, whose
+  re-declaration fails lint with MissingClass). The startup provider still
+  runs the ProfileInstaller/lifecycle initializers, and the ML Kit init
+  provider is deliberately KEPT (Play-services
   OCR crashes with "MlKitContext has not been initialized" without it).
 - Permission audit: every `CAMERA` / `RECORD_AUDIO` call site has an explicit
   runtime check plus a `SecurityException` catch (revocation race).

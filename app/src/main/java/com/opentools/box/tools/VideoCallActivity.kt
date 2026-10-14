@@ -174,6 +174,10 @@ class VideoCallActivity : AppCompatActivity() {
     }
 
     private fun startAudio(ip: String, peerToken: String) {
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            status.text = "Microphone permission required"
+            return
+        }
         Thread {
             try {
                 val addr = InetAddress.getByName(ip)

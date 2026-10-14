@@ -60,23 +60,50 @@ class AudioPlayerActivity : AppCompatActivity() {
     }
 
     private fun open(uri: Uri) {
-        player?.release()
-        player = MediaPlayer().apply {
-            setDataSource(this@AudioPlayerActivity, uri)
-            prepare()
-            setOnCompletionListener { playing = false; toggle.text = "Play" }
-        }
-        nameView.text = uri.lastPathSegment ?: "Audio"
-        seek.max = player!!.duration
-        toggle.isEnabled = true
-        toggle.text = "Play"
+        seek.removeCallbacks(progress)
+        try { player?.release() } catch (_: Exception) { }
+        player = null
         playing = false
-        seek.post(progress)
+        toggle.isEnabled = false
+        toggle.text = "Loading…"
+        nameView.text = uri.lastPathSegment ?: "Audio"
+        try {
+            player = MediaPlayer().apply {
+                setDataSource(this@AudioPlayerActivity, uri)
+                setOnPreparedListener { prepared ->
+                    seek.max = prepared.duration.coerceAtLeast(0)
+                    seek.progress = 0
+                    toggle.isEnabled = true
+                    toggle.text = "Play"
+                    seek.post(progress)
+                }
+                setOnCompletionListener {
+                    playing = false
+                    toggle.text = "Play"
+                    seek.progress = seek.max
+                }
+                setOnErrorListener { _, _, _ ->
+                    playing = false
+                    toggle.isEnabled = false
+                    toggle.text = "Play"
+                    nameView.text = "Unable to play this audio file."
+                    true
+                }
+                prepareAsync()
+            }
+        } catch (error: Exception) {
+            player?.release()
+            player = null
+            toggle.isEnabled = false
+            toggle.text = "Play"
+            nameView.text = "Unable to open audio: " + (error.message ?: "unsupported format")
+        }
     }
 
     override fun onPause() {
         player?.pause()
         playing = false
+        toggle.text = "Play"
         super.onPause()
     }
 

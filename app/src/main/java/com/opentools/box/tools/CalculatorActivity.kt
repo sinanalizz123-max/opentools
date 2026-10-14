@@ -52,7 +52,10 @@ class CalculatorActivity : AppCompatActivity() {
                     displayView.text = "Error"
                     input.clear()
                 } else {
-                    val text = if (result % 1.0 == 0.0) result.toLong().toString() else result.toString()
+                    val text = if (result % 1.0 == 0.0 &&
+                        result >= Long.MIN_VALUE.toDouble() && result < Long.MAX_VALUE.toDouble()) {
+                        result.toLong().toString()
+                    } else result.toString()
                     displayView.text = text
                     input.clear().append(text)
                 }
@@ -71,6 +74,7 @@ class CalculatorActivity : AppCompatActivity() {
             val v = expr()
             skipWs()
             require(pos == s.length) { "trailing input" }
+            require(v.isFinite()) { "result is not finite" }
             return v
         }
 

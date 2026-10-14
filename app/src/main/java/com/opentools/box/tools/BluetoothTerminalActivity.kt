@@ -24,6 +24,7 @@ class BluetoothTerminalActivity : AppCompatActivity() {
     private var socket: BluetoothSocket? = null
     private var reading = false
     private lateinit var logView: ListView
+    private lateinit var bondedView: TextView
     private lateinit var adapter: ArrayAdapter<String>
     private val lines = mutableListOf<String>()
 
@@ -45,15 +46,11 @@ class BluetoothTerminalActivity : AppCompatActivity() {
                 input.text.clear()
             } catch (e: Exception) { addLine("Send failed: ${e.message}") }
         }
-        val bonded = TextView(this).apply { textSize = 14f }
-        try {
-            val manager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
-            bonded.text = "Paired:\n" + manager.adapter.bondedDevices
-                .joinToString("\n") { "${it.name} — ${it.address}" }
-        } catch (_: Exception) { }
+        bondedView = TextView(this).apply { textSize = 14f; setPadding(12, 8, 12, 8) }
+        refreshPairedDevices()
         setContentView(com.opentools.box.ToolScaffold.wrap(this, "BT Terminal",LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            addView(bonded)
+            addView(bondedView)
             addView(address); addView(connect)
             addView(logView, LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
@@ -71,8 +68,33 @@ class BluetoothTerminalActivity : AppCompatActivity() {
         }
     }
 
+    private fun refreshPairedDevices() {
+        if (Build.VERSION.SDK_INT >= 31 &&
+            ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+            bondedView.text = "Bluetooth permission is required to list paired devices."
+            return
+        }
+        try {
+            val manager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
+            val bluetooth = manager.adapter
+            bondedView.text = when {
+                bluetooth == null -> "Bluetooth is not available on this device."
+                !bluetooth.isEnabled -> "Turn Bluetooth on to see paired devices."
+                bluetooth.bondedDevices.isEmpty() -> "No paired devices. Pair a device in Android Settings first."
+                else -> "Paired devices:\n" + bluetooth.bondedDevices.joinToString("\n") { (it.name ?: "Unknown device") + " — " + it.address }
+            }
+        } catch (error: Exception) {
+            bondedView.text = "Could not read paired devices: " + (error.message ?: "Bluetooth unavailable")
+        }
+    }
+
     private fun connectTo(mac: String) {
         if (mac.isEmpty()) return
+        if (Build.VERSION.SDK_INT >= 31 &&
+            ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.BLUETOOTH_CONNECT), 1)
+            return
+        }
         Thread {
             try {
                 val manager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
@@ -116,6 +138,14 @@ class BluetoothTerminalActivity : AppCompatActivity() {
             adapter.notifyDataSetChanged()
             logView.setSelection(lines.size - 1)
         }
+    }
+
+    @Deprecated("Deprecated in Android API; retained for compatibility with minSdk 26")
+    override fun onRequestPermissionsResult(code: Int, perms: Array<String>, results: IntArray) {
+        super.onRequestPermissionsResult(code, perms, results)
+        if (code != 1) return
+        if (results.firstOrNull() == PackageManager.PERMISSION_GRANTED) refreshPairedDevices()
+        else bondedView.text = "Bluetooth permission denied."
     }
 
     override fun onPause() {

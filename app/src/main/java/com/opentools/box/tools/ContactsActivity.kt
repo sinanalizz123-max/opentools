@@ -3,6 +3,7 @@ package com.opentools.box.tools
 import android.database.Cursor
 import android.net.Uri
 import android.os.Bundle
+import android.provider.ContactsContract
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ArrayAdapter

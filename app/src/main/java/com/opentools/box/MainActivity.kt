@@ -228,7 +228,7 @@ class MainActivity : AppCompatActivity() {
             UiStyle.styleText(this, 25f, false, UiStyle.accent(this@MainActivity))
             background = UiStyle.rounded(this@MainActivity, UiStyle.raised(this@MainActivity), 15f)
             setOnClickListener { editShortcuts() }
-        }, LinearLayout.LayoutParams(dp(44), -1))
+        }, LinearLayout.LayoutParams(dp(44), -2))
     }
 
     private fun glyphFor(entry: ToolEntry): String = when (entry.category) {

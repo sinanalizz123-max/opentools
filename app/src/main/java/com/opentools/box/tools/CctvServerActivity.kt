@@ -31,6 +31,7 @@ class CctvServerActivity : AppCompatActivity() {
     private val latestJpeg = AtomicReference<ByteArray?>(null)
     private val accessToken = java.util.UUID.randomUUID().toString().replace("-", "")
     private var server: CctvLan.MjpegServer? = null
+    @Volatile private var active = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -44,6 +45,7 @@ class CctvServerActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        active = true
         startCaptureIfAllowed()
     }
 
@@ -56,12 +58,17 @@ class CctvServerActivity : AppCompatActivity() {
             thread = HandlerThread("cctv").also { it.start() }
             handler = Handler(thread!!.looper)
         }
-        if (server == null) server = CctvLan.MjpegServer({ latestJpeg.get() }, accessToken).also { it.start() }
+        if (server == null) server = CctvLan.MjpegServer(
+            { latestJpeg.get() },
+            accessToken,
+            { message -> runOnUiThread { status.text = "Stream failed: " + message } }
+        ).also { it.start() }
         status.text = "Streaming on :" + CctvLan.PORT + "\nViewer access token: " + accessToken
         if (camera == null) openCamera()
     }
 
     override fun onPause() {
+        active = false
         server?.stop(); server = null
         session?.close(); session = null
         camera?.close(); camera = null
@@ -74,11 +81,33 @@ class CctvServerActivity : AppCompatActivity() {
         val id = cameraManager.cameraIdList.firstOrNull() ?: return
         try {
             cameraManager.openCamera(id, object : CameraDevice.StateCallback() {
-                override fun onOpened(c: CameraDevice) { camera = c; startSession(c) }
-                override fun onDisconnected(c: CameraDevice) { c.close() }
-                override fun onError(c: CameraDevice, e: Int) { c.close() }
+                override fun onOpened(c: CameraDevice) {
+                    if (!active) {
+                        c.close()
+                        return
+                    }
+                    camera = c
+                    try { startSession(c) }
+                    catch (error: Exception) {
+                        runOnUiThread { status.text = "Camera setup failed: " + (error.message ?: "camera unavailable") }
+                        c.close()
+                        if (camera === c) camera = null
+                    }
+                }
+                override fun onDisconnected(c: CameraDevice) {
+                    if (camera === c) camera = null
+                    c.close()
+                    if (active) runOnUiThread { status.text = "Camera disconnected" }
+                }
+                override fun onError(c: CameraDevice, e: Int) {
+                    if (camera === c) camera = null
+                    c.close()
+                    if (active) runOnUiThread { status.text = "Camera error (" + e + ")" }
+                }
             }, handler)
-        } catch (_: SecurityException) { }
+        } catch (error: Exception) {
+            status.text = "Could not open camera: " + (error.message ?: "camera unavailable")
+        }
     }
 
     private fun startSession(device: CameraDevice) {
@@ -119,10 +148,20 @@ class CctvServerActivity : AppCompatActivity() {
         }
         device.createCaptureSession(listOf(surface), object : CameraCaptureSession.StateCallback() {
             override fun onConfigured(s: CameraCaptureSession) {
+                if (!active) {
+                    s.close()
+                    return
+                }
                 session = s
-                s.setRepeatingRequest(req.build(), null, handler)
+                try { s.setRepeatingRequest(req.build(), null, handler) }
+                catch (error: Exception) {
+                    runOnUiThread { status.text = "Camera preview failed: " + (error.message ?: "camera unavailable") }
+                }
             }
-            override fun onConfigureFailed(s: CameraCaptureSession) = Unit
+            override fun onConfigureFailed(s: CameraCaptureSession) {
+                s.close()
+                runOnUiThread { status.text = "Camera preview configuration failed" }
+            }
         }, handler)
     }
 

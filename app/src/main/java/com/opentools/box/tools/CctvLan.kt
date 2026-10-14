@@ -18,7 +18,11 @@ import java.util.concurrent.Semaphore
 object CctvLan {
     const val PORT = 9996
 
-    class MjpegServer(private val frames: () -> ByteArray?, private val token: String) {
+    class MjpegServer(
+        private val frames: () -> ByteArray?,
+        private val token: String,
+        private val onError: ((String) -> Unit)? = null,
+    ) {
         @Volatile var running = false
         @Volatile private var server: SocketServer? = null
         private val clientSlots = Semaphore(4)
@@ -42,8 +46,10 @@ object CctvLan {
                             finally { clientSlots.release() }
                         }.start()
                     }
-                } catch (_: Exception) {
+                } catch (error: Exception) {
+                    if (running) onError?.invoke(error.message ?: "Could not start camera stream")
                 } finally {
+                    running = false
                     try { server?.socket?.close() } catch (_: Exception) { }
                     server = null
                 }

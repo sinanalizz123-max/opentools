@@ -106,7 +106,11 @@ class VideoCallActivity : AppCompatActivity() {
             thread = HandlerThread("vcall").also { it.start() }
             handler = Handler(thread!!.looper)
         }
-        if (mjpegServer == null) mjpegServer = CctvLan.MjpegServer({ latestJpeg.get() }, accessToken).also { it.start() }
+        if (mjpegServer == null) mjpegServer = CctvLan.MjpegServer(
+            { latestJpeg.get() },
+            accessToken,
+            { message -> if (callActive) runOnUiThread { status.text = "Video stream failed: " + message } }
+        ).also { it.start() }
         if (camera == null) openCamera()
         val peerSecret = pendingPeerToken ?: return
         pendingPeer = null

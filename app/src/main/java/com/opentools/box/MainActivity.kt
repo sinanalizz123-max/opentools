@@ -53,13 +53,14 @@ class MainActivity : AppCompatActivity() {
             val match = result.data
                 ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
             if (match != null) {
-                searchInput?.setText(match)
+                searchViewHolder?.show()
+                searchViewHolder?.setText(match)
                 runSearch(match)
             }
         }
     }
 
-    private var searchInput: EditText? = null
+    private var searchViewHolder: com.google.android.material.search.SearchView? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         mark("super.onCreate.start")
@@ -126,6 +127,7 @@ class MainActivity : AppCompatActivity() {
         val frame = FrameLayout(this).apply {
             addView(root)
             addView(searchResults)
+            searchViewHolder?.let { addView(it) }
         }
         ToolScaffold.applySystemBarInsets(frame)
         setContentView(frame)
@@ -188,14 +190,30 @@ class MainActivity : AppCompatActivity() {
     private fun buildSearch(): View {
         val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         val searchBar = SearchBar(this).apply { hint = "Search tools" }
-        // getTextView() returns TextView (not EditText) — listener works on any TextView.
-        searchBar.textView.addTextChangedListener(object : TextWatcher {
-            override fun afterTextChanged(s: Editable?) = runSearch(s.toString())
-            override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) = Unit
-            override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) = Unit
-        })
+        val searchView = com.google.android.material.search.SearchView(this).apply {
+            hint = "Search tools"
+            setupWithSearchBar(searchBar)
+            editText.addTextChangedListener(object : TextWatcher {
+                override fun afterTextChanged(s: Editable?) = runSearch(s.toString())
+                override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) = Unit
+                override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) = Unit
+            })
+            addTransitionListener(
+                object : com.google.android.material.search.SearchView.TransitionListener {
+                    override fun onStateChanged(
+                        searchView: com.google.android.material.search.SearchView,
+                        previousState: com.google.android.material.search.SearchView.TransitionState,
+                        newState: com.google.android.material.search.SearchView.TransitionState,
+                    ) {
+                        if (newState == com.google.android.material.search.SearchView.TransitionState.HIDDEN) {
+                            runSearch("")
+                        }
+                    }
+                })
+        }
+        searchViewHolder = searchView
         val voice = MaterialButton(this).apply {
-            text = "🎤"
+            text = "Mic"
             setOnClickListener {
                 try {
                     voiceLauncher.launch(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {

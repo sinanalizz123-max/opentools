@@ -11,45 +11,78 @@ import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
-import com.google.android.material.button.MaterialButton
+import com.opentools.box.ToolScaffold
+import com.opentools.box.UiStyle
 import kotlin.math.tan
 
-/**
- * Height/distance measurer via camera pitch angle + known distance/height.
- * Original implementation.
- */
+/** Height/distance estimate from device pitch and a known measurement. */
 class MeasureActivity : AppCompatActivity(), SensorEventListener {
-
     private lateinit var sensorManager: SensorManager
     private var pitchDeg = 0.0
     private lateinit var angleView: TextView
     private lateinit var resultView: TextView
     private lateinit var knownInput: EditText
+    private lateinit var modeButton: NativeButton
     private var modeHeight = true
+    private var hasSensor = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
-        angleView = TextView(this).apply { textSize = 40f }
-        resultView = TextView(this).apply { textSize = 24f }
-        knownInput = EditText(this).apply {
-            hint = "Your eye height (m)"
-            inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
+        hasSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR) != null
+        angleView = TextView(this).apply {
+            text = "—°"
+            UiStyle.styleText(this, 42f, true)
+            setPadding(UiStyle.dp(context, 18f), UiStyle.dp(context, 20f),
+                UiStyle.dp(context, 18f), UiStyle.dp(context, 20f))
+            background = UiStyle.rounded(context, UiStyle.surface(context), 18f, UiStyle.border(context))
         }
-        val mode = MaterialButton(this).apply { text = "Mode: object height" }
-        mode.setOnClickListener {
+        resultView = TextView(this).apply {
+            text = if (hasSensor) "Aim your phone and enter a known measurement." else "This device has no rotation sensor."
+            UiStyle.styleText(this, 17f, true)
+            setPadding(UiStyle.dp(context, 16f), UiStyle.dp(context, 16f),
+                UiStyle.dp(context, 16f), UiStyle.dp(context, 16f))
+            background = UiStyle.rounded(context, UiStyle.surface(context), 16f, UiStyle.border(context))
+        }
+        knownInput = EditText(this).apply {
+            hint = "Eye height in metres"
+            inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
+            UiStyle.styleInput(this)
+        }
+        modeButton = NativeButton(this, false).apply { text = "Mode: estimate distance" }
+        modeButton.setOnClickListener {
             modeHeight = !modeHeight
-            mode.text = if (modeHeight) "Mode: object height" else "Mode: distance"
-            knownInput.hint = if (modeHeight) "Your eye height (m)" else "Object height (m)"
+            modeButton.text = if (modeHeight) "Mode: estimate distance" else "Mode: estimate height"
+            knownInput.hint = if (modeHeight) "Eye height in metres" else "Known distance in metres"
             render()
         }
-        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Measure",LinearLayout(this).apply {
+        knownInput.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = render()
+            override fun afterTextChanged(s: android.text.Editable?) = Unit
+        })
+        val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            val pad = (16 * resources.displayMetrics.density).toInt()
+            val pad = UiStyle.dp(context, 20f)
             setPadding(pad, pad, pad, pad)
-            addView(angleView); addView(knownInput); addView(mode); addView(resultView)
-        }))
-        knownInput.setOnEditorActionListener { _, _, _ -> render(); false }
+            addView(TextView(context).apply { text = "Angle measure"; UiStyle.styleText(this, 24f, true) })
+            addView(TextView(context).apply {
+                text = "Use the phone's tilt to estimate height or distance."
+                UiStyle.styleText(this, 14f, false, UiStyle.muted(context))
+                setPadding(0, UiStyle.dp(context, 4f), 0, UiStyle.dp(context, 18f))
+            })
+            addView(angleView, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = UiStyle.dp(context, 14f)
+            })
+            addView(knownInput, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = UiStyle.dp(context, 10f)
+            })
+            addView(modeButton, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = UiStyle.dp(context, 14f)
+            })
+            addView(resultView, LinearLayout.LayoutParams(-1, -2))
+        }
+        setContentView(ToolScaffold.wrap(this, "Measure", content))
     }
 
     override fun onResume() {
@@ -64,29 +97,35 @@ class MeasureActivity : AppCompatActivity(), SensorEventListener {
         super.onPause()
     }
 
-    override fun onSensorChanged(e: SensorEvent) {
-        val rot = FloatArray(9)
-        SensorManager.getRotationMatrixFromVector(rot, e.values)
-        val orient = FloatArray(3)
-        SensorManager.getOrientation(rot, orient)
-        pitchDeg = Math.toDegrees(orient[1].toDouble())
+    override fun onSensorChanged(event: SensorEvent) {
+        val rotation = FloatArray(9)
+        SensorManager.getRotationMatrixFromVector(rotation, event.values)
+        val orientation = FloatArray(3)
+        SensorManager.getOrientation(rotation, orientation)
+        pitchDeg = Math.toDegrees(orientation[1].toDouble())
         angleView.text = "%.1f°".format(pitchDeg)
         render()
     }
 
-    override fun onAccuracyChanged(s: Sensor?, a: Int) = Unit
+    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
 
     private fun render() {
-        val known = knownInput.text.toString().toDoubleOrNull() ?: return
+        if (!hasSensor) {
+            resultView.text = "This device has no rotation sensor."
+            return
+        }
+        val known = knownInput.text.toString().toDoubleOrNull()
+        if (known == null || !known.isFinite() || known <= 0) {
+            resultView.text = "Enter a positive measurement in metres."
+            return
+        }
         val pitch = Math.toRadians(pitchDeg)
         resultView.text = if (modeHeight) {
-            // Distance to object via eye height + downward pitch: d = h / tan(-pitch).
-            if (pitchDeg >= -1) "Aim down at the base"
-            else "Distance ≈ %.2f m".format(known / tan(-pitch))
+            if (pitchDeg >= -1) "Tilt the phone down towards the object's base."
+            else "Estimated distance\n%.2f m".format(known / tan(-pitch))
         } else {
-            // Height from distance + upward pitch: h = d * tan(pitch).
-            if (pitchDeg <= 1) "Aim up at the top"
-            else "Height ≈ %.2f m".format(known * tan(pitch))
+            if (pitchDeg <= 1) "Tilt the phone up towards the object's top."
+            else "Estimated height\n%.2f m".format(known * tan(pitch))
         }
     }
 }

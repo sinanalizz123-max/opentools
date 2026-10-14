@@ -5,44 +5,61 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
-import com.google.android.material.button.MaterialButton
 import com.opentools.box.ToolScaffold
 import com.opentools.box.UiStyle
 
-/** Small settings hub for theme preference and home-screen behavior. */
+/** Native settings screen for appearance preferences and privacy information. */
 class SettingsActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val info = TextView(this).apply {
-            text = "Choose the appearance that feels right. Your preference is saved on this device."
-            UiStyle.styleText(this, 14f, false, UiStyle.muted(this@SettingsActivity))
-            setPadding(0, 0, 0, UiStyle.dp(context, 18f))
+        val current = getSharedPreferences("home", MODE_PRIVATE).getString("theme_mode", "system") ?: "system"
+        val currentLabel = TextView(this).apply {
+            text = "Current appearance: " + when (current) {
+                "light" -> "Light"
+                "dark" -> "Dark"
+                else -> "Follow system"
+            }
+            UiStyle.styleText(this, 14f, true)
+            setPadding(UiStyle.dp(context, 16f), UiStyle.dp(context, 14f),
+                UiStyle.dp(context, 16f), UiStyle.dp(context, 14f))
+            background = UiStyle.rounded(context, UiStyle.surface(context), 14f, UiStyle.border(context))
         }
-        val light = MaterialButton(this).apply {
-            text = "Light theme"
-            setOnClickListener { saveTheme("light", AppCompatDelegate.MODE_NIGHT_NO) }
-        }
-        val dark = MaterialButton(this).apply {
-            text = "Dark theme"
-            setOnClickListener { saveTheme("dark", AppCompatDelegate.MODE_NIGHT_YES) }
-        }
-        val system = MaterialButton(this).apply {
-            text = "Follow system"
-            setOnClickListener { saveTheme("system", AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM) }
-        }
+        val light = NativeButton(this, current == "light").apply { text = "Light theme" }
+        val dark = NativeButton(this, current == "dark").apply { text = "Dark theme" }
+        val system = NativeButton(this, current == "system").apply { text = "Follow system" }
+        light.setOnClickListener { saveTheme("light", AppCompatDelegate.MODE_NIGHT_NO) }
+        dark.setOnClickListener { saveTheme("dark", AppCompatDelegate.MODE_NIGHT_YES) }
+        system.setOnClickListener { saveTheme("system", AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM) }
+
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             val pad = UiStyle.dp(context, 20f)
             setPadding(pad, pad, pad, pad)
-            addView(ToolScaffold.sectionTitle(context, "Appearance"))
-            addView(info)
-            addView(light)
-            addView(dark)
-            addView(system)
-            addView(ToolScaffold.sectionTitle(context, "Privacy"))
+            addView(TextView(context).apply { text = "Appearance"; UiStyle.styleText(this, 24f, true) })
             addView(TextView(context).apply {
-                text = "OpenTools has no ads or trackers. The file vault encrypts imported files on this device. LAN sharing and camera streaming require a peer access token."
+                text = "Choose a theme for every OpenTools screen. Your choice is stored on this device."
                 UiStyle.styleText(this, 14f, false, UiStyle.muted(context))
+                setPadding(0, UiStyle.dp(context, 4f), 0, UiStyle.dp(context, 16f))
+            })
+            addView(currentLabel, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = UiStyle.dp(context, 14f)
+            })
+            listOf(light, dark, system).forEach { button ->
+                addView(button, LinearLayout.LayoutParams(-1, -2).apply {
+                    bottomMargin = UiStyle.dp(context, 8f)
+                })
+            }
+            addView(TextView(context).apply {
+                text = "Privacy"
+                UiStyle.styleText(this, 20f, true)
+                setPadding(0, UiStyle.dp(context, 20f), 0, UiStyle.dp(context, 10f))
+            })
+            addView(TextView(context).apply {
+                text = "OpenTools is designed without ads or trackers. Vault files are encrypted on this device. LAN sharing and camera streaming require peer access tokens. Features that need hardware or permissions may be unavailable on some devices."
+                UiStyle.styleText(this, 14f, false, UiStyle.muted(context))
+                setPadding(UiStyle.dp(context, 16f), UiStyle.dp(context, 16f),
+                    UiStyle.dp(context, 16f), UiStyle.dp(context, 16f))
+                background = UiStyle.rounded(context, UiStyle.surface(context), 14f, UiStyle.border(context))
             })
         }
         setContentView(ToolScaffold.wrap(this, "Settings", content))

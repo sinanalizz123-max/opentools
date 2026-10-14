@@ -95,6 +95,7 @@ class CctvServerActivity : AppCompatActivity() {
             status.text = "Camera permission is required to stream."
             return
         }
+        active = true
         if (thread == null) {
             thread = HandlerThread("cctv").also { it.start() }
             handler = Handler(thread!!.looper)
@@ -235,7 +236,10 @@ class CctvServerActivity : AppCompatActivity() {
         if (code != 1) return
         if (code != REQUEST_CAMERA) return
         if (results.firstOrNull() == PackageManager.PERMISSION_GRANTED) startCaptureIfAllowed()
-        else status.text = "Camera permission denied."
+        else {
+            status.text = "Camera permission denied."
+            startButton.isEnabled = true
+        }
         else finish()
     }
 }

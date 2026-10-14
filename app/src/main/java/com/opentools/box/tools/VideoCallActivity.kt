@@ -2,6 +2,8 @@ package com.opentools.box.tools
 
 import android.Manifest
 import android.content.Context
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.pm.PackageManager
 import android.graphics.ImageFormat
 import android.hardware.camera2.CameraCaptureSession
@@ -78,10 +80,23 @@ class VideoCallActivity : AppCompatActivity() {
             background = UiStyle.rounded(context, UiStyle.surface(context), 12f, UiStyle.border(context))
         }
         val localToken = TextView(this).apply {
-            text = "Your access token: " + accessToken
-            UiStyle.styleText(this, 12f, false, UiStyle.muted(context))
-            setTextIsSelectable(true)
-            setPadding(0, UiStyle.dp(context, 8f), 0, UiStyle.dp(context, 8f))
+            text = "Your token: " + accessToken
+            UiStyle.styleText(this, 11f, false, UiStyle.muted(context))
+            setSingleLine(true)
+            ellipsize = android.text.TextUtils.TruncateAt.MIDDLE
+            setPadding(UiStyle.dp(context, 12f), UiStyle.dp(context, 12f),
+                UiStyle.dp(context, 12f), UiStyle.dp(context, 12f))
+            background = UiStyle.rounded(context, UiStyle.surface(context), 12f, UiStyle.border(context))
+            contentDescription = "Your video call access token"
+        }
+        val copyToken = NativeButton(this, false).apply {
+            text = "Copy token"
+            contentDescription = "Copy your access token"
+        }
+        copyToken.setOnClickListener {
+            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            clipboard.setPrimaryClip(ClipData.newPlainText("Video call access token", accessToken))
+            android.widget.Toast.makeText(this, "Access token copied", android.widget.Toast.LENGTH_SHORT).show()
         }
         remoteView = ImageView(this).apply {
             adjustViewBounds = true
@@ -95,11 +110,29 @@ class VideoCallActivity : AppCompatActivity() {
         hangup.setOnClickListener { hangUp() }
         setContentView(com.opentools.box.ToolScaffold.wrap(this, "LAN Video Call", LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            val pad = UiStyle.dp(context, 12f)
+            val pad = UiStyle.dp(context, 16f)
             setPadding(pad, pad, pad, pad)
+            addView(TextView(context).apply {
+                text = "Call another device on your local network"
+                UiStyle.styleText(this, 22f, true)
+                setPadding(0, 0, 0, UiStyle.dp(context, 4f))
+            })
+            addView(TextView(context).apply {
+                text = "Both devices must be reachable. Exchange IP addresses and access tokens only with someone you trust."
+                UiStyle.styleText(this, 13f, false, UiStyle.muted(context))
+                setPadding(0, 0, 0, UiStyle.dp(context, 14f))
+            })
             addView(ip, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = UiStyle.dp(context, 8f) })
             addView(peerToken, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = UiStyle.dp(context, 8f) })
-            addView(localToken, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = UiStyle.dp(context, 4f) })
+            addView(LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                addView(localToken, LinearLayout.LayoutParams(0, -2, 2.4f).apply {
+                    marginEnd = UiStyle.dp(context, 6f)
+                })
+                addView(copyToken, LinearLayout.LayoutParams(0, -2, 1f))
+            }, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = UiStyle.dp(context, 8f)
+            })
             addView(status, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = UiStyle.dp(context, 8f) })
             addView(LinearLayout(context).apply {
                 orientation = LinearLayout.HORIZONTAL

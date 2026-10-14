@@ -13,9 +13,11 @@ import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ListView
 import android.widget.TextView
+import android.view.View
+import android.view.ViewGroup
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
-import com.google.android.material.button.MaterialButton
+import com.opentools.box.UiStyle
 import java.util.UUID
 
 /** Bluetooth serial terminal (SPP, e.g. Arduino). Original implementation. */
@@ -35,9 +37,17 @@ class BluetoothTerminalActivity : AppCompatActivity() {
         logView = ListView(this)
         adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, lines)
         logView.adapter = adapter
-        val address = EditText(this).apply { hint = "Device MAC, e.g. 00:11:22:33:44:55" }
-        val connect = MaterialButton(this).apply { text = "Connect" }
-        val input = EditText(this).apply { hint = "Send text…" }
+        val address = EditText(this).apply {
+            hint = "Device MAC address"
+            UiStyle.styleInput(this)
+            setSingleLine(true)
+        }
+        val connect = NativeButton(this).apply { text = "Connect" }
+        val input = EditText(this).apply {
+            hint = "Message to send"
+            UiStyle.styleInput(this)
+            setSingleLine(true)
+        }
         val send = MaterialButton(this).apply { text = "Send" }
         connect.setOnClickListener { connectTo(address.text.toString().trim()) }
         send.setOnClickListener {
@@ -46,15 +56,29 @@ class BluetoothTerminalActivity : AppCompatActivity() {
                 input.text.clear()
             } catch (e: Exception) { addLine("Send failed: ${e.message}") }
         }
-        bondedView = TextView(this).apply { textSize = 14f; setPadding(12, 8, 12, 8) }
+        bondedView = TextView(this).apply {
+            UiStyle.styleText(this, 13f, false, UiStyle.muted(context))
+            setPadding(UiStyle.dp(context, 12f), UiStyle.dp(context, 12f),
+                UiStyle.dp(context, 12f), UiStyle.dp(context, 12f))
+            background = UiStyle.rounded(context, UiStyle.surface(context), 14f, UiStyle.border(context))
+        }
         refreshPairedDevices()
-        setContentView(com.opentools.box.ToolScaffold.wrap(this, "BT Terminal",LinearLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "BT Terminal", LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            addView(bondedView)
-            addView(address); addView(connect)
-            addView(logView, LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
-            addView(input); addView(send)
+            val pad = UiStyle.dp(context, 16f)
+            setPadding(pad, pad, pad, pad)
+            addView(TextView(context).apply { text = "Bluetooth serial terminal"; UiStyle.styleText(this, 23f, true) })
+            addView(bondedView, LinearLayout.LayoutParams(-1, -2).apply {
+                topMargin = UiStyle.dp(context, 10f)
+                bottomMargin = UiStyle.dp(context, 10f)
+            })
+            addView(address, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = UiStyle.dp(context, 8f) })
+            addView(connect, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = UiStyle.dp(context, 12f) })
+            addView(logView, LinearLayout.LayoutParams(-1, 0, 1f).apply {
+                bottomMargin = UiStyle.dp(context, 10f)
+            })
+            addView(input, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = UiStyle.dp(context, 8f) })
+            addView(send, LinearLayout.LayoutParams(-1, -2))
         }))
     }
 

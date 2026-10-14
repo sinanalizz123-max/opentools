@@ -93,7 +93,7 @@ class PdfViewerActivity : AppCompatActivity() {
         try {
             pdf.openPage(page).use { pdfPage ->
                 val width = (resources.displayMetrics.widthPixels - UiStyle.dp(this, 32f)).coerceAtLeast(1)
-                val scale = (width.toFloat() / pdfPage.width).coerceAtLeast(1f).coerceAtMost(3f)
+                val scale = (width.toFloat() / pdfPage.width).coerceAtLeast(0.25f).coerceAtMost(2f)
                 val bitmap = Bitmap.createBitmap(
                     (pdfPage.width * scale).toInt().coerceAtLeast(1),
                     (pdfPage.height * scale).toInt().coerceAtLeast(1),

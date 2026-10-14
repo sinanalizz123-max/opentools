@@ -1,45 +1,58 @@
 package com.opentools.box
 
 import android.content.Context
+import android.view.Gravity
 import android.view.View
 import android.widget.FrameLayout
 import android.widget.LinearLayout
+import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.Toolbar
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
-import com.google.android.material.appbar.MaterialToolbar
 
-/**
- * Shared M3 Expressive screen chrome: toolbar with back + title,
- * content below. Original implementation.
- */
+/** Shared, restrained native screen chrome. No Material 3 widgets. */
 object ToolScaffold {
     fun wrap(activity: AppCompatActivity, title: String, content: View): View {
-        val bar = MaterialToolbar(activity).apply {
+        val bar = Toolbar(activity).apply {
+            setBackgroundColor(UiStyle.background(activity))
+            setTitleTextColor(UiStyle.text(activity))
             this.title = title
-            setNavigationIcon(androidx.appcompat.R.drawable.abc_ic_ab_back_material)
+            navigationIcon = androidx.appcompat.content.res.AppCompatResources.getDrawable(
+                activity, androidx.appcompat.R.drawable.abc_ic_ab_back_material)
             setNavigationOnClickListener { activity.finish() }
+            elevation = 0f
+        }
+        val body = FrameLayout(activity).apply {
+            setBackgroundColor(UiStyle.background(activity))
+            addView(content, FrameLayout.LayoutParams(-1, -1))
         }
         return LinearLayout(activity).apply {
             orientation = LinearLayout.VERTICAL
-            ToolScaffold.applySystemBarInsets(this)
-            addView(bar, LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT))
-            addView(content, LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
+            setBackgroundColor(UiStyle.background(activity))
+            applySystemBarInsets(this)
+            addView(bar, LinearLayout.LayoutParams(-1, dp(activity, 56)))
+            addView(body, LinearLayout.LayoutParams(-1, 0, 1f))
         }
     }
 
-    fun pad(context: Context): Int =
-        (16 * context.resources.displayMetrics.density).toInt()
+    fun pad(context: Context): Int = dp(context, 16)
 
-    /** Keep content below the status bar and above the nav bar. */
+    private fun dp(context: Context, value: Int): Int =
+        (value * context.resources.displayMetrics.density + 0.5f).toInt()
+
     fun applySystemBarInsets(view: View) {
         ViewCompat.setOnApplyWindowInsetsListener(view) { v, insets ->
             val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             v.setPadding(bars.left, bars.top, bars.right, bars.bottom)
             insets
         }
+    }
+
+    fun sectionTitle(context: Context, title: String): TextView = TextView(context).apply {
+        text = title
+        UiStyle.styleText(this, 18f, true)
+        gravity = Gravity.CENTER_VERTICAL
+        setPadding(dp(context, 2), dp(context, 18), dp(context, 2), dp(context, 10))
     }
 }

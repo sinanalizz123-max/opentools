@@ -3,18 +3,17 @@ package com.opentools.box
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
 import android.os.Bundle
 import android.speech.RecognizerIntent
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.Gravity
 import android.view.View
-import android.view.ViewGroup
-import android.widget.ArrayAdapter
 import android.widget.EditText
-import android.widget.FrameLayout
+import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
-import android.widget.ListView
+import android.widget.PopupMenu
 import android.widget.ScrollView
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
@@ -22,421 +21,306 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import androidx.viewpager2.widget.ViewPager2
-import com.google.android.material.appbar.MaterialToolbar
-import com.google.android.material.button.MaterialButton
-import com.google.android.material.card.MaterialCardView
-import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import com.google.android.material.search.SearchBar
 import java.util.Locale
 
-/**
- * Home screen mirroring the reference utility-box structure:
- * header + menu, search (+voice), featured carousel, editable
- * shortcuts, category rail + grid, common tools, recommended.
- * Original M3 Expressive implementation.
- */
+/** Native, utility-first home screen. Uses standard Android views rather than Material 3 UI. */
 class MainActivity : AppCompatActivity() {
-
     private val allTools = ToolRegistry.tools
-    private var category = ToolCategory.BASIC
+    private var category: ToolCategory? = null
     private var sortAlpha = false
+    private var query = ""
     private lateinit var grid: RecyclerView
-    private lateinit var gridAdapter: ToolGridAdapter
-    private lateinit var rail: LinearLayout
-    private lateinit var shortcutRow: LinearLayout
+    private lateinit var adapter: ToolGridAdapter
+    private lateinit var categoryRow: LinearLayout
+    private lateinit var countView: TextView
+    private lateinit var searchField: EditText
+    private lateinit var shortcuts: LinearLayout
 
     private val voiceLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
-            val match = result.data
-                ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
-            if (match != null) {
-                searchField?.setText(match)
-                runSearch(match)
+            result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()?.let {
+                searchField.setText(it)
+                searchField.setSelection(it.length)
             }
         }
     }
-
-    private var searchField: android.widget.EditText? = null
-    private lateinit var searchDropdown: android.widget.ListView
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        mark("super.onCreate.start")
         super.onCreate(savedInstanceState)
-        mark("super.onCreate.done")
-        val pendingCrash = OpenToolsApp.takeLastCrash(this)
-        mark("dispatch")
-        try {
-            buildExpressiveUI()
-            mark("expressive.done")
-        } catch (e: Throwable) {
-            OpenToolsApp.saveCrash(this, e)
-            mark("expressive.failed:" + e.javaClass.simpleName)
-            buildFallbackUI()
-        }
-        // Only show a dialog for a real saved crash, never for step markers.
-        if (!pendingCrash.isNullOrBlank()) {
-            val report = pendingCrash.take(4000)
-            window.decorView.post { showCrash(report) }
-        }
+        buildHome()
     }
 
-    private fun mark(step: String) {
-        try {
-            OpenToolsApp.prefs(this).edit().putString("last_step", step).commit()
-        } catch (_: Exception) { }
-    }
-
-    /** Simple grid fallback — always works, used if expressive UI fails. */
-    private fun buildFallbackUI() {
-        val grid = RecyclerView(this).apply {
-            layoutManager = GridLayoutManager(this@MainActivity, 3)
-            adapter = ToolGridAdapter(allTools) { openTool(it) }
+    private fun buildHome() {
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(UiStyle.background(this@MainActivity))
         }
-        setContentView(FrameLayout(this).apply { addView(grid) })
-    }
-
-    private fun buildExpressiveUI() {
-        val root = ScrollView(this).apply {
-            addView(LinearLayout(context).apply {
-                orientation = LinearLayout.VERTICAL
-                mark("step.header")
-                addView(buildHeader())
-                mark("step.search")
-                addView(buildSearch())
-                searchDropdown = android.widget.ListView(context).apply {
-                    visibility = View.GONE
-                    // ListView inside ScrollView needs an explicit height.
-                    layoutParams = LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.MATCH_PARENT,
-                        (240 * resources.displayMetrics.density).toInt())
-                }
-                addView(searchDropdown)
-                mark("step.featured")
-                addView(buildFeatured())
-                addView(sectionTitle("Shortcuts"))
-                shortcutRow = LinearLayout(context).apply {
-                    orientation = LinearLayout.HORIZONTAL
-                }
-                addView(shortcutRow)
-                addView(sectionTitle("Categories"))
-                mark("step.categories")
-                addView(buildCategorySection())
-                mark("step.common")
-                addView(buildCommonCard())
-                mark("step.recommended")
-                addView(buildRecommended())
-            })
+        val scroll = ScrollView(this).apply { isFillViewport = true; clipToPadding = false }
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(8), dp(20), dp(28))
         }
-        val frame = FrameLayout(this).apply {
-            addView(root)
+        content.addView(buildHeader())
+        content.addView(buildSearch(), LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(18) })
+        content.addView(section("Quick access"), LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
+        shortcuts = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        content.addView(shortcuts)
+        content.addView(section("Browse tools"), LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
+        val categoriesScroll = HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false }
+        categoryRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        categoriesScroll.addView(categoryRow)
+        content.addView(categoriesScroll)
+        val sectionRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
         }
-        ToolScaffold.applySystemBarInsets(frame)
-        setContentView(frame)
-        mark("step.contentSet")
-        refreshShortcuts()
-        mark("step.shortcuts")
-        selectCategory(category)
-        mark("step.grid")
-    }
-
-    private fun showCrash(crash: String) {
-        val scroll = android.widget.ScrollView(this)
-        val text = TextView(this).apply {
-            this.text = crash.take(4000)
-            textSize = 11f
-            setTextIsSelectable(true)
-        }
-        scroll.addView(text)
-        // Framework dialog on purpose: must work even if M3 is the crasher.
-        android.app.AlertDialog.Builder(this)
-            .setTitle("Last crash report")
-            .setMessage("Copy this and send it to the developer:")
-            .setView(scroll)
-            .setPositiveButton("Copy") { _, _ ->
-                val cm = getSystemService(Context.CLIPBOARD_SERVICE)
-                    as android.content.ClipboardManager
-                cm.setPrimaryClip(android.content.ClipData.newPlainText("crash", crash))
+        countView = TextView(this).apply { UiStyle.styleText(this, 12f, false, UiStyle.muted(this@MainActivity)) }
+        sectionRow.addView(countView, LinearLayout.LayoutParams(0, -2, 1f))
+        val sort = TextView(this).apply {
+            text = "A–Z  ↕"
+            UiStyle.styleText(this, 12f, true, UiStyle.accent(this@MainActivity))
+            setPadding(dp(10), dp(8), dp(2), dp(8))
+            setOnClickListener {
+                sortAlpha = !sortAlpha
+                updateGrid()
+                text = if (sortAlpha) "Default ↕" else "A–Z ↕"
             }
-            .setNegativeButton("Dismiss", null)
-            .show()
+        }
+        sectionRow.addView(sort)
+        content.addView(sectionRow, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(12) })
+        adapter = ToolGridAdapter(allTools) { openTool(it) }
+        grid = RecyclerView(this).apply {
+            layoutManager = GridLayoutManager(this@MainActivity, 2)
+            adapter = this@MainActivity.adapter
+            isNestedScrollingEnabled = false
+            overScrollMode = View.OVER_SCROLL_NEVER
+            itemAnimator = null
+        }
+        content.addView(grid, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
+        scroll.addView(content)
+        root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
+        root.addView(TextView(this).apply {
+            text = "OPENTOOLS  ·  PRIVATE BY DESIGN"
+            gravity = Gravity.CENTER
+            UiStyle.styleText(this, 10f, true, UiStyle.muted(this@MainActivity))
+            setPadding(dp(12), dp(12), dp(12), dp(14))
+        })
+        ToolScaffold.applySystemBarInsets(root)
+        setContentView(root)
+        refreshShortcuts()
+        refreshCategories()
+        updateGrid()
     }
-
-    // ---- Header + menu ----
 
     private fun buildHeader(): View {
-        val bar = MaterialToolbar(this).apply { title = "OpenTools" }
-        bar.inflateMenu(R.menu.home_menu)
-        bar.setOnMenuItemClickListener { item ->
-            when (item.itemId) {
-                R.id.menu_dark -> {
-                    val night = AppCompatDelegate.getDefaultNightMode() ==
-                        AppCompatDelegate.MODE_NIGHT_YES
-                    AppCompatDelegate.setDefaultNightMode(
-                        if (night) AppCompatDelegate.MODE_NIGHT_NO
-                        else AppCompatDelegate.MODE_NIGHT_YES)
-                    true
-                }
-                R.id.menu_files -> { openTool("files"); true }
-                R.id.menu_about -> { openTool("about"); true }
-                R.id.menu_help -> { openTool("help"); true }
-                R.id.menu_settings -> { openTool("settings"); true }
-                else -> false
-            }
-        }
-        return bar
+        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        val brand = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        brand.addView(TextView(this).apply {
+            text = "OpenTools"
+            UiStyle.styleText(this, 29f, true)
+            letterSpacing = -0.025f
+        })
+        brand.addView(TextView(this).apply {
+            text = "Small tools. No clutter."
+            UiStyle.styleText(this, 13f, false, UiStyle.muted(this@MainActivity))
+            setPadding(0, dp(2), 0, 0)
+        })
+        row.addView(brand, LinearLayout.LayoutParams(0, -2, 1f))
+        row.addView(TextView(this).apply {
+            text = "•••"
+            gravity = Gravity.CENTER
+            UiStyle.styleText(this, 20f, true)
+            background = UiStyle.rounded(this@MainActivity, UiStyle.surface(this@MainActivity), 14f, UiStyle.border(this@MainActivity))
+            isClickable = true
+            isFocusable = true
+            setPadding(dp(14), dp(10), dp(14), dp(10))
+            setOnClickListener { showMenu(this) }
+            contentDescription = "More options"
+        })
+        return row
     }
 
-    // ---- Search ----
-
     private fun buildSearch(): View {
-        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        val layout = com.google.android.material.textfield.TextInputLayout(
-            this, null,
-            com.google.android.material.R.attr.textInputOutlinedStyle,
-        ).apply {
-            this.hint = "Search tools"
-            startIconDrawable = androidx.appcompat.content.res.AppCompatResources.getDrawable(
-                context, androidx.appcompat.R.drawable.abc_ic_search_api_material)
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            background = UiStyle.rounded(this@MainActivity, UiStyle.surface(this@MainActivity), 16f, UiStyle.border(this@MainActivity))
+            setPadding(dp(14), dp(2), dp(6), dp(2))
         }
-        val input = com.google.android.material.textfield.TextInputEditText(layout.context).apply {
+        row.addView(TextView(this).apply {
+            text = "⌕"
+            UiStyle.styleText(this, 26f, false, UiStyle.muted(this@MainActivity))
+        })
+        searchField = EditText(this).apply {
+            hint = "Search " + allTools.size + " tools"
+            singleLine = true
+            textSize = 15f
+            setTextColor(UiStyle.text(this@MainActivity))
+            setHintTextColor(UiStyle.muted(this@MainActivity))
+            background = null
+            setPadding(dp(10), dp(12), dp(4), dp(12))
             addTextChangedListener(object : TextWatcher {
-                override fun afterTextChanged(s: Editable?) = runSearch(s.toString())
-                override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) = Unit
-                override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) = Unit
+                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                    query = s?.toString()?.trim().orEmpty()
+                    updateGrid()
+                }
+                override fun afterTextChanged(s: Editable?) = Unit
             })
         }
-        layout.addView(input)
-        searchField = input
-        val voice = MaterialButton(this).apply {
+        row.addView(searchField, LinearLayout.LayoutParams(0, -2, 1f))
+        row.addView(TextView(this).apply {
             text = "Mic"
+            gravity = Gravity.CENTER
+            UiStyle.styleText(this, 12f, true, UiStyle.accent(this@MainActivity))
+            setPadding(dp(10), dp(12), dp(10), dp(12))
             setOnClickListener {
                 try {
                     voiceLauncher.launch(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                        putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                            RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                        putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
                         putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
                     })
                 } catch (_: Exception) { }
             }
-        }
-        row.addView(layout, LinearLayout.LayoutParams(0,
-            LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
-        row.addView(voice)
+        })
         return row
     }
 
-    private fun runSearch(query: String) {
-        // Live dropdown under the field, updating on every character.
-        if (!::searchDropdown.isInitialized) return
-        if (query.isBlank()) {
-            searchDropdown.visibility = View.GONE
-            return
-        }
-        val hits = allTools.filter { it.title.contains(query, ignoreCase = true) }
-        searchDropdown.adapter = android.widget.ArrayAdapter(this,
-            android.R.layout.simple_list_item_1,
-            hits.map { "${it.title}  ·  ${it.category.label}" })
-        searchDropdown.setOnItemClickListener { _, _, pos, _ ->
-            searchDropdown.visibility = View.GONE
-            searchField?.setText("")
-            openTool(hits[pos])
-        }
-        searchDropdown.visibility = if (hits.isEmpty()) View.GONE else View.VISIBLE
-    }
-
-    // ---- Featured carousel ----
-
-    private fun featured(): List<ToolEntry> = listOf("torch", "qrgenerate", "compass", "recorder")
-        .mapNotNull { id -> allTools.find { it.id == id } }
-
-    private fun buildFeatured(): View {
-        val pager = ViewPager2(this).apply {
-            adapter = FeaturedAdapter(featured()) { openTool(it) }
-        }
-        val dots = LinearLayout(this).apply {
-            gravity = Gravity.CENTER
-            orientation = LinearLayout.HORIZONTAL
-        }
-        val items = featured()
-        repeat(items.size) { dots.addView(dotView(it == 0)) }
-        pager.registerOnPageChangeCallback(object : ViewPager2.OnPageChangeCallback() {
-            override fun onPageSelected(position: Int) {
-                for (i in 0 until dots.childCount) {
-                    dots.getChildAt(i).alpha = if (i == position) 1f else 0.3f
-                }
-            }
-        })
-        return LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            addView(sectionTitle("Featured"))
-            addView(pager, LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, 420))
-            addView(dots)
-        }
-    }
-
-    private fun dotView(active: Boolean) = View(this).apply {
-        alpha = if (active) 1f else 0.3f
-        val d = (8 * resources.displayMetrics.density).toInt()
-        layoutParams = LinearLayout.LayoutParams(d, d).apply {
-            setMargins(d / 2, d, d / 2, d)
-        }
-        setBackgroundColor(getColor(android.R.color.holo_blue_light))
-    }
-
-    // ---- Shortcuts (editable) ----
-
-    private fun shortcutPrefs() = getSharedPreferences("home", Context.MODE_PRIVATE)
-
-    private fun shortcutIds(): MutableList<String> {
-        val saved = shortcutPrefs().getString("shortcuts", null)
-        return if (saved == null) mutableListOf("torch", "calculator", "compass", "qrgenerate")
-        else saved.split(",").toMutableList()
+    private fun section(title: String) = TextView(this).apply {
+        text = title
+        UiStyle.styleText(this, 18f, true)
+        setPadding(0, dp(8), 0, dp(10))
     }
 
     private fun refreshShortcuts() {
-        shortcutRow.removeAllViews()
-        val ids = shortcutIds()
-        for (id in ids) {
-            val tool = allTools.find { it.id == id }
-            shortcutRow.addView(MaterialButton(this).apply {
-                text = tool?.title ?: "+"
-                setOnClickListener { if (tool != null) openTool(tool) }
-            }, LinearLayout.LayoutParams(0,
-                LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        shortcuts.removeAllViews()
+        shortcutIds().forEach { id ->
+            val entry = allTools.firstOrNull { it.id == id } ?: return@forEach
+            val tile = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER
+                background = UiStyle.rounded(this@MainActivity, UiStyle.surface(this@MainActivity), 15f, UiStyle.border(this@MainActivity))
+                isClickable = true
+                isFocusable = true
+                setPadding(dp(8), dp(12), dp(8), dp(11))
+                addView(TextView(this@MainActivity).apply {
+                    text = glyphFor(entry)
+                    gravity = Gravity.CENTER
+                    UiStyle.styleText(this, 23f, true, UiStyle.accent(this@MainActivity))
+                })
+                addView(TextView(this@MainActivity).apply {
+                    text = entry.title
+                    gravity = Gravity.CENTER
+                    maxLines = 1
+                    UiStyle.styleText(this, 10f, true)
+                    setPadding(0, dp(5), 0, 0)
+                })
+                setOnClickListener { openTool(entry) }
+            }
+            shortcuts.addView(tile, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(7) })
         }
-        shortcutRow.addView(MaterialButton(this).apply {
-            text = "✎"
+        shortcuts.addView(TextView(this).apply {
+            text = "＋"
+            gravity = Gravity.CENTER
+            UiStyle.styleText(this, 25f, false, UiStyle.accent(this@MainActivity))
+            background = UiStyle.rounded(this@MainActivity, UiStyle.raised(this@MainActivity), 15f)
             setOnClickListener { editShortcuts() }
-        })
+        }, LinearLayout.LayoutParams(dp(44), -1))
+    }
+
+    private fun glyphFor(entry: ToolEntry): String = when (entry.category) {
+        ToolCategory.WIFI -> "⌁"
+        ToolCategory.CAMERA -> "◉"
+        ToolCategory.HEALTH -> "♡"
+        ToolCategory.MEASURE -> "⌖"
+        ToolCategory.EDITORS -> "▤"
+        ToolCategory.AUDIO -> "♫"
+        ToolCategory.EXTRA -> "✳"
+        ToolCategory.BASIC -> "✦"
+    }
+
+    private fun shortcutIds(): List<String> {
+        val stored = getSharedPreferences("home", Context.MODE_PRIVATE).getString("shortcuts", null)
+        return (stored?.split(",") ?: listOf("torch", "calculator", "compass", "qrgenerate"))
+            .filter { id -> allTools.any { it.id == id } }.take(4)
     }
 
     private fun editShortcuts() {
-        val titles = allTools.map { it.title }.toTypedArray()
-        val current = shortcutIds()
-        val checked = allTools.map { current.contains(it.id) }.toBooleanArray()
-        MaterialAlertDialogBuilder(this)
-            .setTitle("Pick 4 shortcuts")
-            .setMultiChoiceItems(titles, checked) { _, which, isChecked ->
-                checked[which] = isChecked
-            }
+        val names = allTools.map { it.title }.toTypedArray()
+        val ids = allTools.map { it.id }
+        val selected = ids.map { it in shortcutIds() }.toBooleanArray()
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Choose quick access tools")
+            .setMultiChoiceItems(names, selected) { _, which, checked -> selected[which] = checked }
             .setPositiveButton("Save") { _, _ ->
-                val picked = allTools.filterIndexed { i, _ -> checked[i] }
-                    .take(4).map { it.id }
-                if (picked.isNotEmpty()) {
-                    shortcutPrefs().edit().putString("shortcuts", picked.joinToString(",")).apply()
-                    refreshShortcuts()
-                }
+                val chosen = ids.filterIndexed { index, _ -> selected[index] }.take(4)
+                getSharedPreferences("home", Context.MODE_PRIVATE).edit()
+                    .putString("shortcuts", chosen.joinToString(",")).apply()
+                refreshShortcuts()
             }
             .setNegativeButton("Cancel", null)
             .show()
     }
 
-    // ---- Category rail + grid ----
+    private fun refreshCategories() {
+        categoryRow.removeAllViews()
+        addCategoryChip("All", null)
+        ToolCategory.values().forEach { addCategoryChip(it.label, it) }
+    }
 
-    private fun buildCategorySection(): View {
-        rail = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        for (cat in ToolCategory.values()) {
-            rail.addView(MaterialButton(this).apply {
-                text = cat.label
-                setOnClickListener { selectCategory(cat) }
-            })
+    private fun addCategoryChip(label: String, value: ToolCategory?) {
+        val selected = category == value
+        val chip = TextView(this).apply {
+            text = label
+            gravity = Gravity.CENTER
+            UiStyle.styleText(this, 13f, true, if (selected) 0xFFFFFFFF.toInt() else UiStyle.muted(this@MainActivity))
+            background = UiStyle.rounded(this@MainActivity,
+                if (selected) UiStyle.accent(this@MainActivity) else UiStyle.surface(this@MainActivity),
+                12f, if (selected) null else UiStyle.border(this@MainActivity))
+            setPadding(dp(15), dp(10), dp(15), dp(10))
+            setOnClickListener { category = value; refreshCategories(); updateGrid() }
         }
-        gridAdapter = ToolGridAdapter(emptyList()) { openTool(it) }
-        grid = RecyclerView(this).apply {
-            layoutManager = GridLayoutManager(context, 3)
-            adapter = gridAdapter
-            isNestedScrollingEnabled = false
+        categoryRow.addView(chip, LinearLayout.LayoutParams(-2, -2).apply { marginEnd = dp(7) })
+    }
+
+    private fun updateGrid() {
+        if (!::adapter.isInitialized) return
+        var tools = allTools.filter { entry ->
+            (category == null || entry.category == category) &&
+                (query.isBlank() || entry.title.contains(query, true) ||
+                    entry.category.label.contains(query, true) || entry.id.contains(query, true))
         }
-        val sortRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        sortRow.addView(MaterialButton(this).apply {
-            text = "A–Z"
-            setOnClickListener { sortAlpha = true; selectCategory(category) }
-        })
-        sortRow.addView(MaterialButton(this).apply {
-            text = "Default"
-            setOnClickListener { sortAlpha = false; selectCategory(category) }
-        })
-        return LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            addView(sortRow)
-            addView(LinearLayout(context).apply {
-                orientation = LinearLayout.HORIZONTAL
-                addView(rail, LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT))
-                addView(grid, LinearLayout.LayoutParams(0,
-                    LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
-            })
+        if (sortAlpha) tools = tools.sortedBy { it.title.lowercase(Locale.ROOT) }
+        adapter.update(tools)
+        if (::countView.isInitialized) {
+            countView.text = if (query.isBlank()) tools.size.toString() + " tools"
+                else tools.size.toString() + " matches"
         }
     }
 
-    private fun selectCategory(cat: ToolCategory) {
-        category = cat
-        var list = allTools.filter { it.category == cat }
-        if (sortAlpha) list = list.sortedBy { it.title }
-        gridAdapter.update(list)
-        for (i in 0 until rail.childCount) {
-            (rail.getChildAt(i) as MaterialButton).alpha =
-                if (ToolCategory.values()[i] == cat) 1f else 0.55f
+    private fun showMenu(anchor: View) {
+        PopupMenu(this, anchor).apply {
+            menu.add("Toggle dark mode").setOnMenuItemClickListener {
+                val night = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+                AppCompatDelegate.setDefaultNightMode(if (night) AppCompatDelegate.MODE_NIGHT_NO else AppCompatDelegate.MODE_NIGHT_YES)
+                true
+            }
+            menu.add("File browser").setOnMenuItemClickListener { openTool("files"); true }
+            menu.add("Settings").setOnMenuItemClickListener { openTool("settings"); true }
+            menu.add("Help").setOnMenuItemClickListener { openTool("help"); true }
+            menu.add("About").setOnMenuItemClickListener { openTool("about"); true }
+            show()
         }
-    }
-
-    // ---- Common + recommended ----
-
-    private fun commonTools(): List<ToolEntry> =
-        listOf("torch", "calculator", "clipboard", "converter", "qrgenerate", "stopwatch")
-            .mapNotNull { id -> allTools.find { it.id == id } }
-
-    private fun buildCommonCard(): View {
-        val card = MaterialCardView(this)
-        val inner = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        val header = MaterialButton(this).apply { text = "Common tools ▾" }
-        val list = RecyclerView(this).apply {
-            layoutManager = GridLayoutManager(context, 4)
-            adapter = ToolGridAdapter(commonTools()) { openTool(it) }
-            isNestedScrollingEnabled = false
-            visibility = View.GONE
-        }
-        header.setOnClickListener {
-            list.visibility = if (list.visibility == View.VISIBLE) View.GONE else View.VISIBLE
-            header.text = if (list.visibility == View.VISIBLE) "Common tools ▴" else "Common tools ▾"
-        }
-        inner.addView(header)
-        inner.addView(list)
-        card.addView(inner)
-        return card
-    }
-
-    private fun buildRecommended(): View {
-        val ids = listOf("filetrans", "walki", "vcall", "vault")
-        val items = ids.mapNotNull { id -> allTools.find { it.id == id } }
-        val row = RecyclerView(this).apply {
-            layoutManager = GridLayoutManager(context, 4)
-            adapter = ToolGridAdapter(items) { openTool(it) }
-            isNestedScrollingEnabled = false
-        }
-        return LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            addView(sectionTitle("Recommended"))
-            addView(row)
-        }
-    }
-
-    private fun sectionTitle(text: String) = TextView(this).apply {
-        this.text = text
-        textSize = 18f
-        val pad = ToolScaffold.pad(context)
-        setPadding(pad, pad / 2, pad, pad / 4)
     }
 
     private fun openTool(id: String) {
-        allTools.find { it.id == id }?.let { openTool(it) }
+        allTools.firstOrNull { it.id == id }?.let { openTool(it) }
     }
 
     private fun openTool(entry: ToolEntry) {
         startActivity(Intent(this, entry.activityClass))
     }
+
+    private fun dp(value: Int) = (value * resources.displayMetrics.density + .5f).toInt()
 }

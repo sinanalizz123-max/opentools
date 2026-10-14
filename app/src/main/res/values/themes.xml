@@ -1,19 +1,17 @@
 <resources>
-    <!-- Classic light look, modern indigo/teal/violet combo. -->
-    <style name="Theme.OpenTools" parent="Theme.Material3.Light.NoActionBar">
-        <item name="colorPrimary">#2563EB</item>
+    <!-- Classic Android styling. Material Components remains for legacy tool controls,
+         but the app uses no Material 3 theme or Material 3 home-screen widgets. -->
+    <style name="Theme.OpenTools" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">#265BB4</item>
+        <item name="colorPrimaryVariant">#173F85</item>
         <item name="colorOnPrimary">#FFFFFF</item>
-        <item name="colorPrimaryContainer">#DBEAFE</item>
-        <item name="colorOnPrimaryContainer">#1E3A8A</item>
-        <item name="colorSecondary">#0D9488</item>
+        <item name="colorSecondary">#3B746D</item>
         <item name="colorOnSecondary">#FFFFFF</item>
-        <item name="colorSecondaryContainer">#CCFBF1</item>
-        <item name="colorOnSecondaryContainer">#134E4A</item>
-        <item name="colorTertiary">#7C3AED</item>
-        <item name="colorOnTertiary">#FFFFFF</item>
-        <item name="colorTertiaryContainer">#EDE9FE</item>
-        <item name="colorOnTertiaryContainer">#4C1D95</item>
-        <item name="colorSurface">#F8FAFC</item>
-        <item name="colorOnSurface">#0F172A</item>
+        <item name="colorAccent">#265BB4</item>
+        <item name="android:fontFamily">sans</item>
+        <item name="android:statusBarColor">?android:colorBackground</item>
+        <item name="android:navigationBarColor">?android:colorBackground</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:colorAccent">#265BB4</item>
     </style>
 </resources>

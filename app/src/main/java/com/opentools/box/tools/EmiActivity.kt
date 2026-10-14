@@ -2,7 +2,6 @@ package com.opentools.box.tools
 
 import android.os.Bundle
 import android.text.InputType
-import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -30,7 +29,7 @@ class EmiActivity : AppCompatActivity() {
             setPadding(UiStyle.dp(context, 18f), UiStyle.dp(context, 18f), UiStyle.dp(context, 18f), UiStyle.dp(context, 18f))
             background = UiStyle.rounded(context, UiStyle.surface(context), 16f, UiStyle.border(context))
         }
-        val calc = Button(this).apply { text = "Calculate EMI"; UiStyle.styleButton(this) }
+        val calc = NativeButton(this).apply { text = "Calculate EMI" }
         calc.setOnClickListener {
             val p = principal.text.toString().trim().toDoubleOrNull()
             val r = rate.text.toString().trim().toDoubleOrNull()

@@ -14,7 +14,7 @@ import android.widget.ListView
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
-import com.google.android.material.button.MaterialButton
+import com.opentools.box.UiStyle
 import java.io.BufferedInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -57,19 +57,40 @@ class VaultActivity : AppCompatActivity() {
         val pin = EditText(this).apply {
             hint = if (hasPin()) "Enter PIN" else "Create a PIN (4+ digits)"
             inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD
+            UiStyle.styleInput(this)
         }
-        val go = MaterialButton(this).apply { text = if (hasPin()) "Unlock vault" else "Create vault PIN" }
-        status = TextView(this)
+        val go = NativeButton(this).apply { text = if (hasPin()) "Unlock vault" else "Create vault PIN" }
+        status = TextView(this).apply {
+            UiStyle.styleText(this, 14f, false, UiStyle.muted(context))
+            setPadding(0, UiStyle.dp(context, 10f), 0, UiStyle.dp(context, 10f))
+        }
         lockView = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             val pad = (16 * resources.displayMetrics.density).toInt()
             setPadding(pad, pad, pad, pad)
-            addView(TextView(context).apply { text = "Files are encrypted on this device."; textSize = 15f })
-            addView(pin)
-            addView(go)
+            addView(TextView(context).apply {
+                text = "Private file vault"
+                UiStyle.styleText(this, 24f, true)
+                setPadding(0, 0, 0, UiStyle.dp(context, 8f))
+            })
+            addView(TextView(context).apply {
+                text = "Files are encrypted on this device. Create a PIN to protect access."
+                UiStyle.styleText(this, 14f, false, UiStyle.muted(context))
+                setPadding(0, 0, 0, UiStyle.dp(context, 18f))
+            })
+            addView(pin, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = UiStyle.dp(context, 12f)
+            })
+            addView(go, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = UiStyle.dp(context, 8f)
+            })
             addView(status)
         }
-        unlockedView = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        unlockedView = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            val pad = UiStyle.dp(context, 16f)
+            setPadding(pad, pad, pad, pad)
+        }
         go.setOnClickListener {
             val entered = pin.text.toString()
             if (entered.length < 4) {
@@ -148,7 +169,11 @@ class VaultActivity : AppCompatActivity() {
 
     private fun showUnlocked() {
         refresh()
-        val list = ListView(this)
+        val list = ListView(this).apply {
+            divider = android.graphics.drawable.ColorDrawable(UiStyle.border(context))
+            dividerHeight = UiStyle.dp(context, 1f)
+            setBackgroundColor(UiStyle.background(context))
+        }
         adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, files)
         list.adapter = adapter
         list.setOnItemClickListener { _, _, position, _ ->
@@ -178,8 +203,8 @@ class VaultActivity : AppCompatActivity() {
         unlockedView.addView(status)
         unlockedView.addView(TextView(this).apply {
             text = "Tap a file to export · Long-press to delete"
-            textSize = 13f
-            setPadding(16, 12, 16, 12)
+            UiStyle.styleText(this, 13f, false, UiStyle.muted(context))
+            setPadding(0, UiStyle.dp(context, 10f), 0, UiStyle.dp(context, 10f))
         })
         unlockedView.addView(list, LinearLayout.LayoutParams(-1, 0, 1f))
         unlockedView.addView(add)

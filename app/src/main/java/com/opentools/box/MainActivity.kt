@@ -206,10 +206,16 @@ class MainActivity : AppCompatActivity() {
                 isClickable = true
                 isFocusable = true
                 setPadding(dp(8), dp(12), dp(8), dp(11))
-                addView(TextView(this@MainActivity).apply {
-                    text = glyphFor(entry)
-                    gravity = Gravity.CENTER
-                    UiStyle.styleText(this, 23f, true, UiStyle.accent(this@MainActivity))
+                addView(android.widget.ImageView(this@MainActivity).apply {
+                    val res = ToolIcons.resId(entry.id)
+                    if (res != 0) setImageResource(res)
+                    if (ToolIcons.tint(entry.id)) {
+                        imageTintList = android.content.res.ColorStateList.valueOf(
+                            UiStyle.accent(this@MainActivity))
+                    }
+                    scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
+                    layoutParams = LinearLayout.LayoutParams(dp(40), dp(40))
+                    setPadding(dp(5), dp(5), dp(5), dp(5))
                 })
                 addView(TextView(this@MainActivity).apply {
                     text = entry.title
@@ -229,17 +235,6 @@ class MainActivity : AppCompatActivity() {
             background = UiStyle.rounded(this@MainActivity, UiStyle.raised(this@MainActivity), 15f)
             setOnClickListener { editShortcuts() }
         }, LinearLayout.LayoutParams(dp(44), -2))
-    }
-
-    private fun glyphFor(entry: ToolEntry): String = when (entry.category) {
-        ToolCategory.WIFI -> "⌁"
-        ToolCategory.CAMERA -> "◉"
-        ToolCategory.HEALTH -> "♡"
-        ToolCategory.MEASURE -> "⌖"
-        ToolCategory.EDITORS -> "▤"
-        ToolCategory.AUDIO -> "♫"
-        ToolCategory.EXTRA -> "✳"
-        ToolCategory.BASIC -> "✦"
     }
 
     private fun shortcutIds(): List<String> {

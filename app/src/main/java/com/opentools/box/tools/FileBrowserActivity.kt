@@ -41,8 +41,22 @@ class FileBrowserActivity : AppCompatActivity() {
                 UiStyle.dp(context, 14f), UiStyle.dp(context, 12f))
             background = UiStyle.rounded(context, UiStyle.surface(context), 14f, UiStyle.border(context))
         }
-        val list = ListView(this)
-        adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, labels)
+        val list = ListView(this).apply {
+            divider = android.graphics.drawable.ColorDrawable(UiStyle.border(context))
+            dividerHeight = UiStyle.dp(context, 1f)
+            setBackgroundColor(UiStyle.background(context))
+        }
+        adapter = object : ArrayAdapter<String>(this, android.R.layout.simple_list_item_1, labels) {
+            override fun getView(position: Int, convertView: android.view.View?, parent: android.view.ViewGroup): android.view.View {
+                val row = (convertView as? TextView) ?: TextView(this@FileBrowserActivity)
+                row.text = getItem(position)
+                UiStyle.styleText(row, 14f, false)
+                row.maxLines = 2
+                row.setPadding(UiStyle.dp(context, 14f), UiStyle.dp(context, 12f),
+                    UiStyle.dp(context, 14f), UiStyle.dp(context, 12f))
+                return row
+            }
+        }
         list.adapter = adapter
         val up = NativeButton(this, false).apply { text = "Up" }
         val home = NativeButton(this).apply { text = "App files" }

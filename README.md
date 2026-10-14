@@ -48,3 +48,6 @@ key.alias.password=…
 ## License
 
 Apache-2.0 — see [LICENSE](LICENSE).
+
+Tool icons by [UXWing](https://uxwing.com) (free for commercial use,
+no attribution required — credited here anyway).

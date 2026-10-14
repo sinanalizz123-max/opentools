@@ -13,17 +13,17 @@ class ToolGridAdapter(
     private val onClick: (ToolEntry) -> Unit,
 ) : RecyclerView.Adapter<ToolGridAdapter.Holder>() {
 
-    class Holder(view: View, val icon: TextView, val label: TextView, val category: TextView) :
+    class Holder(view: View, val icon: android.widget.ImageView, val label: TextView, val category: TextView) :
         RecyclerView.ViewHolder(view)
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): Holder {
         val context = parent.context
         fun size(v: Int) = UiStyle.dp(context, v.toFloat())
-        val icon = TextView(context).apply {
-            gravity = Gravity.CENTER
-            textSize = 25f
+        val icon = android.widget.ImageView(context).apply {
+            scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
             background = UiStyle.rounded(context, UiStyle.raised(context), 13f)
             layoutParams = LinearLayout.LayoutParams(size(48), size(48))
+            setPadding(size(9), size(9), size(9), size(9))
         }
         val label = TextView(context).apply {
             UiStyle.styleText(this, 13f, true)
@@ -57,34 +57,20 @@ class ToolGridAdapter(
 
     override fun onBindViewHolder(holder: Holder, position: Int) {
         val entry = tools[position]
-        holder.icon.text = glyph(entry)
+        val res = ToolIcons.resId(entry.id)
+        if (res != 0) {
+            holder.icon.setImageResource(res)
+            if (ToolIcons.tint(entry.id)) {
+                holder.icon.imageTintList = android.content.res.ColorStateList.valueOf(
+                    UiStyle.text(holder.itemView.context))
+            } else {
+                holder.icon.imageTintList = null
+            }
+        }
         holder.label.text = entry.title
         holder.category.text = entry.category.label
         holder.itemView.contentDescription = entry.title
         holder.itemView.setOnClickListener { onClick(entry) }
-    }
-
-    private fun glyph(entry: ToolEntry): String = when (entry.id) {
-        "torch" -> "☼"
-        "calculator" -> "＋"
-        "compass", "gpscompass" -> "◎"
-        "qrgenerate" -> "▦"
-        "recorder", "audioply", "vidply", "mike" -> "♫"
-        "files", "filetrans", "vault" -> "▤"
-        "wifiscan", "wifiscanip", "wifispeed", "sigstr" -> "⌁"
-        "camera", "shutter", "cctvserver", "cctvviewer", "vcall" -> "◉"
-        "stopwatch", "timer" -> "◷"
-        "bluetooth", "aurdino" -> "ᛒ"
-        else -> when (entry.category) {
-            ToolCategory.WIFI -> "⌁"
-            ToolCategory.CAMERA -> "◉"
-            ToolCategory.HEALTH -> "♡"
-            ToolCategory.MEASURE -> "⌖"
-            ToolCategory.EDITORS -> "▤"
-            ToolCategory.AUDIO -> "♫"
-            ToolCategory.EXTRA -> "✳"
-            ToolCategory.BASIC -> "✦"
-        }
     }
 
     override fun getItemCount() = tools.size

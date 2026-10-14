@@ -2,7 +2,6 @@ package com.opentools.box.tools
 
 import android.app.DatePickerDialog
 import android.os.Bundle
-import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
@@ -32,8 +31,8 @@ class DaysCountActivity : AppCompatActivity() {
             setPadding(UiStyle.dp(context, 18f), UiStyle.dp(context, 18f), UiStyle.dp(context, 18f), UiStyle.dp(context, 18f))
             background = UiStyle.rounded(context, UiStyle.surface(context), 16f, UiStyle.border(context))
         }
-        val pickFrom = Button(this).apply { text = "Choose start date"; UiStyle.styleButton(this, false) }
-        val pickTo = Button(this).apply { text = "Choose end date"; UiStyle.styleButton(this, false) }
+        val pickFrom = NativeButton(this, false).apply { text = "Choose start date" }
+        val pickTo = NativeButton(this, false).apply { text = "Choose end date" }
         pickFrom.setOnClickListener { pickDate(from) { from = it; render() } }
         pickTo.setOnClickListener { pickDate(to) { to = it; render() } }
         render()

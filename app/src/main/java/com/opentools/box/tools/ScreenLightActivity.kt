@@ -15,7 +15,6 @@ import com.opentools.box.UiStyle
 /** Screen light with full-brightness color surface and native hue controls. */
 class ScreenLightActivity : AppCompatActivity() {
     private var hue = 0f
-    private var white = true
     private lateinit var screen: View
     private lateinit var controls: LinearLayout
     private lateinit var hueSlider: SeekBar
@@ -33,7 +32,6 @@ class ScreenLightActivity : AppCompatActivity() {
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                     hue = progress.toFloat()
-                    white = false
                     screen.setBackgroundColor(Color.HSVToColor(floatArrayOf(hue, 0.6f, 1f)))
                 }
                 override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
@@ -42,7 +40,6 @@ class ScreenLightActivity : AppCompatActivity() {
         }
         whiteButton = NativeButton(this).apply { text = "White light" }
         whiteButton.setOnClickListener {
-            white = true
             screen.setBackgroundColor(Color.WHITE)
             hueSlider.progress = 0
         }

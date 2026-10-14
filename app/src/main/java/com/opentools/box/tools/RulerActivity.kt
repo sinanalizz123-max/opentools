@@ -23,10 +23,17 @@ class RulerActivity : AppCompatActivity() {
         }
         private var xOffset = 0f
 
+        override fun performClick(): Boolean {
+            super.performClick()
+            return true
+        }
+
         override fun onTouchEvent(event: MotionEvent): Boolean {
             if (event.action == MotionEvent.ACTION_DOWN || event.action == MotionEvent.ACTION_MOVE) {
                 xOffset = event.x % (resources.displayMetrics.xdpi / 2.54f)
                 invalidate()
+            } else if (event.action == MotionEvent.ACTION_UP) {
+                performClick()
             }
             return true
         }

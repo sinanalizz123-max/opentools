@@ -23,7 +23,7 @@ object ToolScaffold {
             setTitleTextColor(UiStyle.text(activity))
             this.title = title
             navigationIcon = androidx.appcompat.content.res.AppCompatResources.getDrawable(
-                activity, androidx.appcompat.R.drawable.abc_ic_ab_back_material)
+                activity, R.drawable.ic_arrow_back)
             setNavigationOnClickListener { activity.finish() }
             elevation = 0f
         }

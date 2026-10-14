@@ -41,10 +41,12 @@ class ColorDetectActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         cameraManager = getSystemService(Context.CAMERA_SERVICE) as CameraManager
         preview = TextureView(this).apply {
-            setOnTouchListener { _, e ->
+            setOnTouchListener { view, e ->
                 if (e.action == MotionEvent.ACTION_DOWN) {
                     tapX = e.x / width
                     tapY = e.y / height
+                } else if (e.action == MotionEvent.ACTION_UP) {
+                    view.performClick()
                 }
                 true
             }

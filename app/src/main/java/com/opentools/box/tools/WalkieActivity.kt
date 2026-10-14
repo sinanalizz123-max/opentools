@@ -38,10 +38,13 @@ class WalkieActivity : AppCompatActivity() {
         peerInput = EditText(this).apply { hint = "Peer IP, e.g. 192.168.1.5" }
         status = TextView(this).apply { textSize = 16f; text = "Listening on :9998" }
         val talk = MaterialButton(this).apply { text = "HOLD TO TALK" }
-        talk.setOnTouchListener { _, e ->
+        talk.setOnTouchListener { view, e ->
             when (e.action) {
                 MotionEvent.ACTION_DOWN -> startTalking()
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> stopTalking()
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    stopTalking()
+                    view.performClick()
+                }
             }
             true
         }

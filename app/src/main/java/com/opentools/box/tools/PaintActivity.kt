@@ -59,6 +59,11 @@ class PaintActivity : AppCompatActivity() {
             strokeCap = Paint.Cap.ROUND
         }
 
+        override fun performClick(): Boolean {
+            super.performClick()
+            return true
+        }
+
         override fun onTouchEvent(e: MotionEvent): Boolean {
             when (e.action) {
                 MotionEvent.ACTION_DOWN -> {
@@ -66,7 +71,10 @@ class PaintActivity : AppCompatActivity() {
                     paths.add(current!! to newPaint())
                 }
                 MotionEvent.ACTION_MOVE -> current?.lineTo(e.x, e.y)
-                MotionEvent.ACTION_UP -> current = null
+                MotionEvent.ACTION_UP -> {
+                    current = null
+                    performClick()
+                }
             }
             invalidate()
             return true

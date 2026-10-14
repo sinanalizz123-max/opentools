@@ -32,7 +32,7 @@ class GpsActivity : AppCompatActivity(), LocationListener {
             setPadding(UiStyle.dp(context, 16f), UiStyle.dp(context, 24f),
                 UiStyle.dp(context, 16f), UiStyle.dp(context, 24f))
             background = UiStyle.rounded(context, UiStyle.surface(context), 18f, UiStyle.border(context))
-            textIsSelectable = true
+            setTextIsSelectable(true)
         }
         extra = TextView(this).apply {
             text = "Accuracy: —"

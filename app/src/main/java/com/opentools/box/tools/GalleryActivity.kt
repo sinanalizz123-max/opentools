@@ -45,13 +45,32 @@ class GalleryActivity : AppCompatActivity() {
     private val permLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) { retryPerm.visibility = android.view.View.GONE; loadBrowser() } else {
             retryPerm.visibility = android.view.View.VISIBLE
+            if (!shouldShowRequestPermissionRationale(neededPermission())) {
+                retryPerm.text = "Open Settings"
+            }
             browserStatus.text = "Image access is needed to browse on-device images. Grant it to load automatically."
         }
+    }
+
+    private fun openAppSettings() {
+        try {
+            startActivity(android.content.Intent(
+                android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                android.net.Uri.fromParts("package", packageName, null)))
+        } catch (_: Exception) { }
     }
 
     private fun neededPermission(): String = if (Build.VERSION.SDK_INT >= 33)
         Manifest.permission.READ_MEDIA_IMAGES else Manifest.permission.READ_EXTERNAL_STORAGE
 
+    /** Full access, or partial (user-selected) access on API 34+. */
+    private fun hasMediaAccess(): Boolean {
+        if (ContextCompat.checkSelfPermission(this, neededPermission()) == PackageManager.PERMISSION_GRANTED)
+            return true
+        return Build.VERSION.SDK_INT >= 34 && ContextCompat.checkSelfPermission(
+            this, Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED,
+        ) == PackageManager.PERMISSION_GRANTED
+    }
     private fun show(uri: Uri) {
         try {
             image.setImageURI(uri)
@@ -86,7 +105,7 @@ class GalleryActivity : AppCompatActivity() {
         retryPerm = NativeButton(this, false).apply {
             text = "Grant image access"
             visibility = android.view.View.GONE
-            setOnClickListener { permRequested = false; ensureBrowser() }
+            setOnClickListener { if (retryPerm.text == "Open Settings") openAppSettings() else { permRequested = false; ensureBrowser() } }
         }
         val browserScroll = ScrollView(this).apply {
             addView(browserList, LinearLayout.LayoutParams(-1, -2))
@@ -113,12 +132,13 @@ class GalleryActivity : AppCompatActivity() {
     }
 
     private fun ensureBrowser() {
-        if (ContextCompat.checkSelfPermission(this, neededPermission()) == PackageManager.PERMISSION_GRANTED) {
+        if (hasMediaAccess()) {
             retryPerm.visibility = android.view.View.GONE
             loadBrowser()
         } else if (!permRequested) {
             browserStatus.text = "Loading on-device images…"
             permRequested = true
+            retryPerm.text = "Grant image access"
             try { permLauncher.launch(neededPermission()) } catch (_: Exception) {
                 browserStatus.text = "Image access is needed to browse on-device images. Grant it to load automatically."
                 retryPerm.visibility = android.view.View.VISIBLE

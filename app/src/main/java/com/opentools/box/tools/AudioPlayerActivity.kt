@@ -50,12 +50,31 @@ class AudioPlayerActivity : AppCompatActivity() {
         if (granted) { retryPerm.visibility = android.view.View.GONE; loadBrowser() } else {
             browserStatus.text = "Audio access is needed to browse on-device audio. Grant it to load automatically."
             retryPerm.visibility = android.view.View.VISIBLE
+            if (!shouldShowRequestPermissionRationale(neededPermission())) {
+                retryPerm.text = "Open Settings"
+            }
         }
+    }
+
+    private fun openAppSettings() {
+        try {
+            startActivity(android.content.Intent(
+                android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                android.net.Uri.fromParts("package", packageName, null)))
+        } catch (_: Exception) { }
     }
 
     private fun neededPermission(): String = if (Build.VERSION.SDK_INT >= 33)
         Manifest.permission.READ_MEDIA_AUDIO else Manifest.permission.READ_EXTERNAL_STORAGE
 
+    /** Full access, or partial (user-selected) access on API 34+. */
+    private fun hasMediaAccess(): Boolean {
+        if (ContextCompat.checkSelfPermission(this, neededPermission()) == PackageManager.PERMISSION_GRANTED)
+            return true
+        return Build.VERSION.SDK_INT >= 34 && ContextCompat.checkSelfPermission(
+            this, Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED,
+        ) == PackageManager.PERMISSION_GRANTED
+    }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         nameView = TextView(this).apply {
@@ -94,7 +113,7 @@ class AudioPlayerActivity : AppCompatActivity() {
         retryPerm = NativeButton(this, false).apply {
             text = "Grant audio access"
             visibility = android.view.View.GONE
-            setOnClickListener { permRequested = false; ensureBrowser() }
+            setOnClickListener { if (retryPerm.text == "Open Settings") openAppSettings() else { permRequested = false; ensureBrowser() } }
         }
         val browserScroll = ScrollView(this).apply {
             addView(browserList, LinearLayout.LayoutParams(-1, -2))
@@ -130,7 +149,7 @@ class AudioPlayerActivity : AppCompatActivity() {
     }
 
     private fun ensureBrowser() {
-        if (ContextCompat.checkSelfPermission(this, neededPermission()) == PackageManager.PERMISSION_GRANTED) {
+        if (hasMediaAccess()) {
             retryPerm.visibility = android.view.View.GONE
             loadBrowser()
         } else {

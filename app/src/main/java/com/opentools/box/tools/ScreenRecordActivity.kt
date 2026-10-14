@@ -32,7 +32,7 @@ class ScreenRecordActivity : AppCompatActivity() {
                 putExtra(ScreenRecordService.EXTRA_RESULT_CODE, result.resultCode)
                 putExtra(ScreenRecordService.EXTRA_RESULT_DATA, data)
             }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(start) else startService(start)
+            startForegroundService(start)
             recording = true
             status.text = "Starting recording…"
             toggle.text = "Stop recording"
@@ -48,7 +48,9 @@ class ScreenRecordActivity : AppCompatActivity() {
         toggle = MaterialButton(this).apply { text = "Start recording" }
         toggle.setOnClickListener {
             if (recording) stopRecording()
-            else capture.launch(projectionManager.createScreenCaptureIntent())
+            else ensureNotificationPermissionThen {
+                capture.launch(projectionManager.createScreenCaptureIntent())
+            }
         }
         setContentView(com.opentools.box.ToolScaffold.wrap(this, "Screen Recorder", LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -80,6 +82,31 @@ class ScreenRecordActivity : AppCompatActivity() {
             else -> status.text = "Ready"
         }
         toggle.text = if (recording) "Stop recording" else "Start recording"
+    }
+
+    /** POST_NOTIFICATIONS (API 33+) lets the service refresh its status. */
+    private fun ensureNotificationPermissionThen(block: () -> Unit) {
+        if (android.os.Build.VERSION.SDK_INT < 33 ||
+            checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) ==
+            android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            block()
+        } else {
+            pendingCapture = block
+            requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 7)
+        }
+    }
+
+    private var pendingCapture: (() -> Unit)? = null
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int, permissions: Array<String>, grantResults: IntArray,
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == 7) {
+            pendingCapture?.invoke()
+            pendingCapture = null
+        }
     }
 
     private fun stopRecording() {

@@ -1,6 +1,7 @@
 package com.opentools.box
 
 import android.app.Application
+import android.annotation.SuppressLint
 import android.content.Context
 import androidx.appcompat.app.AppCompatDelegate
 import java.io.PrintWriter
@@ -27,11 +28,13 @@ class OpenToolsApp : Application() {
         fun prefs(context: Context) =
             context.getSharedPreferences("home", Context.MODE_PRIVATE)
 
+        // Crash reports must reach disk before a potential instant process
+        // death; apply() could lose them. Suppression is intentional.
+        @SuppressLint("ApplySharedPref")
         fun saveCrash(context: Context, error: Throwable) {
             try {
                 val sw = StringWriter()
                 error.printStackTrace(PrintWriter(sw))
-                // commit() is synchronous: survives instant process death.
                 prefs(context).edit().putString("last_crash", sw.toString()).commit()
             } catch (_: Exception) { }
         }

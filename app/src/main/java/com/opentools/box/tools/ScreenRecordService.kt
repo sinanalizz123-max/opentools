@@ -125,10 +125,9 @@ class ScreenRecordService : Service() {
         val stopIntent = Intent(this, ScreenRecordService::class.java).setAction(ACTION_STOP)
         val pending = PendingIntent.getService(
             this, 42, stopIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or (if (Build.VERSION.SDK_INT >= 23) PendingIntent.FLAG_IMMUTABLE else 0)
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        val builder = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(this, CHANNEL_ID)
-            else Notification.Builder(this)
+        val builder = Notification.Builder(this, CHANNEL_ID)
         return builder
             .setSmallIcon(android.R.drawable.presence_video_online)
             .setContentTitle("OpenTools screen recorder")
@@ -139,10 +138,8 @@ class ScreenRecordService : Service() {
     }
 
     private fun createChannel() {
-        if (Build.VERSION.SDK_INT >= 26) {
-            val manager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
-            manager.createNotificationChannel(NotificationChannel(CHANNEL_ID, "Screen recording", NotificationManager.IMPORTANCE_LOW))
-        }
+        val manager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+        manager.createNotificationChannel(NotificationChannel(CHANNEL_ID, "Screen recording", NotificationManager.IMPORTANCE_LOW))
     }
 
     private fun stopRecording() {
@@ -158,10 +155,7 @@ class ScreenRecordService : Service() {
         statePrefs().edit()
             .putString("state", if (failureMessage == null) "stopped" else "failed")
             .apply()
-        if (Build.VERSION.SDK_INT >= 24) stopForeground(STOP_FOREGROUND_REMOVE) else {
-            @Suppress("DEPRECATION")
-            stopForeground(true)
-        }
+        stopForeground(STOP_FOREGROUND_REMOVE)
     }
 
     override fun onDestroy() {

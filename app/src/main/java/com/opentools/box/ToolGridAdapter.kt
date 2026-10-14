@@ -90,7 +90,16 @@ class ToolGridAdapter(
     override fun getItemCount() = tools.size
 
     fun update(next: List<ToolEntry>) {
+        val diff = androidx.recyclerview.widget.DiffUtil.calculateDiff(
+            object : androidx.recyclerview.widget.DiffUtil.Callback() {
+                override fun getOldListSize() = tools.size
+                override fun getNewListSize() = next.size
+                override fun areItemsTheSame(oldPos: Int, newPos: Int) =
+                    tools[oldPos].id == next[newPos].id
+                override fun areContentsTheSame(oldPos: Int, newPos: Int) =
+                    tools[oldPos] == next[newPos]
+            })
         tools = next
-        notifyDataSetChanged()
+        diff.dispatchUpdatesTo(this)
     }
 }

@@ -43,7 +43,7 @@ class SignalActivity : AppCompatActivity() {
         val sb = StringBuilder()
         try {
             val tm = getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
-            val cells = if (Build.VERSION.SDK_INT >= 17) tm.allCellInfo else null
+            val cells = tm.allCellInfo
             if (cells.isNullOrEmpty()) sb.append("No cell info\n")
             for (cell in cells.orEmpty()) {
                 if (cell is CellInfoLte) {

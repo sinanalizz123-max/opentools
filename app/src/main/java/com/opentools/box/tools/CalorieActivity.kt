@@ -55,7 +55,10 @@ class CalorieActivity : AppCompatActivity(), SensorEventListener {
     }
 
     private fun requestOrRegisterSensor() {
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACTIVITY_RECOGNITION) != PackageManager.PERMISSION_GRANTED) {
+        // ACTIVITY_RECOGNITION is an API-29 runtime permission; older releases
+        // grant it at install time so no request is needed there.
+        if (android.os.Build.VERSION.SDK_INT >= 29 &&
+            ActivityCompat.checkSelfPermission(this, Manifest.permission.ACTIVITY_RECOGNITION) != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.ACTIVITY_RECOGNITION), 1)
             return
         }

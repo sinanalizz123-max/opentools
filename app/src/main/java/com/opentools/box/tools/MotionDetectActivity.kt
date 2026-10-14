@@ -36,6 +36,8 @@ class MotionDetectActivity : AppCompatActivity() {
     private var previous: ByteArray? = null
     private lateinit var armButton: NativeButton
     private lateinit var sensitivityLabel: TextView
+    private val alertClip = mutableListOf<ByteArray>()
+    private fun saveAlertClip() { try { if (alertClip.isEmpty()) { status.text = sensitivityLabel.text.toString() + " · no clip yet"; return }; val f = java.io.File(getExternalFilesDir(null), "motion_" + System.currentTimeMillis() + ".bin"); f.outputStream().use { o -> alertClip.forEach { o.write(it) } }; status.text = "Alert clip saved: " + f.absolutePath; alertClip.clear() } catch (e: Exception) { status.text = "Clip save failed" } }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

@@ -26,6 +26,11 @@ class TorchActivity : AppCompatActivity() {
     private lateinit var status: TextView
     private lateinit var intensityLabel: TextView
     private lateinit var intensityBar: SeekBar
+    private var strobeHz = 5
+    private var strobeOn = false
+    private var sosOn = false
+    private val strobeHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private var strobeLit = false
     private lateinit var cameraManager: CameraManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -78,7 +83,18 @@ class TorchActivity : AppCompatActivity() {
 
         toggle.isEnabled = cameraId != null
         status.text = if (cameraId == null) "No flashlight is available on this device." else "Flashlight is off"
-        toggle.setOnClickListener { setTorch(!enabled) }
+        val strobeLabel = TextView(this).apply { gravity = Gravity.CENTER; UiStyle.styleText(this, 14f, false, UiStyle.muted(context)); text = "Strobe: 5 Hz" }
+        val strobeBar = SeekBar(this).apply { max = 9; progress = 4 }
+        strobeBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(b: SeekBar?, p: Int, u: Boolean) { strobeHz = p + 1; strobeLabel.text = "Strobe: $strobeHz Hz" }
+            override fun onStartTrackingTouch(b: SeekBar?) = Unit
+            override fun onStopTrackingTouch(b: SeekBar?) = Unit
+        })
+        val strobeToggle = NativeButton(this, false).apply { text = "Start strobe"; isEnabled = cameraId != null }
+        strobeToggle.setOnClickListener { if (strobeOn) stopEffects() else { sosOn = false; strobeOn = true; strobeToggle.text = "Stop strobe"; toggle.text = "Turn off flashlight"; tickStrobe() } }
+        val sos = NativeButton(this, false).apply { text = "SOS signal"; isEnabled = cameraId != null }
+        sos.setOnClickListener { if (sosOn) stopEffects() else { strobeOn = false; sosOn = true; sos.text = "Stop SOS"; toggle.text = "Turn off flashlight"; tickSos(0) } }
+        toggle.setOnClickListener { stopEffects(); setTorch(!enabled) }
 
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -105,9 +121,13 @@ class TorchActivity : AppCompatActivity() {
                 topMargin = UiStyle.dp(context, 8f)
                 bottomMargin = UiStyle.dp(context, 16f)
             })
+            addView(strobeLabel, LinearLayout.LayoutParams(-1, -2))
+            addView(strobeBar, LinearLayout.LayoutParams(-1, -2).apply { topMargin = UiStyle.dp(context, 4f); bottomMargin = UiStyle.dp(context, 8f) })
+            addView(strobeToggle, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = UiStyle.dp(context, 8f) })
+            addView(sos, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = UiStyle.dp(context, 8f) })
             addView(status, LinearLayout.LayoutParams(-1, -2))
         }
-        setContentView(ToolScaffold.wrap(this, "Torch", content))
+        setContentView(ToolScaffold.wrap(this, "Torch", android.widget.ScrollView(this).apply { isFillViewport = true; addView(content) }))
     }
 
     private fun setTorch(on: Boolean) {
@@ -142,6 +162,27 @@ class TorchActivity : AppCompatActivity() {
         }
     }
 
+    private val sosPattern = listOf(1,1,1,3,3,3,1,1,1)
+    private fun setRaw(on: Boolean) { try { cameraManager.setTorchMode(cameraId!!, on) } catch (_: Exception) {} }
+    private fun tickStrobe() {
+        if (!strobeOn) return
+        strobeLit = !strobeLit; setRaw(strobeLit); enabled = strobeLit
+        strobeHandler.postDelayed({ tickStrobe() }, (1000L / (strobeHz * 2)).coerceAtLeast(50L))
+    }
+    private fun tickSos(i: Int) {
+        if (!sosOn) return
+        val idx = i % (sosPattern.size * 2)
+        val on = idx % 2 == 0
+        setRaw(on)
+        val units = if (on) sosPattern[idx / 2] else 1
+        strobeHandler.postDelayed({ tickSos(i + 1) }, units * 200L)
+    }
+    private fun stopEffects() {
+        strobeOn = false; sosOn = false; strobeHandler.removeCallbacksAndMessages(null)
+        try { cameraId?.let { cameraManager.setTorchMode(it, false) } } catch (_: Exception) {}
+        enabled = false
+        if (::toggle.isInitialized) toggle.text = "Turn on flashlight"
+    }
     private fun updateIntensityLabel() {
         if (::intensityLabel.isInitialized) {
             intensityLabel.text = "Intensity: $strengthLevel / $maxStrength"
@@ -169,6 +210,8 @@ class TorchActivity : AppCompatActivity() {
 
     override fun onPause() {
         super.onPause()
+        strobeOn = false; sosOn = false
+        try { strobeHandler.removeCallbacksAndMessages(null) } catch (_: Exception) {}
         cameraId?.let {
             try { cameraManager.setTorchMode(it, false) } catch (_: Exception) { }
         }

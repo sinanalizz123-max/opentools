@@ -58,6 +58,8 @@ class BatteryTempActivity : AppCompatActivity() {
             addView(levelView, LinearLayout.LayoutParams(-1, -2))
             addView(statusView, LinearLayout.LayoutParams(-1, -2))
         }
+        try { val g = SparkGraphView(this); g.setRange(0f, 100f); (content as android.widget.LinearLayout).addView(g, android.widget.LinearLayout.LayoutParams(-1, com.opentools.box.UiStyle.dp(this, 160f))); val h = android.widget.TextView(this).apply { text = getPreferences(0).getString("hist", "No history yet") }; (content as android.widget.LinearLayout).addView(h); val goal = android.widget.EditText(this).apply { hint = "Goal / budget"; com.opentools.box.UiStyle.styleInput(this); setText(getPreferences(0).getString("goal","")) }; goal.setOnFocusChangeListener { _, has -> if (!has) getPreferences(0).edit().putString("goal", goal.text.toString()).apply() }; (content as android.widget.LinearLayout).addView(goal) } catch (_: Exception) { }
+        try { val b = registerReceiver(null, android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED)); val lvl = b?.getIntExtra(android.os.BatteryManager.EXTRA_LEVEL, -1) ?: -1; val volt = b?.getIntExtra(android.os.BatteryManager.EXTRA_VOLTAGE, -1) ?: -1; val st = b?.getIntExtra(android.os.BatteryManager.EXTRA_STATUS, -1) ?: -1; val hv = android.widget.TextView(this).apply { text = "Level: " + lvl + "%  Volt: " + volt + "mV  Status: " + st }; (content as android.widget.LinearLayout).addView(hv) } catch (_: Exception) { }
         setContentView(ToolScaffold.wrap(this, "Battery Temp", content))
         refresh()
     }

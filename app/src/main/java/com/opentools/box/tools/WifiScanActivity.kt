@@ -34,6 +34,9 @@ class WifiScanActivity : AppCompatActivity() {
         super.onDestroy()
     }
     private val networks = mutableListOf<String>()
+    private val rawResults = mutableListOf<Triple<String,String,Int>>()
+    private lateinit var chart: SparkGraphView
+    private fun aliasPrefs() = getSharedPreferences("device_alias", MODE_PRIVATE)
     private var receiverRegistered = false
 
     private val receiver = object : BroadcastReceiver() {
@@ -45,12 +48,17 @@ class WifiScanActivity : AppCompatActivity() {
             networks.clear()
             try {
                 wifi.scanResults.forEach { result ->
+                    rawResults.add(Triple(result.SSID.ifBlank { "Hidden" }, result.BSSID, result.level))
+                    try { chart.push(result.level.toFloat()) } catch (_: Exception) {}
                     val name = result.SSID.ifBlank { "Hidden network" }
                     networks.add("$name  ·  ${result.level} dBm  ·  ${result.frequency} MHz")
                 }
             } catch (_: SecurityException) {
                 status.text = "Location permission is required to read scan results."
             }
+            val ap = aliasPrefs()
+            networks.clear()
+            rawResults.forEach { (ssid, bssid, lvl) -> val alias = ap.getString(bssid, null); networks.add((alias ?: ssid) + "  ·  " + lvl + " dBm  ·  " + bssid) }
             adapter.notifyDataSetChanged()
             if (networks.isEmpty()) status.text = "No networks found. Try scanning again."
             else status.text = "${networks.size} network(s) found"
@@ -82,9 +90,13 @@ class WifiScanActivity : AppCompatActivity() {
                 return row
             }
         }
+        chart = SparkGraphView(this).apply { minimumHeight = UiStyle.dp(context, 80f) }; try { chart.setRange(-100f, -30f) } catch (_: Exception) {}
         list.adapter = adapter
         scanButton = NativeButton(this).apply { text = "Scan Wi-Fi networks" }
         scanButton.setOnClickListener { startScan() }
+        list.setOnItemLongClickListener { _, _, pos, _ -> val r = rawResults.getOrNull(pos) ?: return@setOnItemLongClickListener true; val ed = android.widget.EditText(this).apply { setText(aliasPrefs().getString(r.second, "")) }; android.app.AlertDialog.Builder(this).setTitle("Alias for " + r.second).setView(ed).setPositiveButton("Save") { _, _ -> aliasPrefs().edit().putString(r.second, ed.text.toString()).apply(); adapter.notifyDataSetChanged() }.setNegativeButton("Cancel", null).show(); true }
+        val exportBtn = NativeButton(this).apply { text = "Share scan results" }; exportBtn.setOnClickListener { val i = android.content.Intent(android.content.Intent.ACTION_SEND).apply { type = "text/plain"; putExtra(android.content.Intent.EXTRA_TEXT, networks.joinToString("\n")) }; startActivity(android.content.Intent.createChooser(i, "Share Wi-Fi scan")) };
+        (list.parent as? android.widget.LinearLayout)?.addView(exportBtn)
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             val pad = UiStyle.dp(context, 16f)

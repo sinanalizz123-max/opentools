@@ -31,10 +31,17 @@ class EmiActivity : AppCompatActivity() {
         }
         val calc = NativeButton(this).apply { text = "Calculate EMI" }
         calc.setOnClickListener {
-            val p = principal.text.toString().trim().toDoubleOrNull()
-            val r = rate.text.toString().trim().toDoubleOrNull()
-            val y = years.text.toString().trim().toIntOrNull()
-            if (p == null || r == null || y == null || !p.isFinite() || !r.isFinite() ||
+            val pRaw = principal.text.toString().trim().toDoubleOrNull()
+            val rRaw = rate.text.toString().trim().toDoubleOrNull()
+            val yRaw = years.text.toString().trim().toIntOrNull()
+            if (pRaw == null || rRaw == null || yRaw == null) {
+                result.text = "Enter a positive loan amount, non-negative interest rate, and tenure from 1 to 100 years."
+                return@setOnClickListener
+            }
+            val p: Double = pRaw
+            val r: Double = rRaw
+            val y: Int = yRaw
+            if (!p.isFinite() || !r.isFinite() ||
                 p <= 0 || r < 0 || y <= 0 || y > 100) {
                 result.text = "Enter a positive loan amount, non-negative interest rate, and tenure from 1 to 100 years."
                 return@setOnClickListener
@@ -49,8 +56,9 @@ class EmiActivity : AppCompatActivity() {
                 result.text = "Unable to calculate this loan. Check the values."
                 return@setOnClickListener
             }
-            result.text = "Monthly EMI   ₹%.2f\nTotal payable   ₹%.2f\nTotal interest   ₹%.2f"
-                .format(emi, emi * months, emi * months - p)
+            var bal = p; val sched = StringBuilder("Monthly EMI   ₹%.2f\nTotal payable   ₹%.2f\nTotal interest   ₹%.2f\n\nAmortization (per year):\n".format(emi, emi * months, emi * months - p))
+            for (yr in 1..y) { var yp = 0.0; var yi = 0.0; for (m in 1..12) { val intr = bal * monthlyRate; var prin = emi - intr; if (bal <= 0) { prin = 0.0 }; bal = (bal - prin).coerceAtLeast(0.0); yp += prin; yi += intr; if (bal <= 0) break }; sched.append("Year %d: principal ₹%.2f interest ₹%.2f balance ₹%.2f\n".format(yr, yp, yi, bal)); if (bal <= 0) break }
+            result.text = sched.toString()
         }
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL

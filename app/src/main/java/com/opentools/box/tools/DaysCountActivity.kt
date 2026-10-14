@@ -51,6 +51,9 @@ class DaysCountActivity : AppCompatActivity() {
             addView(fromLabel, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = UiStyle.dp(context, 14f) })
             addView(pickTo, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = UiStyle.dp(context, 8f) })
             addView(toLabel, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = UiStyle.dp(context, 20f) })
+            addView(LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL
+                listOf("Days", "Hours", "Minutes").forEachIndexed { i, m -> addView(NativeButton(context, false).apply { text = m; setOnClickListener { mode = i; render() } }, LinearLayout.LayoutParams(0, -2, 1f)) }
+            }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = UiStyle.dp(context, 10f); bottomMargin = UiStyle.dp(context, 10f) })
             addView(result, LinearLayout.LayoutParams(-1, -2))
         }
         setContentView(ToolScaffold.wrap(this, "Days Counter", content))
@@ -67,6 +70,7 @@ class DaysCountActivity : AppCompatActivity() {
         }, c.get(Calendar.YEAR), c.get(Calendar.MONTH), c.get(Calendar.DAY_OF_MONTH)).show()
     }
 
+    private var mode = 0
     private fun render() {
         fromLabel.text = from?.let { "Start: " + DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(it)) }
             ?: "No start date selected"
@@ -75,8 +79,13 @@ class DaysCountActivity : AppCompatActivity() {
         val f = from
         val t = to
         result.text = if (f != null && t != null) {
-            val days = TimeUnit.MILLISECONDS.toDays(kotlin.math.abs(t - f))
-            "$days days"
+            val diff = kotlin.math.abs(t - f)
+            val now = System.currentTimeMillis()
+            val target = maxOf(f, t)
+            val until = target - now
+            val count = when (mode) { 1 -> TimeUnit.MILLISECONDS.toHours(diff).toString() + " hours"; 2 -> TimeUnit.MILLISECONDS.toMinutes(diff).toString() + " minutes"; else -> TimeUnit.MILLISECONDS.toDays(diff).toString() + " days" }
+            val cd = if (until > 0) "\nCountdown: " + when (mode) { 1 -> TimeUnit.MILLISECONDS.toHours(until).toString() + "h"; 2 -> TimeUnit.MILLISECONDS.toMinutes(until).toString() + " min"; else -> TimeUnit.MILLISECONDS.toDays(until).toString() + " days left" } else "\nReached"
+            count + cd
         } else "Choose both dates"
     }
 

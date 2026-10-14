@@ -107,6 +107,7 @@ class TunerActivity : AppCompatActivity() {
                 setPadding(0, UiStyle.dp(context, 12f), 0, 0)
             })
         }
+        var smoothBuf_note = 0f
         setContentView(ToolScaffold.wrap(this, "Tuner", content))
     }
 

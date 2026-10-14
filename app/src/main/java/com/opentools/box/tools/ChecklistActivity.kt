@@ -88,6 +88,10 @@ class ChecklistActivity : AppCompatActivity() {
             })
             addView(emptyView, LinearLayout.LayoutParams(-1, 0, 1f))
             addView(list, LinearLayout.LayoutParams(-1, 0, 1f))
+            addView(LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL
+                addView(NativeButton(context, false).apply { text = "Check all"; setOnClickListener { items.forEach { it.done = true }; save(); adapter.notifyDataSetChanged() } }, LinearLayout.LayoutParams(0, -2, 1f))
+                addView(NativeButton(context, false).apply { text = "Clear done"; setOnClickListener { items.removeAll { it.done }; save(); adapter.notifyDataSetChanged(); updateEmptyState() } }, LinearLayout.LayoutParams(0, -2, 1f))
+            }, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = UiStyle.dp(context, 8f) })
             addView(entryRow, LinearLayout.LayoutParams(-1, -2).apply {
                 topMargin = UiStyle.dp(context, 10f)
             })
@@ -115,6 +119,13 @@ class ChecklistActivity : AppCompatActivity() {
         } catch (_: Exception) { }
     }
 
+    private fun renameItem(index: Int) {
+        if (index !in items.indices) return
+        val edit = EditText(this).apply { setText(items[index].text); UiStyle.styleInput(this) }
+        android.app.AlertDialog.Builder(this).setTitle("Rename item").setView(edit)
+            .setNegativeButton("Cancel", null)
+            .setPositiveButton("Save") { _, _ -> val v = edit.text.toString().trim(); if (v.isNotEmpty()) { items[index].text = v; save(); adapter.notifyItemChanged(index) } }.show()
+    }
     private fun save() {
         val array = JSONArray()
         items.forEach { item ->
@@ -155,10 +166,11 @@ class ChecklistActivity : AppCompatActivity() {
             holder.box.setOnLongClickListener {
                 val index = holder.bindingAdapterPosition
                 if (index != RecyclerView.NO_POSITION && index in items.indices) {
-                    items.removeAt(index)
-                    notifyItemRemoved(index)
-                    save()
-                    updateEmptyState()
+                    android.app.AlertDialog.Builder(holder.box.context).setTitle(items[index].text)
+                        .setItems(arrayOf("Rename", "Delete")) { _, which ->
+                            if (which == 0) renameItem(index)
+                            else { items.removeAt(index); notifyItemRemoved(index); save(); updateEmptyState() }
+                        }.show()
                 }
                 true
             }

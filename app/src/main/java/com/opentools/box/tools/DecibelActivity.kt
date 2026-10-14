@@ -19,6 +19,10 @@ import kotlin.math.sqrt
 
 /** Sound-level meter (dB) with peak hold. Original implementation. */
 class DecibelActivity : AppCompatActivity() {
+    private lateinit var graph: SparkGraphView
+    private lateinit var minMax: TextView
+    private var gMin: Float = Float.MAX_VALUE
+    private var gMax: Float = Float.MIN_VALUE
 
     private lateinit var levelView: TextView
     private lateinit var peakView: TextView
@@ -75,7 +79,11 @@ class DecibelActivity : AppCompatActivity() {
                 setPadding(0, UiStyle.dp(context, 12f), 0, 0)
             })
         }
-        setContentView(ToolScaffold.wrap(this, "Decibel Meter", content))
+        
+        graph = SparkGraphView(this).apply { graph.setRange(0f, 120f) }
+        minMax = TextView(this).apply { text = "Min: --  Max: --"; gravity = android.view.Gravity.CENTER; com.opentools.box.UiStyle.styleText(this, 13f, false, com.opentools.box.UiStyle.muted(context)) }
+        try { (content as android.widget.LinearLayout).addView(graph, android.widget.LinearLayout.LayoutParams(-1, com.opentools.box.UiStyle.dp(this, 160f))); (content as android.widget.LinearLayout).addView(minMax) } catch (_: Exception) { }
+                setContentView(ToolScaffold.wrap(this, "Decibel Meter", content))
     }
 
     override fun onResume() {
@@ -145,6 +153,7 @@ class DecibelActivity : AppCompatActivity() {
                     runOnUiThread {
                         levelView.text = "%d dB".format(s.roundToInt())
                         peakView.text = "Peak: %d dB".format(p.roundToInt())
+                        try { val _v: Float = (s).toFloat(); graph.push(_v); if (_v < gMin) gMin = _v; if (_v > gMax) gMax = _v; minMax.text = "Min: %s  Max: %s".format(gMin, gMax) } catch (_: Exception) { }
                         bar.progress = s.roundToInt().coerceIn(0, 120)
                     }
                 }

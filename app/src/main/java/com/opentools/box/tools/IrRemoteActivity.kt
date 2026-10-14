@@ -54,6 +54,15 @@ class IrRemoteActivity : AppCompatActivity() {
                     "4" to 0x08, "5" to 0x09, "6" to 0x0D,
                     "7" to 0x0E, "8" to 0x11, "9" to 0x15, "0" to 0x16
                 )
+                val media = listOf("Play" to 0x1A, "Pause" to 0x1B, "Stop" to 0x1C, "Menu" to 0x54, "Back" to 0x55, "OK" to 0x56, "Up" to 0x57, "Down" to 0x58, "Left" to 0x59, "Right" to 0x5A)
+                addView(TextView(context).apply { text = "Media layout"; UiStyle.styleText(this, 15f, true); setPadding(0, UiStyle.dp(context, 8f), 0, UiStyle.dp(context, 8f)) })
+                val grid2 = GridLayout(context).apply { columnCount = 3; useDefaultMargins = false }
+                media.forEach { (label, command) ->
+                    val button = NativeButton(context, false).apply { text = label; setOnClickListener { try { ir.transmit(38000, necFrame(0x07, command)); status.text = "Sent $label." } catch (_: Exception) { status.text = "Send failed." } } }
+                    grid2.addView(button, GridLayout.LayoutParams(GridLayout.spec(GridLayout.UNDEFINED, 1f), GridLayout.spec(GridLayout.UNDEFINED, 1f)).apply { width = 0; height = UiStyle.dp(context, 52f); val gap = UiStyle.dp(context, 4f); setMargins(gap, gap, gap, gap) })
+                }
+                addView(grid2, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = UiStyle.dp(context, 8f) })
+                addView(TextView(context).apply { text = "Number layout"; UiStyle.styleText(this, 15f, true) })
                 val grid = GridLayout(context).apply {
                     columnCount = 3
                     useDefaultMargins = false

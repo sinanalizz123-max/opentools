@@ -78,6 +78,7 @@ class SpeechToTextActivity : AppCompatActivity() {
             })
             addView(output, LinearLayout.LayoutParams(-1, 0, 1f))
         }
+        try { val t = android.widget.CheckBox(this).apply { text = "Auto-copy to clipboard"; isChecked = getPreferences(0).getBoolean("stt_autocopy", false); setOnCheckedChangeListener { _, v -> getPreferences(0).edit().putBoolean("stt_autocopy", v).apply() } }; (content as android.widget.LinearLayout).addView(t) } catch (_: Exception) { }
         setContentView(ToolScaffold.wrap(this, "Speech to Text", content))
     }
 }

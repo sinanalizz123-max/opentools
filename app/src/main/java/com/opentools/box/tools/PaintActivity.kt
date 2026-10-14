@@ -38,9 +38,21 @@ class PaintActivity : AppCompatActivity() {
         clear.setOnClickListener { canvas.clear() }
         thin.setOnClickListener { canvas.strokeWidth = 5f }
         thick.setOnClickListener { canvas.strokeWidth = 22f }
+        val green = NativeButton(this, false).apply { text = "Green" }
+        val undo = NativeButton(this, false).apply { text = "Undo" }
+        green.setOnClickListener { canvas.color = android.graphics.Color.GREEN }
+        undo.setOnClickListener { canvas.undo() }
+        val sizeBar = android.widget.SeekBar(this).apply { max = 40; progress = 10 }
+        sizeBar.setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(b: android.widget.SeekBar?, p: Int, u: Boolean) { canvas.strokeWidth = (p + 2).toFloat() }
+            override fun onStartTrackingTouch(b: android.widget.SeekBar?) = Unit
+            override fun onStopTrackingTouch(b: android.widget.SeekBar?) = Unit
+        })
         save.setOnClickListener {
             val file = File(filesDir, "note-${System.currentTimeMillis()}.png")
-            Toast.makeText(this, if (canvas.saveTo(file)) "Drawing saved privately" else "Couldn't save drawing", Toast.LENGTH_SHORT).show()
+            var msg = if (canvas.saveTo(file)) "Drawing saved privately" else "Couldn't save drawing"
+            try { val v = android.content.ContentValues().apply { put(android.provider.MediaStore.Images.Media.DISPLAY_NAME, file.name); put(android.provider.MediaStore.Images.Media.MIME_TYPE, "image/png"); put(android.provider.MediaStore.Images.Media.RELATIVE_PATH, "Pictures/OpenTools") }; val uri = contentResolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, v); if (uri != null) { contentResolver.openOutputStream(uri)?.use { out -> file.inputStream().use { it.copyTo(out) } }; msg += " + gallery" } } catch (_: Exception) {}
+            Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
         }
         setContentView(com.opentools.box.ToolScaffold.wrap(this, "Paint Notes", LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -49,12 +61,14 @@ class PaintActivity : AppCompatActivity() {
                 UiStyle.styleText(this, 20f, true)
                 setPadding(UiStyle.dp(context, 16f), UiStyle.dp(context, 10f), UiStyle.dp(context, 16f), UiStyle.dp(context, 10f))
             })
+            addView(android.widget.TextView(context).apply { text = "Brush size"; UiStyle.styleText(this, 13f, true, UiStyle.muted(context)) })
+            addView(sizeBar, LinearLayout.LayoutParams(-1, -2))
             addView(canvas, LinearLayout.LayoutParams(-1, 0, 1f))
             addView(HorizontalScrollView(context).apply {
                 isHorizontalScrollBarEnabled = false
                 addView(LinearLayout(context).apply {
                     orientation = LinearLayout.HORIZONTAL
-                    listOf(black, red, blue, thin, thick, clear, save).forEach { button ->
+                    listOf(black, red, blue, green, thin, thick, undo, clear, save).forEach { button ->
                         addView(button, LinearLayout.LayoutParams(-2, -2).apply {
                             marginEnd = UiStyle.dp(context, 6f)
                         })
@@ -104,10 +118,9 @@ class PaintActivity : AppCompatActivity() {
             for ((p, paint) in paths) c.drawPath(p, paint)
         }
 
-        fun clear() {
-            paths.clear()
-            invalidate()
-        }
+        fun clear() { paths.clear(); undoStack.clear(); invalidate() }
+        private val undoStack = mutableListOf<Pair<Path, Paint>>()
+        fun undo() { if (paths.isNotEmpty()) { undoStack.add(paths.removeAt(paths.lastIndex)); invalidate() } }
 
         fun saveTo(file: File): Boolean {
             if (width <= 0 || height <= 0) return false

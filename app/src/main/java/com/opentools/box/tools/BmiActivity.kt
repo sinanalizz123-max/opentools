@@ -63,6 +63,7 @@ class BmiActivity : AppCompatActivity() {
             addView(calc, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = UiStyle.dp(context, 18f) })
             addView(result, LinearLayout.LayoutParams(-1, -2))
         }
+        try { val g = SparkGraphView(this); g.setRange(0f, 100f); (content as android.widget.LinearLayout).addView(g, android.widget.LinearLayout.LayoutParams(-1, com.opentools.box.UiStyle.dp(this, 160f))); val h = android.widget.TextView(this).apply { text = getPreferences(0).getString("hist", "No history yet") }; (content as android.widget.LinearLayout).addView(h); val goal = android.widget.EditText(this).apply { hint = "Goal / budget"; com.opentools.box.UiStyle.styleInput(this); setText(getPreferences(0).getString("goal","")) }; goal.setOnFocusChangeListener { _, has -> if (!has) getPreferences(0).edit().putString("goal", goal.text.toString()).apply() }; (content as android.widget.LinearLayout).addView(goal) } catch (_: Exception) { }
         setContentView(ToolScaffold.wrap(this, "BMI Calculator", content))
     }
 }

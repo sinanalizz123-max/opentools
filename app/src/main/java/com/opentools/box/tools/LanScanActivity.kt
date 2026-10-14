@@ -25,6 +25,8 @@ class LanScanActivity : AppCompatActivity() {
     @Volatile private var scanning = false
     @Volatile private var scanGeneration = 0
     private val isCancelled = AtomicBoolean(false)
+    private lateinit var chart: SparkGraphView
+    private fun aliasPrefs() = getSharedPreferences("device_alias", MODE_PRIVATE)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -50,9 +52,12 @@ class LanScanActivity : AppCompatActivity() {
                 return row
             }
         }
+        chart = SparkGraphView(this).apply { minimumHeight = UiStyle.dp(context, 80f) }; chart.setRange(0f, 10f)
         list.adapter = adapter
         scanButton = NativeButton(this).apply { text = "Scan local network" }
         scanButton.setOnClickListener { scan() }
+        list.setOnItemLongClickListener { _, _, pos, _ -> val h = hosts.getOrNull(pos) ?: return@setOnItemLongClickListener true; val ip = h.substringAfterLast("·").trim().split(" ").firstOrNull() ?: return@setOnItemLongClickListener true; val ed = android.widget.EditText(this).apply { setText(aliasPrefs().getString(ip, "")) }; android.app.AlertDialog.Builder(this).setTitle("Alias for " + ip).setView(ed).setPositiveButton("Save") { _, _ -> aliasPrefs().edit().putString(ip, ed.text.toString()).apply() }.setNegativeButton("Cancel", null).show(); true }
+        val exportBtn = NativeButton(this).apply { text = "Share scan results" }; exportBtn.setOnClickListener { val i = android.content.Intent(android.content.Intent.ACTION_SEND).apply { type = "text/plain"; putExtra(android.content.Intent.EXTRA_TEXT, hosts.joinToString("\n")) }; startActivity(android.content.Intent.createChooser(i, "Share LAN scan")) }
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             val pad = UiStyle.dp(context, 16f)
@@ -69,6 +74,8 @@ class LanScanActivity : AppCompatActivity() {
             addView(scanButton, LinearLayout.LayoutParams(-1, -2).apply {
                 bottomMargin = UiStyle.dp(context, 12f)
             })
+            addView(chart, LinearLayout.LayoutParams(-1, UiStyle.dp(context, 80f)))
+            addView(exportBtn)
             addView(list, LinearLayout.LayoutParams(-1, 0, 1f))
         }
         setContentView(ToolScaffold.wrap(this, "LAN Scanner", content))
@@ -99,7 +106,7 @@ class LanScanActivity : AppCompatActivity() {
                         val name = try { address.hostName } catch (_: Exception) { prefix + host }
                         runOnUiThread {
                             if (generation == scanGeneration && !isFinishing) {
-                                hosts.add("$name  ·  ${address.hostAddress}")
+                                val alias = aliasPrefs().getString(address.hostAddress ?: "", null); hosts.add((alias ?: name) + "  ·  " + address.hostAddress); try { chart.push(hosts.size.toFloat()) } catch (_: Exception) {}
                                 adapter.notifyDataSetChanged()
                             }
                         }

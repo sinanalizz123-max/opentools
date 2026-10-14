@@ -18,6 +18,8 @@ import com.opentools.box.UiStyle
 /** Permission-gated local contacts viewer with native styling. */
 class ContactsActivity : AppCompatActivity() {
     private val entries = mutableListOf<String>()
+    private val numbers = mutableListOf<String>()
+    private var query = ""
     private lateinit var adapter: ArrayAdapter<String>
     private lateinit var count: TextView
     private lateinit var loadButton: NativeButton
@@ -40,6 +42,7 @@ class ContactsActivity : AppCompatActivity() {
             dividerHeight = UiStyle.dp(context, 1f)
             setBackgroundColor(UiStyle.background(context))
         }
+        val search = android.widget.EditText(this).apply { hint = "Search contacts"; com.opentools.box.UiStyle.styleInput(this); addTextChangedListener(object : android.text.TextWatcher { override fun afterTextChanged(s: android.text.Editable?) { query = s.toString(); adapter.filter.filter(query) } override fun beforeTextChanged(a: CharSequence?, b: Int, c: Int, d: Int) = Unit; override fun onTextChanged(a: CharSequence?, b: Int, c: Int, d: Int) = Unit }) }
         adapter = object : ArrayAdapter<String>(this, android.R.layout.simple_list_item_1, entries) {
             override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
                 val row = (convertView as? TextView) ?: TextView(this@ContactsActivity)
@@ -51,6 +54,14 @@ class ContactsActivity : AppCompatActivity() {
             }
         }
         list.adapter = adapter
+        list.setOnItemClickListener { _, _, pos, _ ->
+            val num = numbers.getOrNull(pos) ?: return@setOnItemClickListener
+            android.app.AlertDialog.Builder(this).setTitle(entries.getOrNull(pos) ?: "Contact")
+                .setItems(arrayOf("Call", "Message")) { _, w ->
+                    if (w == 0) startActivity(android.content.Intent(android.content.Intent.ACTION_DIAL, android.net.Uri.parse("tel:" + num)))
+                    else startActivity(android.content.Intent(android.content.Intent.ACTION_SENDTO, android.net.Uri.parse("smsto:" + num)))
+                }.show()
+        }
         loadButton = NativeButton(this).apply { text = "Load contacts" }
         loadButton.setOnClickListener { permission.launch(android.Manifest.permission.READ_CONTACTS) }
         val content = LinearLayout(this).apply {
@@ -63,6 +74,7 @@ class ContactsActivity : AppCompatActivity() {
                 UiStyle.styleText(this, 13f, false, UiStyle.muted(context))
                 setPadding(0, UiStyle.dp(context, 4f), 0, UiStyle.dp(context, 12f))
             })
+            addView(search, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = UiStyle.dp(context, 8f) })
             addView(loadButton, LinearLayout.LayoutParams(-1, -2).apply {
                 bottomMargin = UiStyle.dp(context, 10f)
             })
@@ -75,7 +87,7 @@ class ContactsActivity : AppCompatActivity() {
     }
 
     private fun load() {
-        entries.clear()
+        entries.clear(); numbers.clear()
         try {
             val uri: Uri = ContactsContract.CommonDataKinds.Phone.CONTENT_URI
             val cursor: Cursor? = contentResolver.query(
@@ -90,7 +102,7 @@ class ContactsActivity : AppCompatActivity() {
                 while (it.moveToNext()) {
                     val name = if (nameIndex >= 0) it.getString(nameIndex).orEmpty() else ""
                     val number = if (numberIndex >= 0) it.getString(numberIndex).orEmpty() else ""
-                    entries.add("$name — $number")
+                    entries.add("$name — $number"); numbers.add(number)
                 }
             }
             count.text = if (entries.isEmpty()) "No contacts found." else "${entries.size} contact(s)"

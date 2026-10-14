@@ -21,6 +21,10 @@ class GalleryActivity : AppCompatActivity() {
     private lateinit var status: TextView
     private lateinit var caption: TextView
     private lateinit var browser: MediaBrowserHelper
+    private var scale = 1f
+    private var currentUri: android.net.Uri? = null
+    private fun attachPinch() { val det = android.view.ScaleGestureDetector(this, object : android.view.ScaleGestureDetector.SimpleOnScaleGestureListener() { override fun onScale(d: android.view.ScaleGestureDetector): Boolean { scale = (scale * d.scaleFactor).coerceIn(0.5f, 5f); image.scaleX = scale; image.scaleY = scale; return true } }); image.setOnTouchListener { _, e -> det.onTouchEvent(e); true } }
+    private fun shareCurrent() { val u = currentUri ?: return; try { startActivity(android.content.Intent.createChooser(android.content.Intent(android.content.Intent.ACTION_SEND).apply { type = "image/*"; putExtra(android.content.Intent.EXTRA_STREAM, u); addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION) }, "Share image")) } catch (_: Exception) {} }
 
     private fun neededPermission(): String = if (Build.VERSION.SDK_INT >= 33)
         Manifest.permission.READ_MEDIA_IMAGES else Manifest.permission.READ_EXTERNAL_STORAGE
@@ -35,6 +39,7 @@ class GalleryActivity : AppCompatActivity() {
     }
 
     private fun show(uri: Uri, name: String = "") {
+        currentUri = uri
         caption.text = name
         try {
             image.setImageURI(uri)

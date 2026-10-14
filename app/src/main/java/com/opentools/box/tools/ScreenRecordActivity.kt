@@ -19,6 +19,11 @@ class ScreenRecordActivity : AppCompatActivity() {
     private lateinit var toggle: NativeButton
     private lateinit var status: TextView
     private var recording = false
+    private lateinit var pauseBtn: NativeButton
+    private lateinit var micToggle: NativeButton
+    private var paused = false
+    private var micOn = true
+    private fun sendSvc(action: String) { try { val i = android.content.Intent(this, ScreenRecordService::class.java).apply { this.action = action; putExtra(ScreenRecordService.EXTRA_MIC_ON, micOn) }; startService(i) } catch (_: Exception) {} }
     private val recorderPrefs by lazy { getSharedPreferences("screen_recorder", MODE_PRIVATE) }
     private val stateListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
         if (key == "state" || key == "error") runOnUiThread { syncRecordingState() }

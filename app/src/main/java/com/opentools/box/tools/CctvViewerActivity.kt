@@ -19,6 +19,8 @@ import com.opentools.box.UiStyle
 /** Token-authenticated CCTV viewer for a camera on the local network. */
 class CctvViewerActivity : AppCompatActivity() {
     private var client: CctvLan.MjpegClient? = null
+    private var lastFrameView: android.widget.ImageView? = null
+    private fun snapShotBtn(view: android.widget.ImageView, status: android.widget.TextView) { try { (view.drawable as? android.graphics.drawable.BitmapDrawable)?.bitmap?.let { bmp -> val f = java.io.File(getExternalFilesDir(android.os.Environment.DIRECTORY_PICTURES), "cctv_" + System.currentTimeMillis() + ".jpg"); f.parentFile?.mkdirs(); f.outputStream().use { bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 90, it) }; status.text = "Snapshot: " + f.absolutePath } ?: run { status.text = "No frame yet" } } catch (_: Exception) { status.text = "Snapshot failed" } }
     private var browseHandle: AutoCloseable? = null
     private val peers = mutableListOf<NsdServiceInfo>()
     private lateinit var peerAdapter: ArrayAdapter<String>

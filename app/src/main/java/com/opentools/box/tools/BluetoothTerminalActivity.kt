@@ -67,9 +67,23 @@ class BluetoothTerminalActivity : AppCompatActivity() {
         val send = NativeButton(this).apply { text = "Send"; isEnabled = false }
         sendButton = send
         connect.setOnClickListener { connectTo(address.text.toString().trim()) }
+        val macroPrefs = getSharedPreferences("bt_macros", MODE_PRIVATE)
+        val macros = macroPrefs.getString("list", "AT\nLED_ON\nLED_OFF")!!.split("\n").toMutableList()
+        val macroRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        fun rebuildMacros() { macroRow.removeAllViews(); macros.take(5).forEach { m -> macroRow.addView(NativeButton(this@BluetoothTerminalActivity, false).apply { text = m.take(8); setOnClickListener { try { socket?.outputStream?.write((m + "\n").toByteArray()); addLine("» " + m) } catch (e: Exception) { addLine("Send failed: " + e.message) } } }, LinearLayout.LayoutParams(0, -2, 1f)) } }
+        rebuildMacros()
+        val macroEdit = EditText(this).apply { hint = "Save input as macro"; UiStyle.styleInput(this); setSingleLine(true) }
+        val macroSave = NativeButton(this, false).apply { text = "Save macro"; setOnClickListener { val v = macroEdit.text.toString().trim(); if (v.isNotEmpty()) { macros.add(0, v); macroPrefs.edit().putString("list", macros.take(10).joinToString("\n")).apply(); rebuildMacros() } } }
+        val logToggle = NativeButton(this, false).apply { text = "Session log" }
+        logToggle.setOnClickListener {
+            val f = java.io.File(filesDir, "bt-session.log")
+            try { f.writeText(lines.joinToString("\n")); addLine("Log saved: " + f.absolutePath) } catch (e: Exception) { addLine("Log failed: " + e.message) }
+        }
         send.setOnClickListener {
             try {
-                socket?.outputStream?.write((input.text.toString() + "\n").toByteArray())
+                val msg = input.text.toString()
+                socket?.outputStream?.write((msg + "\n").toByteArray())
+                addLine("» " + msg)
                 input.text.clear()
             } catch (e: Exception) { addLine("Send failed: ${e.message}") }
         }
@@ -114,6 +128,10 @@ class BluetoothTerminalActivity : AppCompatActivity() {
             addView(logView, LinearLayout.LayoutParams(-1, 0, 1f).apply {
                 bottomMargin = UiStyle.dp(context, 10f)
             })
+            addView(macroRow, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = UiStyle.dp(context, 8f) })
+            addView(macroEdit, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = UiStyle.dp(context, 6f) })
+            addView(macroSave, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = UiStyle.dp(context, 8f) })
+            addView(logToggle, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = UiStyle.dp(context, 8f) })
             addView(input, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = UiStyle.dp(context, 8f) })
             addView(send, LinearLayout.LayoutParams(-1, -2))
         }))

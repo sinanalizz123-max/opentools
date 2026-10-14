@@ -28,13 +28,19 @@ class ScreenRecordService : Service() {
     private var display: VirtualDisplay? = null
     private var outputFile: File? = null
     private var stopping = false
+    private var pausedRec = false
+    private var micEnabled = true
     private var failureMessage: String? = null
 
     private fun statePrefs() = getSharedPreferences("screen_recorder", MODE_PRIVATE)
 
+    var isPaused: Boolean get() = pausedRec; private set(_: Boolean) {}
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ACTION_PAUSE) { try { if (android.os.Build.VERSION.SDK_INT >= 24) recorder?.pause() } catch (_: Exception) {}; pausedRec = true; statePrefs().edit().putString("state", "paused").apply(); return START_NOT_STICKY }
+        if (intent?.action == ACTION_RESUME) { try { if (android.os.Build.VERSION.SDK_INT >= 24) recorder?.resume() } catch (_: Exception) {}; pausedRec = false; statePrefs().edit().putString("state", "recording").apply(); return START_NOT_STICKY }
+        if (intent?.action == ACTION_TOGGLE_MIC) { micEnabled = !(intent.getBooleanExtra(EXTRA_MIC_ON, true)); statePrefs().edit().putBoolean("mic_on", micEnabled).apply(); return START_NOT_STICKY }
         if (intent?.action == ACTION_STOP) {
             stopRecording()
             stopSelf(startId)
@@ -59,6 +65,7 @@ class ScreenRecordService : Service() {
             startForeground(NOTIFICATION_ID, notification)
         }
         try {
+            val micOn = statePrefs().getBoolean("mic_on", true)
             val manager = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
             projection = manager.getMediaProjection(resultCode, resultData)
             projection?.registerCallback(object : MediaProjection.Callback() {
@@ -166,6 +173,10 @@ class ScreenRecordService : Service() {
     companion object {
         const val ACTION_START = "com.opentools.box.action.START_SCREEN_RECORDING"
         const val ACTION_STOP = "com.opentools.box.action.STOP_SCREEN_RECORDING"
+        const val ACTION_PAUSE = "record_pause"
+        const val ACTION_RESUME = "record_resume"
+        const val ACTION_TOGGLE_MIC = "record_mic"
+        const val EXTRA_MIC_ON = "mic_on"
         const val EXTRA_RESULT_CODE = "result_code"
         const val EXTRA_RESULT_DATA = "result_data"
         private const val CHANNEL_ID = "screen_recording"

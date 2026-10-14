@@ -18,6 +18,12 @@ import com.opentools.box.UiStyle
 /** Clipboard helper with a local in-memory history and native controls. */
 class ClipboardActivity : AppCompatActivity() {
     private val history = mutableListOf<String>()
+    private val pinned = mutableSetOf<String>()
+    private var filter = ""
+    private val shown = mutableListOf<String>()
+    private fun prefs() = getSharedPreferences("clipboard", android.content.Context.MODE_PRIVATE)
+    private fun persistClip() { prefs().edit().putString("hist", org.json.JSONArray(history.take(20)).toString()).putString("pins", org.json.JSONArray(pinned.toList()).toString()).apply() }
+    private fun refreshShown() { shown.clear(); history.filter { filter.isBlank() || it.contains(filter, true) }.forEach { shown.add((if (pinned.contains(it)) "📌 " else "") + it) } }
     private lateinit var adapter: ArrayAdapter<String>
     private lateinit var clipboard: ClipboardManager
     private lateinit var status: TextView
@@ -30,7 +36,10 @@ class ClipboardActivity : AppCompatActivity() {
             dividerHeight = UiStyle.dp(context, 1f)
             setBackgroundColor(UiStyle.background(context))
         }
-        adapter = object : ArrayAdapter<String>(this, android.R.layout.simple_list_item_1, history) {
+        try { val a = org.json.JSONArray(prefs().getString("hist", "[]")); for (i in 0 until a.length()) history.add(a.getString(i)) } catch (_: Exception) {}
+        try { val a = org.json.JSONArray(prefs().getString("pins", "[]")); for (i in 0 until a.length()) pinned.add(a.getString(i)) } catch (_: Exception) {}
+        refreshShown()
+        adapter = object : ArrayAdapter<String>(this, android.R.layout.simple_list_item_1, shown) {
             override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
                 val row = (convertView as? TextView) ?: TextView(this@ClipboardActivity)
                 row.text = getItem(position)
@@ -59,7 +68,8 @@ class ClipboardActivity : AppCompatActivity() {
             if (value.isNotEmpty()) {
                 clipboard.setPrimaryClip(ClipData.newPlainText("note", value))
                 history.add(0, value)
-                if (history.size > 100) history.removeAt(history.lastIndex)
+                if (history.size > 20) history.removeAt(history.lastIndex)
+                refreshShown(); persistClip()
                 adapter.notifyDataSetChanged()
                 input.text.clear()
                 status.text = "Copied to clipboard."
@@ -72,7 +82,8 @@ class ClipboardActivity : AppCompatActivity() {
             if (item != null) {
                 if (history.isEmpty() || history[0] != item) {
                     history.add(0, item)
-                    if (history.size > 100) history.removeAt(history.lastIndex)
+                    if (history.size > 20) history.removeAt(history.lastIndex)
+                    refreshShown(); persistClip()
                     adapter.notifyDataSetChanged()
                 }
                 status.text = "Current clipboard text added to history."
@@ -80,17 +91,19 @@ class ClipboardActivity : AppCompatActivity() {
                 status.text = "Clipboard is empty."
             }
         }
+        val search = EditText(this).apply { hint = "Search clips"; UiStyle.styleInput(this); addTextChangedListener(object : android.text.TextWatcher { override fun afterTextChanged(s: android.text.Editable?) { filter = s.toString(); refreshShown(); adapter.notifyDataSetChanged() } override fun beforeTextChanged(a: CharSequence?, b: Int, c: Int, d: Int) = Unit; override fun onTextChanged(a: CharSequence?, b: Int, c: Int, d: Int) = Unit }) }
+        val clearAll = NativeButton(this, false).apply { text = "Clear all"; setOnClickListener { history.removeAll { !pinned.contains(it) }; if (history.isEmpty()) pinned.clear(); refreshShown(); persistClip(); adapter.notifyDataSetChanged() } }
         list.setOnItemClickListener { _, _, position, _ ->
-            val value = history.getOrNull(position) ?: return@setOnItemClickListener
+            val value = history.filter { filter.isBlank() || it.contains(filter, true) }.getOrNull(position) ?: return@setOnItemClickListener
             clipboard.setPrimaryClip(ClipData.newPlainText("note", value))
             status.text = "Copied history item to clipboard."
         }
         list.setOnItemLongClickListener { _, _, position, _ ->
-            if (position in history.indices) {
-                history.removeAt(position)
-                adapter.notifyDataSetChanged()
-                status.text = "History item removed."
-            }
+            val real = history.filter { filter.isBlank() || it.contains(filter, true) }.getOrNull(position) ?: return@setOnItemLongClickListener true
+            if (pinned.contains(real)) pinned.remove(real) else pinned.add(real)
+            refreshShown(); persistClip()
+            adapter.notifyDataSetChanged()
+                status.text = "Pin toggled."
             true
         }
         val content = LinearLayout(this).apply {
@@ -103,6 +116,8 @@ class ClipboardActivity : AppCompatActivity() {
                 UiStyle.styleText(this, 14f, false, UiStyle.muted(context))
                 setPadding(0, UiStyle.dp(context, 4f), 0, UiStyle.dp(context, 12f))
             })
+            addView(search, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = UiStyle.dp(context, 8f) })
+            addView(clearAll, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = UiStyle.dp(context, 8f) })
             addView(list, LinearLayout.LayoutParams(-1, 0, 1f))
             addView(status)
             addView(input, LinearLayout.LayoutParams(-1, -2).apply {

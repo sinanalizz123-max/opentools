@@ -38,6 +38,14 @@ class DecideActivity : AppCompatActivity() {
         yesNo.setOnClickListener { output.text = if (Random.nextBoolean()) "YES" else "NO" }
         coin.setOnClickListener { output.text = if (Random.nextBoolean()) "Heads" else "Tails" }
         dice.setOnClickListener { output.text = Random.nextInt(1, 7).toString() }
+        val coin2 = NativeButton(this, false).apply { text = "Coin flip animation" }
+        coin2.setOnClickListener { val r = android.os.Handler(android.os.Looper.getMainLooper()); var n = 0; val task = object : Runnable { override fun run() { output.text = if (kotlin.random.Random.nextBoolean()) "Heads" else "Tails"; if (++n < 8) r.postDelayed(this, 120) } }; r.post(task) }
+        val shuffle = NativeButton(this, false).apply { text = "Shuffle list" }
+        shuffle.setOnClickListener {
+            val options = choices.text.toString().lines().map { it.trim() }.filter { it.isNotEmpty() }
+            if (options.isEmpty()) { output.text = "Enter choices first"; return@setOnClickListener }
+            output.text = options.shuffled().joinToString("\n")
+        }
         pick.setOnClickListener {
             val options = choices.text.toString().lines().map { it.trim() }.filter { it.isNotEmpty() }
             output.text = if (options.isEmpty()) {
@@ -61,6 +69,8 @@ class DecideActivity : AppCompatActivity() {
             addView(yesNo, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = UiStyle.dp(context, 8f) })
             addView(coin, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = UiStyle.dp(context, 8f) })
             addView(dice, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = UiStyle.dp(context, 18f) })
+            addView(coin2, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = UiStyle.dp(context, 8f) })
+            addView(shuffle, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = UiStyle.dp(context, 8f) })
             addView(choices, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = UiStyle.dp(context, 10f) })
             addView(pick, LinearLayout.LayoutParams(-1, -2))
         }

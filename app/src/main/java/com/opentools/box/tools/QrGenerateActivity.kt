@@ -20,6 +20,7 @@ class QrGenerateActivity : AppCompatActivity() {
     private lateinit var input: EditText
     private lateinit var image: ImageView
     private lateinit var status: TextView
+    private fun buildTypedQr(kind: String, raw: String): String = when (kind) { "WiFi" -> "WIFI:T:WPA;S:" + (raw.split(";").getOrNull(0) ?: raw) + ";P:" + (raw.split(";").getOrNull(1) ?: "") + ";;"; "vCard" -> "BEGIN:VCARD\nVERSION:3.0\nFN:" + raw + "\nEND:VCARD"; "Contact" -> "MECARD:N:" + raw + ";;"; else -> raw }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

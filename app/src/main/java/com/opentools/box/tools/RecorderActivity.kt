@@ -33,12 +33,14 @@ class RecorderActivity : AppCompatActivity() {
     private lateinit var recordBtn: NativeButton
     private lateinit var playBtn: NativeButton
     private lateinit var level: ProgressBar
+    private lateinit var wave: SparkGraphView
     private lateinit var statusView: android.widget.TextView
 
     private val levelTick = object : Runnable {
         override fun run() {
             recorder?.let {
                 try {
+                    try { wave.push((it.maxAmplitude * 100f / 32767f).coerceIn(0f, 100f)) } catch (_: Exception) { }
                     level.progress = (it.maxAmplitude * 100 / 32767).coerceIn(0, 100)
                 } catch (_: Exception) { }
                 timer.postDelayed(this, 100)
@@ -67,6 +69,7 @@ class RecorderActivity : AppCompatActivity() {
         }
         recordBtn.setOnClickListener { if (recording) stopRecording() else startRecording() }
         playBtn.setOnClickListener { if (playing) stopPlaying() else startPlaying() }
+        wave = SparkGraphView(this).apply { setRange(0f, 100f) }
         setContentView(com.opentools.box.ToolScaffold.wrap(this, "Recorder", LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             val pad = UiStyle.dp(context, 20f)
@@ -86,6 +89,7 @@ class RecorderActivity : AppCompatActivity() {
             addView(level, LinearLayout.LayoutParams(-1, UiStyle.dp(context, 6f)).apply {
                 bottomMargin = UiStyle.dp(context, 18f)
             })
+            addView(wave, LinearLayout.LayoutParams(-1, UiStyle.dp(context, 160f)))
             addView(recordBtn, LinearLayout.LayoutParams(-1, -2).apply {
                 bottomMargin = UiStyle.dp(context, 8f)
             })

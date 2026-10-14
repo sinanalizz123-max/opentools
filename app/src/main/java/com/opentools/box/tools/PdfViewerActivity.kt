@@ -49,7 +49,16 @@ class PdfViewerActivity : AppCompatActivity() {
         next = NativeButton(this, false).apply { text = "Next" ; isEnabled = false }
         pick.setOnClickListener { picker.launch(arrayOf("application/pdf")) }
         previous.setOnClickListener { if (page > 0) { page--; render() } }
-        next.setOnClickListener { if (page < pageCount - 1) { page++; render() } }
+        next.setOnClickListener { if (page < pageCount - 1) { page++; render(); persistPage() } }
+        previous.setOnClickListener { persistPage() }
+        val zoomIn = NativeButton(this, false).apply { text = "Zoom +" }
+        val zoomOut = NativeButton(this, false).apply { text = "Zoom −" }
+        zoomIn.setOnClickListener { zoom = (zoom + 0.25f).coerceAtMost(3f); render() }
+        zoomOut.setOnClickListener { zoom = (zoom - 0.25f).coerceAtLeast(0.5f); render() }
+        val search = android.widget.EditText(this).apply { hint = "Go to page"; inputType = android.text.InputType.TYPE_CLASS_NUMBER; UiStyle.styleInput(this) }
+        val goBtn = NativeButton(this, false).apply { text = "Go" }
+        goBtn.setOnClickListener { val p = search.text.toString().toIntOrNull(); if (p != null && p in 1..pageCount) { page = p - 1; render(); persistPage() } }
+        val bookmark = NativeButton(this, false).apply { text = "Bookmark page"; setOnClickListener { persistPage(); label.text = label.text.toString() + " · bookmarked" } }
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             val pad = UiStyle.dp(context, 12f)
@@ -61,6 +70,17 @@ class PdfViewerActivity : AppCompatActivity() {
             })
             addView(LinearLayout(context).apply {
                 orientation = LinearLayout.HORIZONTAL
+                addView(zoomIn, LinearLayout.LayoutParams(0, -2, 1f))
+                addView(zoomOut, LinearLayout.LayoutParams(0, -2, 1f))
+            }, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = UiStyle.dp(context, 8f) })
+            addView(LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                addView(search, LinearLayout.LayoutParams(0, -2, 1f))
+                addView(goBtn, LinearLayout.LayoutParams(-2, -2))
+            }, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = UiStyle.dp(context, 8f) })
+            addView(bookmark, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = UiStyle.dp(context, 8f) })
+            addView(LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
                 addView(previous, LinearLayout.LayoutParams(0, -2, 1f).apply {
                     marginEnd = UiStyle.dp(context, 6f)
                 })
@@ -70,6 +90,7 @@ class PdfViewerActivity : AppCompatActivity() {
         setContentView(ToolScaffold.wrap(this, "PDF Viewer", content))
     }
 
+    private fun persistPage() { try { lastUri?.toString()?.let { prefs().edit().putInt("page_" + it.hashCode(), page).apply() } } catch (_: Exception) {} }
     private fun open(uri: Uri) {
         close()
         try {
@@ -79,7 +100,9 @@ class PdfViewerActivity : AppCompatActivity() {
             renderer = PdfRenderer(fd)
             pageCount = renderer!!.pageCount
             page = 0
+            lastUri = uri
             if (pageCount <= 0) throw IllegalStateException("This PDF has no pages")
+            page = (prefs().getInt("page_" + uri.toString().hashCode(), 0)).coerceIn(0, pageCount - 1)
             render()
         } catch (error: Exception) {
             close()
@@ -89,12 +112,15 @@ class PdfViewerActivity : AppCompatActivity() {
         }
     }
 
+    private var zoom = 1f
+    private var lastUri: android.net.Uri? = null
+    private fun prefs() = getSharedPreferences("pdf", MODE_PRIVATE)
     private fun render() {
         val pdf = renderer ?: return
         try {
             pdf.openPage(page).use { pdfPage ->
                 val width = (resources.displayMetrics.widthPixels - UiStyle.dp(this, 32f)).coerceAtLeast(1)
-                val scale = (width.toFloat() / pdfPage.width).coerceAtLeast(0.25f).coerceAtMost(2f)
+                val scale = ((width.toFloat() / pdfPage.width) * zoom).coerceAtLeast(0.25f).coerceAtMost(4f)
                 val bitmap = Bitmap.createBitmap(
                     (pdfPage.width * scale).toInt().coerceAtLeast(1),
                     (pdfPage.height * scale).toInt().coerceAtLeast(1),

@@ -35,6 +35,8 @@ class MagnifierActivity : AppCompatActivity() {
     private var zoom = 1f
     private var openingCamera = false
     private var zoomHelper: CameraZoom? = null
+    private fun capturePhoto(v: android.view.TextureView) { try { val bmp = v.bitmap ?: return; val f = java.io.File(getExternalFilesDir(android.os.Environment.DIRECTORY_PICTURES), "frame_" + System.currentTimeMillis() + ".jpg"); f.parentFile?.mkdirs(); f.outputStream().use { bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 92, it) }; zoomLabel.text = "Saved " + f.absolutePath } catch (_: Exception) {} }
+    private fun zoomChips(ctx: android.content.Context): android.widget.LinearLayout = android.widget.LinearLayout(ctx).apply { orientation = android.widget.LinearLayout.HORIZONTAL; listOf(1f, 2f, 4f).forEach { z -> addView(NativeButton(ctx).apply { text = z.toString() + "x"; setOnClickListener { zoomHelper?.setZoom(z) } }) } }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

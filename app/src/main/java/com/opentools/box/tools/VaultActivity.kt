@@ -62,6 +62,7 @@ class VaultActivity : AppCompatActivity() {
             UiStyle.styleInput(this)
         }
         val go = NativeButton(this).apply { text = if (hasPin()) "Unlock vault" else "Create vault PIN" }
+        val bio = NativeButton(this, false).apply { text = "Unlock with biometrics" }
         status = TextView(this).apply {
             UiStyle.styleText(this, 14f, false, UiStyle.muted(context))
             setPadding(0, UiStyle.dp(context, 10f), 0, UiStyle.dp(context, 10f))
@@ -82,6 +83,9 @@ class VaultActivity : AppCompatActivity() {
             })
             addView(pin, LinearLayout.LayoutParams(-1, -2).apply {
                 bottomMargin = UiStyle.dp(context, 12f)
+            })
+            addView(bio, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = UiStyle.dp(context, 8f)
             })
             addView(go, LinearLayout.LayoutParams(-1, -2).apply {
                 bottomMargin = UiStyle.dp(context, 8f)
@@ -124,6 +128,18 @@ class VaultActivity : AppCompatActivity() {
                     if (unlocked) showUnlocked() else status.text = message ?: "Incorrect PIN."
                 }
             }
+        }
+        bio.setOnClickListener {
+            if (android.os.Build.VERSION.SDK_INT < 28) { status.text = "Biometrics need Android 9+. Use PIN."; return@setOnClickListener }
+            try {
+                val prompt = android.hardware.biometrics.BiometricPrompt.Builder(this)
+                    .setTitle("Unlock vault").setSubtitle("Use biometrics or PIN fallback").setNegativeButton("Use PIN", mainExecutor, android.content.DialogInterface.OnClickListener { _, _ -> status.text = "Enter PIN below." }).build()
+                prompt.authenticate(android.os.CancellationSignal(), mainExecutor, object : android.hardware.biometrics.BiometricPrompt.AuthenticationCallback() {
+                    override fun onAuthenticationSucceeded(r: android.hardware.biometrics.BiometricPrompt.AuthenticationResult?) { showUnlocked() }
+                    override fun onAuthenticationFailed() { status.text = "Biometric not recognized. Use PIN." }
+                    override fun onAuthenticationError(c: Int, e: CharSequence?) { status.text = "Biometrics unavailable. Use PIN." }
+                })
+            } catch (_: Exception) { status.text = "Biometrics unavailable. Use PIN." }
         }
         setContentView(com.opentools.box.ToolScaffold.wrap(this, "File Vault", lockView))
     }

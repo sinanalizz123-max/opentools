@@ -69,7 +69,19 @@ class CalculatorActivity : AppCompatActivity() {
             })
             addView(keypad, LinearLayout.LayoutParams(-1, -2))
         }
-        setContentView(ToolScaffold.wrap(this, "Calculator", content))
+        try { val a = org.json.JSONArray(prefs().getString("tape", "[]")); for (i in 0 until a.length()) history.add(a.getString(i)) } catch (_: Exception) {}
+        val sciRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            listOf("sin", "cos", "tan", "log", "ln", "pow", "sqrt").forEach { k ->
+                addView(createKey(k), LinearLayout.LayoutParams(0, -2, 1f).apply { val g = UiStyle.dp(context, 2f); setMargins(g, g, g, g) })
+            }
+        }
+        content.addView(sciRow, 1)
+        historyTape = TextView(this).apply { UiStyle.styleText(this, 13f, false, UiStyle.muted(context)); setTextIsSelectable(true); setOnClickListener { val first = history.firstOrNull(); if (first != null) { val expr = first.substringBefore("="); input.clear().append(expr.trim()); displayView.text = input.toString() } } }
+        content.addView(historyTape)
+        content.addView(NativeButton(this, false).apply { text = "Clear history"; setOnClickListener { history.clear(); prefs().edit().remove("tape").apply(); renderTape() } })
+        renderTape()
+        setContentView(ToolScaffold.wrap(this, "Calculator", android.widget.ScrollView(this).apply { isFillViewport = true; addView(content) }))
     }
 
     private fun createKey(key: String): Button = Button(this).apply {
@@ -133,9 +145,12 @@ class CalculatorActivity : AppCompatActivity() {
                         result.toLong().toString()
                     } else result.toString()
                     displayView.text = resultText
+pushHistory(input.toString() + " = " + resultText)
                     input.clear().append(resultText)
                 }
             }
+            "sin", "cos", "tan", "log", "ln", "sqrt" -> { input.append(key + "("); displayView.text = input.toString() }
+            "pow" -> { input.append("pow("); displayView.text = input.toString() }
             else -> {
                 if (displayView.text.toString() == "Invalid expression") input.clear()
                 input.append(key)
@@ -144,6 +159,14 @@ class CalculatorActivity : AppCompatActivity() {
         }
     }
 
+    private lateinit var historyTape: android.widget.TextView
+    private val history = mutableListOf<String>()
+    private fun prefs() = getSharedPreferences("calculator", android.content.Context.MODE_PRIVATE)
+    private fun pushHistory(entry: String) {
+        history.add(0, entry); if (history.size > 50) history.removeAt(history.lastIndex)
+        prefs().edit().putString("tape", org.json.JSONArray(history).toString()).apply(); renderTape()
+    }
+    private fun renderTape() { if (::historyTape.isInitialized) historyTape.text = if (history.isEmpty()) "History is empty." else history.joinToString("\n") }
     private class Evaluator(private val s: String) {
         private var pos = 0
 
@@ -181,6 +204,40 @@ class CalculatorActivity : AppCompatActivity() {
             }
         }
 
+        private fun power(): Double {
+            var v = unary()
+            skipWs()
+            if (eat('^')) { val e = power(); v = Math.pow(v, e) }
+            return v
+        }
+        private fun unary(): Double {
+            skipWs()
+            if (eat('-')) return -unary()
+            if (eat('+')) return unary()
+            return primary()
+        }
+        private fun primary(): Double {
+            skipWs()
+            for (fn in listOf("sin", "cos", "tan", "log", "ln", "sqrt", "pow")) {
+                if (s.startsWith(fn, pos) && pos + fn.length < s.length && s[pos + fn.length] == '(') {
+                    pos += fn.length; require(eat('(')) { "missing (" }
+                    val a = expr()
+                    val b = if (eat(',')) expr() else Double.NaN
+                    require(eat(')')) { "missing )" }
+                    val r = Math.toRadians(a)
+                    return when (fn) {
+                        "sin" -> Math.sin(r); "cos" -> Math.cos(r); "tan" -> Math.tan(r)
+                        "log" -> Math.log10(a); "ln" -> Math.log(a); "sqrt" -> Math.sqrt(a)
+                        else -> Math.pow(a, b)
+                    }
+                }
+            }
+            if (eat('(')) { val v = expr(); require(eat(')')) { "missing )" }; return v }
+            val start = pos
+            while (pos < s.length && (s[pos].isDigit() || s[pos] == '.')) pos++
+            require(start != pos) { "expected number" }
+            return s.substring(start, pos).toDouble()
+        }
         private fun factor(): Double {
             skipWs()
             if (eat('-')) return -factor()

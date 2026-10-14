@@ -41,6 +41,10 @@ class CctvServerActivity : AppCompatActivity() {
     private val latestJpeg = AtomicReference<ByteArray?>(null)
     private val accessToken = java.util.UUID.randomUUID().toString().replace("-", "")
     private var server: CctvLan.MjpegServer? = null
+    private var recordingCctv = false
+    private val recordFrames = mutableListOf<ByteArray>()
+    private fun toggleRecord() { recordingCctv = !recordingCctv; if (!recordingCctv && recordFrames.isNotEmpty()) { try { val f = java.io.File(getExternalFilesDir(null), "cctv_" + System.currentTimeMillis() + ".mjpeg"); f.outputStream().use { it.write(recordFrames.reduce { a, b -> a + b }) }; status.text = "Saved " + f.absolutePath } catch (e: Exception) { status.text = "Record failed: " + e.message } ; recordFrames.clear() } }
+    private fun snapshot() { try { val jpeg = latestJpeg.get() ?: return; val f = java.io.File(getExternalFilesDir(android.os.Environment.DIRECTORY_PICTURES), "snap_" + System.currentTimeMillis() + ".jpg"); f.parentFile?.mkdirs(); f.writeBytes(jpeg); status.text = "Snapshot: " + f.absolutePath } catch (e: Exception) { status.text = "Snapshot failed" } }
     private var hostHandle: AutoCloseable? = null
     @Volatile private var active = false
 

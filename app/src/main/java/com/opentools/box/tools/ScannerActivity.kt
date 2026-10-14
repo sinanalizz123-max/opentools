@@ -43,11 +43,18 @@ class ScannerActivity : AppCompatActivity() {
     private var thread: HandlerThread? = null
     private var handler: Handler? = null
     @Volatile private var found = false
+    private fun onDecoded(v: String) { pushHistory(v); if (!batchMode) found = true }
     @Volatile private var lastAttempt = 0L
     private var openingCamera = false
     private var previewRequest: CaptureRequest.Builder? = null
     private var zoomHelper: CameraZoom? = null
     private val decoder = MultiFormatReader()
+    private val scanHistory = mutableListOf<String>()
+    private var batchMode = false
+    private var torchOn = false
+    private fun histPrefs() = getSharedPreferences("scan_history", MODE_PRIVATE)
+    private fun pushHistory(v: String) { scanHistory.add(0, v); while (scanHistory.size > 30) scanHistory.removeAt(scanHistory.size - 1); try { histPrefs().edit().putString("h", scanHistory.joinToString("\n")).apply() } catch (_: Exception) {} }
+    private fun toggleTorch() { torchOn = !torchOn; try { previewRequest?.set(android.hardware.camera2.CaptureRequest.FLASH_MODE, if (torchOn) android.hardware.camera2.CaptureRequest.FLASH_MODE_TORCH else android.hardware.camera2.CaptureRequest.FLASH_MODE_OFF); val req = previewRequest?.build() ?: return; val h = handler ?: return; session?.setRepeatingRequest(req, null, h) } catch (_: Exception) {} }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

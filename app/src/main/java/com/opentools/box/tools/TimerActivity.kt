@@ -45,6 +45,13 @@ class TimerActivity : AppCompatActivity() {
         toggle = NativeButton(this).apply {
             text = "Start timer"
         }
+        val customMin = android.widget.EditText(this).apply { hint = "Custom minutes"; inputType = android.text.InputType.TYPE_CLASS_NUMBER; UiStyle.styleInput(this) }
+        val customGo = NativeButton(this, false).apply { text = "Set custom minutes" }
+        customGo.setOnClickListener {
+            val m = customMin.text.toString().trim().toIntOrNull()
+            if (m == null || m <= 0 || m > 1440) { displayView.text = "Enter 1–1440 minutes"; return@setOnClickListener }
+            hours.value = m / 60; minutes.value = m % 60; seconds.value = 0
+        }
         toggle.setOnClickListener { if (running) cancel() else start() }
 
         val pickerRow = LinearLayout(this).apply {
@@ -80,6 +87,20 @@ class TimerActivity : AppCompatActivity() {
             addView(bar, LinearLayout.LayoutParams(-1, UiStyle.dp(context, 6f)).apply {
                 bottomMargin = UiStyle.dp(context, 16f)
             })
+            addView(android.widget.HorizontalScrollView(context).apply {
+                isHorizontalScrollBarEnabled = false
+                addView(LinearLayout(context).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    listOf(1, 5, 10, 15, 30, 60).forEach { m ->
+                        addView(NativeButton(context, false).apply {
+                            text = if (m == 1) "1 min" else "$m min"
+                            setOnClickListener { hours.value = m / 60; minutes.value = m % 60; seconds.value = 0 }
+                        }, LinearLayout.LayoutParams(-2, -2).apply { marginEnd = UiStyle.dp(context, 6f) })
+                    }
+                })
+            }, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = UiStyle.dp(context, 8f) })
+            addView(customMin, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = UiStyle.dp(context, 6f) })
+            addView(customGo, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = UiStyle.dp(context, 8f) })
             addView(pickerRow, LinearLayout.LayoutParams(-1, -2).apply {
                 bottomMargin = UiStyle.dp(context, 18f)
             })

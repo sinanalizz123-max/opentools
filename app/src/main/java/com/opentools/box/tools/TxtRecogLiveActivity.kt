@@ -46,6 +46,10 @@ class TxtRecogLiveActivity : AppCompatActivity() {
     private var previewRequest: CaptureRequest.Builder? = null
     private var zoomHelper: CameraZoom? = null
     private var rotationDegrees = 0
+    private var ocrLang = "Latin"
+    private inner class OcrOverlay(ctx: android.content.Context) : android.view.View(ctx) { var boxes: List<android.graphics.RectF> = emptyList(); override fun onDraw(c: android.graphics.Canvas) { super.onDraw(c); val p = android.graphics.Paint().apply { style = android.graphics.Paint.Style.STROKE; strokeWidth = 4f; color = 0xFF00E676.toInt() }; boxes.forEach { c.drawRect(it, p) } } }
+    private var overlay: OcrOverlay? = null
+    private fun copyAllLive() { try { val cb = getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager; cb.setPrimaryClip(android.content.ClipData.newPlainText("ocr", output.text.toString())) } catch (_: Exception) {} }
     private val recognizer = TextRecognition.getClient(TextRecognizerOptions.Builder().build())
 
     override fun onCreate(savedInstanceState: Bundle?) {

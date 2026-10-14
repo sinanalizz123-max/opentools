@@ -126,6 +126,7 @@ class TtsActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             })
             addView(statusView)
         }
+        try { val sp = android.widget.Spinner(this); val vs = android.widget.Spinner(this); (content as android.widget.LinearLayout).addView(sp); (content as android.widget.LinearLayout).addView(vs); sp.tag="voice"; vs.tag="rate" } catch (_: Exception) { }
         setContentView(ToolScaffold.wrap(this, "Text to Speech", content))
     }
 

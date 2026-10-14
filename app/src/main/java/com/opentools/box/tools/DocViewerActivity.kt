@@ -15,6 +15,10 @@ import java.io.ByteArrayOutputStream
 /** Plain-text viewer using bounded streaming reads to avoid loading huge files into memory. */
 class DocViewerActivity : AppCompatActivity() {
     private lateinit var text: TextView
+    private var fontSize = 15f
+    private var dark = false
+    private var fullText = ""
+    private var findBox: android.widget.EditText? = null
     private lateinit var status: TextView
 
     private val picker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
@@ -39,7 +43,8 @@ class DocViewerActivity : AppCompatActivity() {
                     }
                     String(output.toByteArray(), Charsets.UTF_8) to truncated
                 } ?: throw IllegalStateException("File could not be opened")
-                text.text = result.first + if (result.second) "\n\n[Preview limited to 1 MB]" else ""
+                fullText = result.first + if (result.second) "\n\n[Preview limited to 1 MB]" else ""
+                text.text = highlight(fullText, findBox?.text.toString() ?: "")
                 status.text = "Opened: " + (uri.lastPathSegment ?: "text file")
             } catch (_: Exception) {
                 text.text = "The file could not be opened as text."
@@ -64,6 +69,13 @@ class DocViewerActivity : AppCompatActivity() {
             UiStyle.styleText(this, 13f, false, UiStyle.muted(context))
         }
         val open = NativeButton(this).apply { text = "Open text file" }
+        findBox = android.widget.EditText(this).apply { hint = "Search in text"; UiStyle.styleInput(this); addTextChangedListener(object : android.text.TextWatcher { override fun afterTextChanged(s: android.text.Editable?) { this@DocViewerActivity.text.text = highlight(fullText, s.toString()) } override fun beforeTextChanged(a: CharSequence?, b: Int, c: Int, d: Int) = Unit; override fun onTextChanged(a: CharSequence?, b: Int, c: Int, d: Int) = Unit }) }
+        val smaller = NativeButton(this, false).apply { text = "A−" }
+        val bigger = NativeButton(this, false).apply { text = "A+" }
+        smaller.setOnClickListener { fontSize = (fontSize - 1f).coerceAtLeast(10f); this@DocViewerActivity.text.textSize = fontSize }
+        bigger.setOnClickListener { fontSize = (fontSize + 1f).coerceAtMost(28f); this@DocViewerActivity.text.textSize = fontSize }
+        val theme = NativeButton(this, false).apply { text = "Light/Dark" }
+        theme.setOnClickListener { dark = !dark; this@DocViewerActivity.text.setBackgroundColor(if (dark) android.graphics.Color.BLACK else android.graphics.Color.TRANSPARENT); this@DocViewerActivity.text.setTextColor(if (dark) android.graphics.Color.WHITE else UiStyle.text(this)) }
         open.setOnClickListener { picker.launch(arrayOf("text/*")) }
         val scroll = ScrollView(this).apply {
             isFillViewport = true
@@ -77,6 +89,10 @@ class DocViewerActivity : AppCompatActivity() {
             addView(open, LinearLayout.LayoutParams(-1, -2).apply {
                 bottomMargin = UiStyle.dp(context, 10f)
             })
+            addView(findBox!!, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = UiStyle.dp(context, 8f) })
+            addView(LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL
+                addView(smaller, LinearLayout.LayoutParams(0, -2, 1f)); addView(bigger, LinearLayout.LayoutParams(0, -2, 1f)); addView(theme, LinearLayout.LayoutParams(0, -2, 1f))
+            }, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = UiStyle.dp(context, 8f) })
             addView(status, LinearLayout.LayoutParams(-1, -2).apply {
                 bottomMargin = UiStyle.dp(context, 10f)
             })
@@ -85,5 +101,12 @@ class DocViewerActivity : AppCompatActivity() {
         setContentView(ToolScaffold.wrap(this, "Text Viewer", content))
     }
 
+    private fun highlight(src: String, q: String): CharSequence {
+        if (q.isBlank()) return src
+        val s = android.text.SpannableString(src)
+        var i = src.lowercase().indexOf(q.lowercase())
+        while (i >= 0) { s.setSpan(android.text.style.BackgroundColorSpan(0xFFFFFF00.toInt()), i, i + q.length, 0); i = src.lowercase().indexOf(q.lowercase(), i + q.length) }
+        return s
+    }
     companion object { private const val MAX_DISPLAY_BYTES = 1024 * 1024 }
 }

@@ -8,6 +8,7 @@ import android.view.ViewGroup
 import android.widget.ArrayAdapter
 import android.widget.LinearLayout
 import android.widget.ListView
+import android.widget.ScrollView
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import com.opentools.box.ToolScaffold
@@ -20,6 +21,7 @@ class StopwatchActivity : AppCompatActivity() {
     private lateinit var startPause: Button
     private lateinit var lapReset: Button
     private val laps = mutableListOf<String>()
+    private val lapTimes = mutableListOf<Long>()
     private lateinit var lapAdapter: ArrayAdapter<String>
     private var running = false
     private var baseElapsed = 0L
@@ -37,6 +39,9 @@ class StopwatchActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         baseElapsed = savedInstanceState?.getLong("elapsed") ?: 0L
         running = savedInstanceState?.getBoolean("running") ?: false
+        savedInstanceState?.getLongArray("lapTimes")?.forEach { lapTimes.add(it) }
+        lapTimes.forEachIndexed { i, total -> val prev = if (i == 0) 0L else lapTimes[i-1]; laps.add("Lap ${i+1}  ·  delta ${format(total - prev)}  ·  total ${format(total)}") }
+        laps.reverse()
         displayView = TextView(this).apply {
             gravity = Gravity.CENTER
             UiStyle.styleText(this, 44f, true)
@@ -79,11 +84,15 @@ class StopwatchActivity : AppCompatActivity() {
         }
         lapReset.setOnClickListener {
             if (running) {
-                laps.add(0, "Lap ${laps.size + 1}  ·  ${format(currentElapsed())}")
+                val now = currentElapsed()
+                val prev = lapTimes.lastOrNull() ?: 0L
+                lapTimes.add(now)
+                laps.add(0, "Lap ${lapTimes.size}  ·  delta ${format(now - prev)}  ·  total ${format(now)}")
                 lapAdapter.notifyDataSetChanged()
             } else {
                 baseElapsed = 0L
                 laps.clear()
+                lapTimes.clear()
                 lapAdapter.notifyDataSetChanged()
                 displayView.text = format(0L)
             }
@@ -100,7 +109,8 @@ class StopwatchActivity : AppCompatActivity() {
                 UiStyle.styleText(this, 18f, true)
                 setPadding(0, 0, 0, UiStyle.dp(context, 8f))
             })
-            addView(lapList, LinearLayout.LayoutParams(-1, 0, 1f))
+            addView(TextView(context).apply { text = "Lap list"; UiStyle.styleText(this, 13f, true, UiStyle.muted(context)) })
+            addView(ScrollView(context).apply { isFillViewport = true; addView(lapList) }, LinearLayout.LayoutParams(-1, 0, 1f))
         }
         setContentView(ToolScaffold.wrap(this, "Stopwatch", content))
         if (running) {
@@ -139,6 +149,7 @@ class StopwatchActivity : AppCompatActivity() {
     override fun onSaveInstanceState(out: Bundle) {
         super.onSaveInstanceState(out)
         out.putLong("elapsed", baseElapsed)
+        out.putLongArray("lapTimes", lapTimes.toLongArray())
         out.putBoolean("running", running)
     }
 }

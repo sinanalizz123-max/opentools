@@ -121,6 +121,7 @@ class MetronomeActivity : AppCompatActivity() {
             })
             addView(flash, LinearLayout.LayoutParams(-1, UiStyle.dp(context, 70f)))
         }
+        try { val tap = NativeButton(this).apply { text = "Tap tempo" }; tap.setOnClickListener { try { this::class.java.getDeclaredMethod("tapTempo").invoke(this) } catch (_: Exception) { } }; (content as android.widget.LinearLayout).addView(tap); for (b in arrayOf(60,90,120,140)) { val c = NativeButton(this, false).apply { text = b.toString() + " BPM" }; c.setOnClickListener { try { this::class.java.getDeclaredField("bpm").setInt(this, b) } catch (_: Exception) { } }; (content as android.widget.LinearLayout).addView(c) } } catch (_: Exception) { }
         setContentView(ToolScaffold.wrap(this, "Metronome", content))
     }
 

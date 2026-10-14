@@ -30,6 +30,12 @@ class WifiSpeedActivity : AppCompatActivity() {
     private lateinit var info: TextView
     private lateinit var result: TextView
     private lateinit var go: NativeButton
+    private lateinit var chart: SparkGraphView
+    private lateinit var historyView: android.widget.TextView
+    private val speedHistory = mutableListOf<String>()
+    private lateinit var serverSpinner: android.widget.Spinner
+    private lateinit var customUrl: android.widget.EditText
+    private val presetUrls = listOf("https://speed.hetzner.de/100MB.bin","https://speed.cloudflare.com/__down?bytes=50000000","https://proof.ovh.net/files/100Mb.dat")
     @Volatile private var testing = false
 
     @SuppressLint("SetTextI18n")
@@ -71,7 +77,13 @@ class WifiSpeedActivity : AppCompatActivity() {
             })
             addView(result, LinearLayout.LayoutParams(-1, -2))
         }
-        setContentView(ToolScaffold.wrap(this, "Internet Speed", content))
+        chart = SparkGraphView(this).apply { minimumHeight = UiStyle.dp(context, 90f) }; chart.setRange(0f, 200f)
+        historyView = TextView(this).apply { UiStyle.styleText(this, 13f, false) }
+        serverSpinner = android.widget.Spinner(this).apply { adapter = android.widget.ArrayAdapter(context, android.R.layout.simple_spinner_item, listOf("Auto (fastest)") + presetUrls).apply { setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item) } }
+        customUrl = android.widget.EditText(this).apply { hint = "Custom URL (optional)"; UiStyle.styleInput(this) }
+        val shareBtn = NativeButton(this).apply { text = "Share results" }; shareBtn.setOnClickListener { shareResults() }
+        content.addView(serverSpinner); content.addView(customUrl); content.addView(chart, LinearLayout.LayoutParams(-1, UiStyle.dp(this@WifiSpeedActivity, 90f))); content.addView(historyView); content.addView(shareBtn)
+        setContentView(ToolScaffold.wrap(this, "Internet Speed", android.widget.ScrollView(this).apply { addView(content) }))
     }
 
     @SuppressLint("SetTextI18n")
@@ -104,7 +116,10 @@ class WifiSpeedActivity : AppCompatActivity() {
                     return@Thread
                 }
                 ui("Testing via ${best.first.name} (ping ${best.second} ms)…")
-                val mbps = download(best.first.url)
+                val target = customUrl.text.toString().trim().ifEmpty { best.first.url }
+                val mbps = download(target)
+                speedHistory.add(0, String.format(java.util.Locale.getDefault(), "%.1f Mbps via %s", mbps, best.first.name))
+                if (speedHistory.size > 20) speedHistory.removeAt(speedHistory.size - 1)
                 ui(String.format(Locale.getDefault(),
                     "%.1f Mbps\nvia %s · ping %d ms",
                     mbps, best.first.name, best.second))
@@ -172,6 +187,7 @@ class WifiSpeedActivity : AppCompatActivity() {
         return bytes * 8.0 / 1_000_000.0 / seconds
     }
 
+    private fun shareResults() { val i = android.content.Intent(android.content.Intent.ACTION_SEND).apply { type = "text/plain"; putExtra(android.content.Intent.EXTRA_TEXT, (listOf(result.text.toString()) + speedHistory).joinToString("\n")) }; startActivity(android.content.Intent.createChooser(i, "Share speed results")) }
     private fun ui(text: String) {
         runOnUiThread { result.text = text }
     }

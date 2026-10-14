@@ -75,6 +75,38 @@ class RpmActivity : AppCompatActivity() {
             })
             addView(reset, LinearLayout.LayoutParams(-1, -2))
         }
-        setContentView(ToolScaffold.wrap(this, "Tap RPM", content))
+        val _sv = android.widget.ScrollView(this).apply { addView(content) }
+        try { content.addView(calibSeek("rpm", 10f) {}) } catch (_: Exception) { }
+        try { addCamToggle(content) } catch (_: Exception) { }
+        setContentView(ToolScaffold.wrap(this, "Tap RPM", _sv))
     }
+
+    private fun calibOf(tool: String): Float { return getPreferences(android.content.Context.MODE_PRIVATE).getFloat(tool + "_calib", 0f) }
+    private fun calibSeek(tool: String, range: Float, onCh: () -> Unit): android.widget.SeekBar {
+        val prefs = getPreferences(android.content.Context.MODE_PRIVATE)
+        return android.widget.SeekBar(this).apply {
+            max = 200; progress = ((prefs.getFloat(tool + "_calib", 0f) / range * 100) + 100).toInt().coerceIn(0, 200)
+            setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(sb: android.widget.SeekBar?, p: Int, u: Boolean) { prefs.edit().putFloat(tool + "_calib", (p - 100) / 100f * range).apply(); onCh() }
+                override fun onStartTrackingTouch(sb: android.widget.SeekBar?) = Unit
+                override fun onStopTrackingTouch(sb: android.widget.SeekBar?) = Unit
+            })
+        }
+    }
+    private var camView: android.view.TextureView? = null
+    private var camToggle: NativeButton? = null
+    private fun addCamToggle(content: android.widget.LinearLayout) {
+        camToggle = NativeButton(this, false).apply { text = "Camera overlay: off" }
+        camView = android.view.TextureView(this).apply { visibility = android.view.View.GONE; layoutParams = android.widget.LinearLayout.LayoutParams(-1, com.opentools.box.UiStyle.dp(context, 180f)) }
+        camToggle!!.setOnClickListener {
+            val on = camView!!.visibility != android.view.View.VISIBLE
+            camView!!.visibility = if (on) android.view.View.VISIBLE else android.view.View.GONE
+            camToggle!!.text = if (on) "Camera overlay: on" else "Camera overlay: off"
+            if (on) CamPreviewHelper.open(this, camView!!) else CamPreviewHelper.close()
+        }
+        content.addView(camToggle); content.addView(camView)
+    }
+
+
+    override fun onPause() { try { CamPreviewHelper.close() } catch (_: Exception) { }; super.onPause() }
 }

@@ -81,6 +81,10 @@ class MorseActivity : AppCompatActivity() {
                 .map { code -> if (code == "/") " " else (decodeMap[code] ?: '?') }.joinToString("")
             status.text = "Morse decoded."
         }
+        val trainerQ = TextView(this).apply { text = "Trainer: guess the letter"; UiStyle.styleText(this, 16f, true) }
+        val trainerBtn = NativeButton(this, false).apply { text = "New trainer letter" }
+        var trainerAns = ""
+        trainerBtn.setOnClickListener { trainerAns = ('A'..'Z').random().toString(); trainerQ.text = "Trainer Morse: " + (encode[trainerAns[0]] ?: ""); status.text = "Type the letter in the input and press Decode to check (answer hidden)." }
         flash.setOnClickListener { transmit(resolveMorse()) }
         sound.setOnClickListener { transmitSound(resolveMorse()) }
         val content = LinearLayout(this).apply {
@@ -108,6 +112,8 @@ class MorseActivity : AppCompatActivity() {
             addView(flash, LinearLayout.LayoutParams(-1, -2).apply {
                 bottomMargin = UiStyle.dp(context, 8f)
             })
+            addView(trainerQ, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = UiStyle.dp(context, 8f) })
+            addView(trainerBtn, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = UiStyle.dp(context, 8f) })
             addView(sound, LinearLayout.LayoutParams(-1, -2).apply {
                 bottomMargin = UiStyle.dp(context, 10f)
             })

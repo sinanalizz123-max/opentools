@@ -38,6 +38,8 @@ class NightVisionActivity : AppCompatActivity() {
     private var previewSurface: Surface? = null
     private var openingCamera = false
     private var zoomHelper: CameraZoom? = null
+    private var boostLevel = 50
+    private fun applyBoost() { try { request?.let { it.set(android.hardware.camera2.CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION, boostLevel / 25); session?.setRepeatingRequest(it.build(), null, handler) } } catch (_: Exception) {} }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

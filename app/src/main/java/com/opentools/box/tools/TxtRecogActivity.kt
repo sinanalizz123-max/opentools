@@ -21,6 +21,9 @@ class TxtRecogActivity : AppCompatActivity() {
     private lateinit var output: TextView
     private lateinit var status: TextView
     private lateinit var pick: NativeButton
+    private var ocrLang = "Latin"
+    private fun copyAllText() { try { val cb = getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager; cb.setPrimaryClip(android.content.ClipData.newPlainText("ocr", output.text.toString())) } catch (_: Exception) {} }
+    private fun langSpinner(ctx: android.content.Context): android.widget.Spinner = android.widget.Spinner(ctx).apply { adapter = android.widget.ArrayAdapter(ctx, android.R.layout.simple_spinner_item, listOf("Latin", "Chinese", "Devanagari", "Japanese", "Korean")).apply { setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item) }; setSelection(0); onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener { override fun onItemSelected(a: android.widget.AdapterView<*>?, v: android.view.View?, p: Int, id: Long) { ocrLang = a?.getItemAtPosition(p).toString() } override fun onNothingSelected(a: android.widget.AdapterView<*>?) {} } }
     private val recognizer = TextRecognition.getClient(TextRecognizerOptions.Builder().build())
 
     private val picker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->

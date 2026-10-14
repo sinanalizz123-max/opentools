@@ -36,6 +36,11 @@ class RandomDigitsActivity : AppCompatActivity() {
                 UiStyle.dp(context, 18f), UiStyle.dp(context, 18f))
             background = UiStyle.rounded(context, UiStyle.surface(context), 16f, UiStyle.border(context))
         }
+        val diceRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL
+            listOf(4, 6, 8, 10, 12, 20, 100).forEach { sides ->
+                addView(NativeButton(context, false).apply { text = "d$sides"; setOnClickListener { output.text = "d$sides: " + kotlin.random.Random.nextInt(1, sides + 1).toString(); output.gravity = Gravity.CENTER } }, LinearLayout.LayoutParams(0, -2, 1f))
+            }
+        }
         val go = Button(this).apply { text = "Generate numbers"; UiStyle.styleButton(this) }
         go.setOnClickListener {
             val low = min.text.toString().trim().toIntOrNull() ?: 1
@@ -69,6 +74,7 @@ class RandomDigitsActivity : AppCompatActivity() {
                     bottomMargin = UiStyle.dp(context, 10f)
                 })
             }
+            addView(diceRow, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = UiStyle.dp(context, 8f) })
             addView(go, LinearLayout.LayoutParams(-1, -2).apply {
                 topMargin = UiStyle.dp(context, 4f)
                 bottomMargin = UiStyle.dp(context, 16f)

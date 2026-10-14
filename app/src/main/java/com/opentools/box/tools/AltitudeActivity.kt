@@ -19,6 +19,10 @@ class AltitudeActivity : AppCompatActivity(), SensorEventListener {
     private lateinit var sensorManager: SensorManager
     private lateinit var altitudeView: TextView
     private lateinit var pressureView: TextView
+    private lateinit var graph: SparkGraphView
+    private lateinit var minMax: TextView
+    private var gMin: Float = Float.MAX_VALUE
+    private var gMax: Float = Float.MIN_VALUE
     private lateinit var statusView: TextView
     private var seaLevel = 1013.25f
 
@@ -63,7 +67,11 @@ class AltitudeActivity : AppCompatActivity(), SensorEventListener {
             addView(pressureView, LinearLayout.LayoutParams(-1, -2))
             addView(statusView, LinearLayout.LayoutParams(-1, -2))
         }
-        setContentView(ToolScaffold.wrap(this, "Altimeter", content))
+        
+        graph = SparkGraphView(this).apply { graph.setRange(-500f, 9000f) }
+        minMax = TextView(this).apply { text = "Min: --  Max: --"; gravity = android.view.Gravity.CENTER; com.opentools.box.UiStyle.styleText(this, 13f, false, com.opentools.box.UiStyle.muted(context)) }
+        try { (content as android.widget.LinearLayout).addView(graph, android.widget.LinearLayout.LayoutParams(-1, com.opentools.box.UiStyle.dp(this, 160f))); (content as android.widget.LinearLayout).addView(minMax) } catch (_: Exception) { }
+                setContentView(ToolScaffold.wrap(this, "Altimeter", content))
     }
 
     override fun onResume() {

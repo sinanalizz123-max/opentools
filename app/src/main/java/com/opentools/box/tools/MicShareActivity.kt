@@ -35,6 +35,11 @@ class MicShareActivity : AppCompatActivity() {
     @Volatile private var recorder: AudioRecord? = null
     @Volatile private var player: AudioTrack? = null
     private lateinit var status: TextView
+    private lateinit var connStatus: TextView
+    private var volLevel = 0.8f
+    private fun markConn(peer: String, connected: Boolean) { runOnUiThread { try { connStatus.text = peer + " · " + (if (connected) "connected" else "idle") } catch (_: Exception) {} } }
+    private fun attachPtt(btn: NativeButton, start: () -> Unit, stop: () -> Unit) { btn.setOnTouchListener { v, e -> when (e.action) { android.view.MotionEvent.ACTION_DOWN -> { v.isPressed = true; start(); true } android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> { v.isPressed = false; v.performClick(); stop(); true } else -> false } } }
+    private fun volumeBar(ctx: android.content.Context, set: (Float) -> Unit): android.widget.SeekBar = android.widget.SeekBar(ctx).apply { max = 100; progress = 80; setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener { override fun onProgressChanged(s: android.widget.SeekBar?, p: Int, u: Boolean) { volLevel = p / 100f; set(volLevel) } override fun onStartTrackingTouch(s: android.widget.SeekBar?) {} override fun onStopTrackingTouch(s: android.widget.SeekBar?) {} }) }
     private lateinit var streamButton: NativeButton
     private lateinit var listenButton: NativeButton
     private var hostHandle: AutoCloseable? = null

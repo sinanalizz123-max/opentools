@@ -40,6 +40,8 @@ class FileShareActivity : AppCompatActivity() {
     private val clientSlots = Semaphore(4)
     private lateinit var status: TextView
     private lateinit var adapter: ArrayAdapter<String>
+    private lateinit var transferProgress: TextView
+    private val sendQueue = java.util.concurrent.ConcurrentLinkedQueue<android.net.Uri>()
     private var hostHandle: AutoCloseable? = null
     private var browseHandle: AutoCloseable? = null
     private var hostingNsd = false
@@ -48,6 +50,9 @@ class FileShareActivity : AppCompatActivity() {
     private val peers = mutableListOf<NsdServiceInfo>()
     private lateinit var peerAdapter: ArrayAdapter<String>
     private val svcType = "_opentools-file._tcp."
+    private fun updateProgress(done: Long, total: Long, name: String) { runOnUiThread { if (::transferProgress.isInitialized) transferProgress.text = name + ": " + done + "/" + total + " bytes (" + (if (total > 0) (done*100/total).toString() + "%" else "?") + ")" } }
+    private fun queueSend(uri: android.net.Uri) { sendQueue.add(uri); if (::status.isInitialized) status.text = sendQueue.size.toString() + " file(s) queued" }
+    private fun resumeOffset(file: java.io.File): Long = if (file.exists()) file.length() else 0L
     private fun peerLabel(s: NsdServiceInfo): String {
         val ip = try { s.host?.hostAddress ?: "?" } catch (_: Exception) { "?" }
         return (s.serviceName ?: "?") + " · " + ip + ":" + s.port

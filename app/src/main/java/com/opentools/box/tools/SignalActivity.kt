@@ -19,6 +19,7 @@ import com.opentools.box.UiStyle
 class SignalActivity : AppCompatActivity() {
     private lateinit var valueView: TextView
     private lateinit var status: TextView
+    private var chart: SparkGraphView? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -47,11 +48,13 @@ class SignalActivity : AppCompatActivity() {
             addView(status, LinearLayout.LayoutParams(-1, -2).apply {
                 bottomMargin = UiStyle.dp(context, 10f)
             })
+            addView(SparkGraphView(context).also { chart = it; it.setRange(-120f, -50f); try { val wm = getSystemService(Context.WIFI_SERVICE) as android.net.wifi.WifiManager; it.push(wm.connectionInfo.rssi.toFloat()) } catch (_: Exception) {} }, LinearLayout.LayoutParams(-1, UiStyle.dp(context, 80f)))
             addView(ScrollView(context).apply {
                 isFillViewport = true
                 addView(valueView)
             }, LinearLayout.LayoutParams(-1, 0, 1f))
         }
+        val eb = NativeButton(this).apply { text = "Share signal details" }; eb.setOnClickListener { val i = android.content.Intent(android.content.Intent.ACTION_SEND).apply { type = "text/plain"; putExtra(android.content.Intent.EXTRA_TEXT, valueView.text.toString()) }; startActivity(android.content.Intent.createChooser(i, "Share signal")) }; content.addView(eb)
         setContentView(ToolScaffold.wrap(this, "Signal Strength", content))
     }
 

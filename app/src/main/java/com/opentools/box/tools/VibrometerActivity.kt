@@ -18,6 +18,10 @@ import kotlin.math.sqrt
 class VibrometerActivity : AppCompatActivity(), SensorEventListener {
     private lateinit var sensorManager: SensorManager
     private lateinit var valueView: TextView
+    private lateinit var graph: SparkGraphView
+    private lateinit var minMax: TextView
+    private var gMin: Float = Float.MAX_VALUE
+    private var gMax: Float = Float.MIN_VALUE
     private lateinit var status: TextView
     private var smooth = 0.0
     private var linearSensor = true
@@ -60,7 +64,11 @@ class VibrometerActivity : AppCompatActivity(), SensorEventListener {
                 setPadding(0, UiStyle.dp(context, 16f), 0, 0)
             })
         }
-        setContentView(ToolScaffold.wrap(this, "Vibrometer", content))
+        
+        graph = SparkGraphView(this).apply { graph.setRange(0f, 20f) }
+        minMax = TextView(this).apply { text = "Min: --  Max: --"; gravity = android.view.Gravity.CENTER; com.opentools.box.UiStyle.styleText(this, 13f, false, com.opentools.box.UiStyle.muted(context)) }
+        try { (content as android.widget.LinearLayout).addView(graph, android.widget.LinearLayout.LayoutParams(-1, com.opentools.box.UiStyle.dp(this, 160f))); (content as android.widget.LinearLayout).addView(minMax) } catch (_: Exception) { }
+                setContentView(ToolScaffold.wrap(this, "Vibrometer", content))
     }
 
     override fun onResume() {
@@ -73,7 +81,9 @@ class VibrometerActivity : AppCompatActivity(), SensorEventListener {
             status.text = if (linearSensor) "Linear acceleration sensor active."
                 else "Using accelerometer with gravity compensation."
         } else {
-            valueView.text = "Unavailable"
+            
+                            try { val _v: Float = (smooth.toFloat()).toFloat(); graph.push(_v); if (_v < gMin) gMin = _v; if (_v > gMax) gMax = _v; minMax.text = "Min: %s  Max: %s".format(gMin, gMax) } catch (_: Exception) { }
+                            valueView.text = "Unavailable"
             status.text = "No compatible motion sensor is available."
         }
     }

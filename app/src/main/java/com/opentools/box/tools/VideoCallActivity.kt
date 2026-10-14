@@ -53,6 +53,12 @@ class VideoCallActivity : AppCompatActivity() {
     private var mjpegClient: CctvLan.MjpegClient? = null
 
     @Volatile private var callActive = false
+    private var mutedCall = false
+    private var useFront = true
+    private var fullscreenRemote = false
+    private fun toggleMute() { mutedCall = !mutedCall }
+    private fun switchCamera() { useFront = !useFront; try { camera?.close() } catch (_: Exception) {} }
+    private fun toggleFullscreenRemote() { fullscreenRemote = !fullscreenRemote; try { remoteView.layoutParams.height = if (fullscreenRemote) android.view.ViewGroup.LayoutParams.MATCH_PARENT else android.widget.LinearLayout.LayoutParams.WRAP_CONTENT; remoteView.requestLayout() } catch (_: Exception) {} }
     private val accessToken = java.util.UUID.randomUUID().toString().replace("-", "")
     private var hostHandle: AutoCloseable? = null
     private var browseHandle: AutoCloseable? = null

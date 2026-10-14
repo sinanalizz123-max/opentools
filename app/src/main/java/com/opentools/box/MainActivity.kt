@@ -63,6 +63,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        OpenToolsApp.takeLastCrash(this)?.let { showCrash(it) }
         val root = ScrollView(this).apply {
             addView(LinearLayout(context).apply {
                 orientation = LinearLayout.VERTICAL
@@ -88,6 +89,27 @@ class MainActivity : AppCompatActivity() {
         setContentView(frame)
         refreshShortcuts()
         selectCategory(category)
+    }
+
+    private fun showCrash(crash: String) {
+        val scroll = android.widget.ScrollView(this)
+        val text = TextView(this).apply {
+            this.text = crash.take(4000)
+            textSize = 11f
+            setTextIsSelectable(true)
+        }
+        scroll.addView(text)
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Last crash report")
+            .setMessage("Copy this and send it to the developer:")
+            .setView(scroll)
+            .setPositiveButton("Copy") { _, _ ->
+                val cm = getSystemService(Context.CLIPBOARD_SERVICE)
+                    as android.content.ClipboardManager
+                cm.setPrimaryClip(android.content.ClipData.newPlainText("crash", crash))
+            }
+            .setNegativeButton("Dismiss", null)
+            .show()
     }
 
     // ---- Header + menu ----

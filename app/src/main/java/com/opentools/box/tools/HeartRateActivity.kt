@@ -189,6 +189,7 @@ class HeartRateActivity : AppCompatActivity() {
     override fun onRequestPermissionsResult(code: Int, perms: Array<String>, results: IntArray) {
         super.onRequestPermissionsResult(code, perms, results)
         if (code != 1) return
+        if (code != 1) return
         if (results.firstOrNull() == PackageManager.PERMISSION_GRANTED) openCamera()
         else hintView.text = "Camera permission denied."
     }

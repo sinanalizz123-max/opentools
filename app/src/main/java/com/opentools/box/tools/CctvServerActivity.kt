@@ -78,8 +78,12 @@ class CctvServerActivity : AppCompatActivity() {
     }
 
     private fun openCamera() {
-        val id = cameraManager.cameraIdList.firstOrNull() ?: return
         try {
+            val id = cameraManager.cameraIdList.firstOrNull()
+            if (id == null) {
+                status.text = "No camera is available on this device."
+                return
+            }
             cameraManager.openCamera(id, object : CameraDevice.StateCallback() {
                 override fun onOpened(c: CameraDevice) {
                     if (!active) {
@@ -142,27 +146,31 @@ class CctvServerActivity : AppCompatActivity() {
                 finally { img.close() }
             }, handler)
         }
-        val surface = reader!!.surface
-        val req = device.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW).apply {
-            addTarget(surface)
-        }
-        device.createCaptureSession(listOf(surface), object : CameraCaptureSession.StateCallback() {
-            override fun onConfigured(s: CameraCaptureSession) {
-                if (!active) {
+        try {
+            val surface = reader!!.surface
+            val req = device.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW).apply {
+                addTarget(surface)
+            }
+            device.createCaptureSession(listOf(surface), object : CameraCaptureSession.StateCallback() {
+                override fun onConfigured(s: CameraCaptureSession) {
+                    if (!active) {
+                        s.close()
+                        return
+                    }
+                    session = s
+                    try { s.setRepeatingRequest(req.build(), null, handler) }
+                    catch (error: Exception) {
+                        runOnUiThread { status.text = "Camera preview failed: " + (error.message ?: "camera unavailable") }
+                    }
+                }
+                override fun onConfigureFailed(s: CameraCaptureSession) {
                     s.close()
-                    return
+                    runOnUiThread { status.text = "Camera preview configuration failed" }
                 }
-                session = s
-                try { s.setRepeatingRequest(req.build(), null, handler) }
-                catch (error: Exception) {
-                    runOnUiThread { status.text = "Camera preview failed: " + (error.message ?: "camera unavailable") }
-                }
-            }
-            override fun onConfigureFailed(s: CameraCaptureSession) {
-                s.close()
-                runOnUiThread { status.text = "Camera preview configuration failed" }
-            }
-        }, handler)
+            }, handler)
+        } catch (error: Exception) {
+            status.text = "Could not start camera preview: " + (error.message ?: "camera unavailable")
+        }
     }
 
     @Deprecated("Deprecated in Android API; retained for compatibility with minSdk 26")

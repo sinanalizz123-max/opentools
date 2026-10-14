@@ -3,7 +3,6 @@ package com.opentools.box.tools
 import android.os.Bundle
 import android.os.SystemClock
 import android.view.Gravity
-import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
@@ -31,8 +30,8 @@ class RpmActivity : AppCompatActivity() {
             gravity = Gravity.CENTER
             UiStyle.styleText(this, 14f, false, UiStyle.muted(context))
         }
-        val tap = Button(this).apply { text = "TAP"; UiStyle.styleButton(this) }
-        val reset = Button(this).apply { text = "Reset"; UiStyle.styleButton(this, false) }
+        val tap = NativeButton(this).apply { text = "TAP" }
+        val reset = NativeButton(this, false).apply { text = "Reset" }
         tap.setOnClickListener {
             val now = SystemClock.elapsedRealtime()
             taps.addLast(now)

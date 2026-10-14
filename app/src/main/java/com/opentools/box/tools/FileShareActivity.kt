@@ -191,8 +191,7 @@ class FileShareActivity : AppCompatActivity() {
         }
         Thread {
             try {
-                val names: List<String>
-                Socket().use { socket ->
+                val names: List<String> = Socket().use { socket ->
                     socket.connect(InetSocketAddress(ip, 9999), 8000)
                     socket.soTimeout = 10000
                     val output = DataOutputStream(socket.getOutputStream())
@@ -202,7 +201,7 @@ class FileShareActivity : AppCompatActivity() {
                     output.flush()
                     val count = input.readInt()
                     if (count < 0 || count > 1000) throw IOException("Authentication failed or invalid file list")
-                    names = (0 until count).map { input.readUTF() }
+                    (0 until count).map { input.readUTF() }
                 }
                 var received = 0
                 for (entry in names) {

@@ -8,7 +8,7 @@ import android.widget.SeekBar
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
-import com.google.android.material.button.MaterialButton
+import com.opentools.box.UiStyle
 
 /** Audio file player (system picker + MediaPlayer). Original implementation. */
 class AudioPlayerActivity : AppCompatActivity() {
@@ -17,7 +17,7 @@ class AudioPlayerActivity : AppCompatActivity() {
     private var playing = false
     private lateinit var nameView: TextView
     private lateinit var seek: SeekBar
-    private lateinit var toggle: MaterialButton
+    private lateinit var toggle: NativeButton
     private val progress = object : Runnable {
         override fun run() {
             player?.let {
@@ -33,8 +33,17 @@ class AudioPlayerActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        nameView = TextView(this).apply { textSize = 18f; text = "No file" }
-        seek = SeekBar(this)
+        nameView = TextView(this).apply {
+            text = "Choose an audio file to begin."
+            UiStyle.styleText(this, 18f, true)
+            setPadding(UiStyle.dp(context, 18f), UiStyle.dp(context, 18f),
+                UiStyle.dp(context, 18f), UiStyle.dp(context, 18f))
+            background = UiStyle.rounded(context, UiStyle.surface(context), 16f, UiStyle.border(context))
+        }
+        seek = SeekBar(this).apply {
+            progressTintList = android.content.res.ColorStateList.valueOf(UiStyle.accent(context))
+            thumbTintList = android.content.res.ColorStateList.valueOf(UiStyle.accent(context))
+        }
         seek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(s: SeekBar?, p: Int, fromUser: Boolean) {
                 if (fromUser) try { player?.seekTo(p) } catch (_: Exception) { }
@@ -42,8 +51,8 @@ class AudioPlayerActivity : AppCompatActivity() {
             override fun onStartTrackingTouch(s: SeekBar?) = Unit
             override fun onStopTrackingTouch(s: SeekBar?) = Unit
         })
-        val pick = MaterialButton(this).apply { text = "Open audio" }
-        toggle = MaterialButton(this).apply { text = "Play"; isEnabled = false }
+        val pick = NativeButton(this, false).apply { text = "Open audio" }
+        toggle = NativeButton(this).apply { text = "Play"; isEnabled = false }
         pick.setOnClickListener { picker.launch(arrayOf("audio/*")) }
         toggle.setOnClickListener {
             val p = player ?: return@setOnClickListener
@@ -51,11 +60,25 @@ class AudioPlayerActivity : AppCompatActivity() {
             else { p.start(); toggle.text = "Pause" }
             playing = !playing
         }
-        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Audio Player",LinearLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Audio Player", LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            val pad = (16 * resources.displayMetrics.density).toInt()
+            val pad = UiStyle.dp(context, 20f)
             setPadding(pad, pad, pad, pad)
-            addView(nameView); addView(seek); addView(pick); addView(toggle)
+            addView(TextView(context).apply {
+                text = "Now playing"
+                UiStyle.styleText(this, 13f, true, UiStyle.muted(context))
+                setPadding(0, 0, 0, UiStyle.dp(context, 8f))
+            })
+            addView(nameView, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = UiStyle.dp(context, 16f)
+            })
+            addView(seek, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = UiStyle.dp(context, 12f)
+            })
+            addView(pick, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = UiStyle.dp(context, 8f)
+            })
+            addView(toggle, LinearLayout.LayoutParams(-1, -2))
         }))
     }
 

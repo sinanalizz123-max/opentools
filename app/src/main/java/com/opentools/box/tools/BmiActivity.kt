@@ -3,7 +3,6 @@ package com.opentools.box.tools
 import android.os.Bundle
 import android.text.InputType
 import android.view.Gravity
-import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -31,7 +30,7 @@ class BmiActivity : AppCompatActivity() {
             setPadding(UiStyle.dp(context, 18f), UiStyle.dp(context, 18f), UiStyle.dp(context, 18f), UiStyle.dp(context, 18f))
             background = UiStyle.rounded(context, UiStyle.surface(context), 16f, UiStyle.border(context))
         }
-        val calc = Button(this).apply { text = "Calculate BMI"; UiStyle.styleButton(this) }
+        val calc = NativeButton(this).apply { text = "Calculate BMI" }
         calc.setOnClickListener {
             val w = weight.text.toString().trim().toDoubleOrNull()
             val h = height.text.toString().trim().toDoubleOrNull()?.div(100.0)

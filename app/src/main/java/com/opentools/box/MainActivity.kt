@@ -44,7 +44,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var grid: RecyclerView
     private lateinit var gridAdapter: ToolGridAdapter
     private lateinit var rail: LinearLayout
-    private lateinit var searchResults: ListView
     private lateinit var shortcutRow: LinearLayout
 
     private val voiceLauncher = registerForActivityResult(
@@ -53,14 +52,14 @@ class MainActivity : AppCompatActivity() {
             val match = result.data
                 ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
             if (match != null) {
-                searchViewHolder?.show()
-                searchViewHolder?.setText(match)
+                searchField?.setText(match)
                 runSearch(match)
             }
         }
     }
 
-    private var searchViewHolder: com.google.android.material.search.SearchView? = null
+    private var searchField: android.widget.EditText? = null
+    private lateinit var searchDropdown: android.widget.ListView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         mark("super.onCreate.start")
@@ -95,7 +94,6 @@ class MainActivity : AppCompatActivity() {
             layoutManager = GridLayoutManager(this@MainActivity, 3)
             adapter = ToolGridAdapter(allTools) { openTool(it) }
         }
-        searchResults = ListView(this).apply { visibility = View.GONE }
         setContentView(FrameLayout(this).apply { addView(grid) })
     }
 
@@ -107,6 +105,14 @@ class MainActivity : AppCompatActivity() {
                 addView(buildHeader())
                 mark("step.search")
                 addView(buildSearch())
+                searchDropdown = android.widget.ListView(context).apply {
+                    visibility = View.GONE
+                    // ListView inside ScrollView needs an explicit height.
+                    layoutParams = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        (240 * resources.displayMetrics.density).toInt())
+                }
+                addView(searchDropdown)
                 mark("step.featured")
                 addView(buildFeatured())
                 addView(sectionTitle("Shortcuts"))
@@ -123,11 +129,8 @@ class MainActivity : AppCompatActivity() {
                 addView(buildRecommended())
             })
         }
-        searchResults = ListView(this).apply { visibility = View.GONE }
         val frame = FrameLayout(this).apply {
             addView(root)
-            addView(searchResults)
-            searchViewHolder?.let { addView(it) }
         }
         ToolScaffold.applySystemBarInsets(frame)
         setContentView(frame)
@@ -189,29 +192,23 @@ class MainActivity : AppCompatActivity() {
 
     private fun buildSearch(): View {
         val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        val searchBar = SearchBar(this).apply { hint = "Search tools" }
-        val searchView = com.google.android.material.search.SearchView(this).apply {
-            hint = "Search tools"
-            setupWithSearchBar(searchBar)
-            editText.addTextChangedListener(object : TextWatcher {
+        val layout = com.google.android.material.textfield.TextInputLayout(
+            this, null,
+            com.google.android.material.R.attr.textInputOutlinedStyle,
+        ).apply {
+            this.hint = "Search tools"
+            startIconDrawable = androidx.appcompat.content.res.AppCompatResources.getDrawable(
+                context, androidx.appcompat.R.drawable.abc_ic_search_api_material)
+        }
+        val input = com.google.android.material.textfield.TextInputEditText(layout.context).apply {
+            addTextChangedListener(object : TextWatcher {
                 override fun afterTextChanged(s: Editable?) = runSearch(s.toString())
                 override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) = Unit
                 override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) = Unit
             })
-            addTransitionListener(
-                object : com.google.android.material.search.SearchView.TransitionListener {
-                    override fun onStateChanged(
-                        searchView: com.google.android.material.search.SearchView,
-                        previousState: com.google.android.material.search.SearchView.TransitionState,
-                        newState: com.google.android.material.search.SearchView.TransitionState,
-                    ) {
-                        if (newState == com.google.android.material.search.SearchView.TransitionState.HIDDEN) {
-                            runSearch("")
-                        }
-                    }
-                })
         }
-        searchViewHolder = searchView
+        layout.addView(input)
+        searchField = input
         val voice = MaterialButton(this).apply {
             text = "Mic"
             setOnClickListener {
@@ -224,23 +221,29 @@ class MainActivity : AppCompatActivity() {
                 } catch (_: Exception) { }
             }
         }
-        row.addView(searchBar, LinearLayout.LayoutParams(0,
+        row.addView(layout, LinearLayout.LayoutParams(0,
             LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
         row.addView(voice)
         return row
     }
 
     private fun runSearch(query: String) {
+        // Live dropdown under the field, updating on every character.
+        if (!::searchDropdown.isInitialized) return
         if (query.isBlank()) {
-            searchResults.visibility = View.GONE
+            searchDropdown.visibility = View.GONE
             return
         }
         val hits = allTools.filter { it.title.contains(query, ignoreCase = true) }
-        searchResults.adapter = ArrayAdapter(this,
-            android.R.layout.simple_list_item_1, hits.map { it.title })
-        searchResults.setOnItemClickListener { _, _, pos, _ -> openTool(hits[pos]) }
-        searchResults.visibility = View.VISIBLE
-        searchResults.bringToFront()
+        searchDropdown.adapter = android.widget.ArrayAdapter(this,
+            android.R.layout.simple_list_item_1,
+            hits.map { "${it.title}  ·  ${it.category.label}" })
+        searchDropdown.setOnItemClickListener { _, _, pos, _ ->
+            searchDropdown.visibility = View.GONE
+            searchField?.setText("")
+            openTool(hits[pos])
+        }
+        searchDropdown.visibility = if (hits.isEmpty()) View.GONE else View.VISIBLE
     }
 
     // ---- Featured carousel ----
@@ -434,7 +437,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun openTool(entry: ToolEntry) {
-        searchResults.visibility = View.GONE
         startActivity(Intent(this, entry.activityClass))
     }
 }

@@ -33,6 +33,13 @@ class GpsActivity : AppCompatActivity(), LocationListener {
                 UiStyle.dp(context, 16f), UiStyle.dp(context, 24f))
             background = UiStyle.rounded(context, UiStyle.surface(context), 18f, UiStyle.border(context))
             setTextIsSelectable(true)
+            contentDescription = "Coordinates. Long-press to copy."
+            setOnLongClickListener {
+                val cm = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                cm.setPrimaryClip(android.content.ClipData.newPlainText("coords", text.toString()))
+                android.widget.Toast.makeText(this@GpsActivity, "Coordinates copied", android.widget.Toast.LENGTH_SHORT).show()
+                true
+            }
         }
         extra = TextView(this).apply {
             text = "Accuracy: —"

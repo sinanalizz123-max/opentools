@@ -25,6 +25,8 @@ class GalleryActivity : AppCompatActivity() {
     private lateinit var status: TextView
     private lateinit var browserStatus: TextView
     private lateinit var browserList: LinearLayout
+    private lateinit var retryPerm: NativeButton
+    private var permRequested = false
     private var folders: Map<String, List<Pair<String, Uri>>> = emptyMap()
     private var openFolder: String? = null
 
@@ -41,8 +43,9 @@ class GalleryActivity : AppCompatActivity() {
     }
 
     private val permLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) loadBrowser() else {
-            browserStatus.text = "Permission denied. Use the system picker below to open images."
+        if (granted) { retryPerm.visibility = android.view.View.GONE; loadBrowser() } else {
+            retryPerm.visibility = android.view.View.VISIBLE
+            browserStatus.text = "Image access is needed to browse on-device images. Grant it to load automatically."
         }
     }
 
@@ -80,6 +83,11 @@ class GalleryActivity : AppCompatActivity() {
             UiStyle.styleText(this, 13f, true, UiStyle.muted(context))
         }
         browserList = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        retryPerm = NativeButton(this, false).apply {
+            text = "Grant image access"
+            visibility = android.view.View.GONE
+            setOnClickListener { permRequested = false; ensureBrowser() }
+        }
         val browserScroll = ScrollView(this).apply {
             addView(browserList, LinearLayout.LayoutParams(-1, -2))
         }
@@ -88,6 +96,7 @@ class GalleryActivity : AppCompatActivity() {
             val pad = UiStyle.dp(this@GalleryActivity, 16f)
             setPadding(pad, pad, pad, pad)
             addView(browserStatus, LinearLayout.LayoutParams(-1, -2))
+            addView(retryPerm, LinearLayout.LayoutParams(-1, -2))
             addView(browserScroll, LinearLayout.LayoutParams(-1, UiStyle.dp(this@GalleryActivity, 150f)).apply {
                 topMargin = UiStyle.dp(this@GalleryActivity, 6f)
                 bottomMargin = UiStyle.dp(this@GalleryActivity, 8f)
@@ -100,12 +109,29 @@ class GalleryActivity : AppCompatActivity() {
             addView(pick, LinearLayout.LayoutParams(-1, -2))
         }
         setContentView(ToolScaffold.wrap(this, "Gallery", content))
+        ensureBrowser()
+    }
+
+    private fun ensureBrowser() {
         if (ContextCompat.checkSelfPermission(this, neededPermission()) == PackageManager.PERMISSION_GRANTED) {
+            retryPerm.visibility = android.view.View.GONE
             loadBrowser()
-        } else {
+        } else if (!permRequested) {
             browserStatus.text = "Loading on-device images…"
-            permLauncher.launch(neededPermission())
+            permRequested = true
+            try { permLauncher.launch(neededPermission()) } catch (_: Exception) {
+                browserStatus.text = "Image access is needed to browse on-device images. Grant it to load automatically."
+                retryPerm.visibility = android.view.View.VISIBLE
+            }
+        } else {
+            browserStatus.text = "Image access is needed to browse on-device images. Grant it to load automatically."
+            retryPerm.visibility = android.view.View.VISIBLE
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        try { ensureBrowser() } catch (_: Exception) { }
     }
 
     private fun loadBrowser() {

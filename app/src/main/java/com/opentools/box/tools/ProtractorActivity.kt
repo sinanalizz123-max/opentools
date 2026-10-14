@@ -30,7 +30,7 @@ class ProtractorActivity : AppCompatActivity(), SensorEventListener {
         sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
         dial = Dial(this)
         label = TextView(this).apply {
-            text = "Pitch —°   Roll —°"
+            text = "X —°   Y —°   Z —°"
             gravity = Gravity.CENTER
             UiStyle.styleText(this, 22f, true)
             setPadding(UiStyle.dp(context, 12f), UiStyle.dp(context, 14f),
@@ -74,8 +74,13 @@ class ProtractorActivity : AppCompatActivity(), SensorEventListener {
         SensorManager.getOrientation(rotation, orientation)
         val pitch = Math.toDegrees(orientation[1].toDouble())
         val roll = Math.toDegrees(orientation[2].toDouble())
-        dial.angle = roll.toFloat()
-        label.text = "Pitch %.1f°   Roll %.1f°".format(pitch, roll)
+        var azimuth = Math.toDegrees(orientation[0].toDouble())
+        if (azimuth < 0) azimuth += 360
+        // Dial follows the edge pointing up: use roll in portrait,
+        // pitch when the device is turned sideways.
+        val sideways = kotlin.math.abs(pitch) > 45
+        dial.angle = (if (sideways) pitch else roll).toFloat()
+        label.text = "X %.1f°   Y %.1f°   Z %.1f°".format(pitch, roll, azimuth)
     }
 
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit

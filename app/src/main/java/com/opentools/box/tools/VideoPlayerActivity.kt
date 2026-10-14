@@ -26,6 +26,8 @@ class VideoPlayerActivity : AppCompatActivity() {
     private lateinit var status: TextView
     private lateinit var browserStatus: TextView
     private lateinit var browserList: LinearLayout
+    private lateinit var retryPerm: NativeButton
+    private var permRequested = false
     private var folders: Map<String, List<Pair<String, Uri>>> = emptyMap()
     private var openFolder: String? = null
 
@@ -41,8 +43,9 @@ class VideoPlayerActivity : AppCompatActivity() {
     }
 
     private val permLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) loadBrowser() else {
-            browserStatus.text = "Permission denied. Use the system picker below to open videos."
+        if (granted) { retryPerm.visibility = android.view.View.GONE; loadBrowser() } else {
+            retryPerm.visibility = android.view.View.VISIBLE
+            browserStatus.text = "Video access is needed to browse on-device videos. Grant it to load automatically."
         }
     }
 
@@ -87,6 +90,11 @@ class VideoPlayerActivity : AppCompatActivity() {
             UiStyle.styleText(this, 13f, true, UiStyle.muted(context))
         }
         browserList = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        retryPerm = NativeButton(this, false).apply {
+            text = "Grant video access"
+            visibility = android.view.View.GONE
+            setOnClickListener { permRequested = false; ensureBrowser() }
+        }
         val browserScroll = ScrollView(this).apply {
             addView(browserList, LinearLayout.LayoutParams(-1, -2))
         }
@@ -95,6 +103,7 @@ class VideoPlayerActivity : AppCompatActivity() {
             val pad = UiStyle.dp(this@VideoPlayerActivity, 12f)
             setPadding(pad, pad, pad, pad)
             addView(browserStatus, LinearLayout.LayoutParams(-1, -2))
+            addView(retryPerm, LinearLayout.LayoutParams(-1, -2))
             addView(browserScroll, LinearLayout.LayoutParams(-1, UiStyle.dp(this@VideoPlayerActivity, 150f)).apply {
                 topMargin = UiStyle.dp(this@VideoPlayerActivity, 6f)
                 bottomMargin = UiStyle.dp(this@VideoPlayerActivity, 8f)
@@ -107,12 +116,29 @@ class VideoPlayerActivity : AppCompatActivity() {
             addView(pick, LinearLayout.LayoutParams(-1, -2))
         }
         setContentView(ToolScaffold.wrap(this, "Video Player", content))
+        ensureBrowser()
+    }
+
+    private fun ensureBrowser() {
         if (ContextCompat.checkSelfPermission(this, neededPermission()) == PackageManager.PERMISSION_GRANTED) {
+            retryPerm.visibility = android.view.View.GONE
             loadBrowser()
-        } else {
+        } else if (!permRequested) {
             browserStatus.text = "Loading on-device videos…"
-            permLauncher.launch(neededPermission())
+            permRequested = true
+            try { permLauncher.launch(neededPermission()) } catch (_: Exception) {
+                browserStatus.text = "Video access is needed to browse on-device videos. Grant it to load automatically."
+                retryPerm.visibility = android.view.View.VISIBLE
+            }
+        } else {
+            browserStatus.text = "Video access is needed to browse on-device videos. Grant it to load automatically."
+            retryPerm.visibility = android.view.View.VISIBLE
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        try { ensureBrowser() } catch (_: Exception) { }
     }
 
     private fun loadBrowser() {

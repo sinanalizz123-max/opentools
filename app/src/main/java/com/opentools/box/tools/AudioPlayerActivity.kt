@@ -28,6 +28,8 @@ class AudioPlayerActivity : AppCompatActivity() {
     private lateinit var toggle: NativeButton
     private lateinit var browserStatus: TextView
     private lateinit var browserList: LinearLayout
+    private lateinit var retryPerm: NativeButton
+    private var permRequested = false
     private var folders: Map<String, List<Pair<String, Uri>>> = emptyMap()
     private var openFolder: String? = null
 
@@ -45,8 +47,9 @@ class AudioPlayerActivity : AppCompatActivity() {
     }
 
     private val permLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) loadBrowser() else {
-            browserStatus.text = "Permission denied. Use the system picker below to open audio files."
+        if (granted) { retryPerm.visibility = android.view.View.GONE; loadBrowser() } else {
+            browserStatus.text = "Audio access is needed to browse on-device audio. Grant it to load automatically."
+            retryPerm.visibility = android.view.View.VISIBLE
         }
     }
 
@@ -88,6 +91,11 @@ class AudioPlayerActivity : AppCompatActivity() {
             setPadding(0, 0, 0, UiStyle.dp(this@AudioPlayerActivity, 8f))
         }
         browserList = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        retryPerm = NativeButton(this, false).apply {
+            text = "Grant audio access"
+            visibility = android.view.View.GONE
+            setOnClickListener { permRequested = false; ensureBrowser() }
+        }
         val browserScroll = ScrollView(this).apply {
             addView(browserList, LinearLayout.LayoutParams(-1, -2))
         }
@@ -97,6 +105,9 @@ class AudioPlayerActivity : AppCompatActivity() {
             setPadding(pad, pad, pad, pad)
             addView(browserStatus, LinearLayout.LayoutParams(-1, -2))
             addView(browserScroll, LinearLayout.LayoutParams(-1, UiStyle.dp(this@AudioPlayerActivity, 180f)).apply {
+                bottomMargin = UiStyle.dp(this@AudioPlayerActivity, 16f)
+            })
+            addView(retryPerm, LinearLayout.LayoutParams(-1, -2).apply {
                 bottomMargin = UiStyle.dp(this@AudioPlayerActivity, 16f)
             })
             addView(TextView(context).apply {
@@ -115,12 +126,31 @@ class AudioPlayerActivity : AppCompatActivity() {
             })
             addView(toggle, LinearLayout.LayoutParams(-1, -2))
         }))
+        ensureBrowser()
+    }
+
+    private fun ensureBrowser() {
         if (ContextCompat.checkSelfPermission(this, neededPermission()) == PackageManager.PERMISSION_GRANTED) {
+            retryPerm.visibility = android.view.View.GONE
             loadBrowser()
         } else {
             browserStatus.text = "Loading on-device audio…"
-            permLauncher.launch(neededPermission())
+            if (!permRequested) {
+                permRequested = true
+                try { permLauncher.launch(neededPermission()) } catch (_: Exception) {
+                    browserStatus.text = "Audio access is needed to browse on-device audio. Grant it to load automatically."
+                    retryPerm.visibility = android.view.View.VISIBLE
+                }
+            } else {
+                browserStatus.text = "Audio access is needed to browse on-device audio. Grant it to load automatically."
+                retryPerm.visibility = android.view.View.VISIBLE
+            }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        try { ensureBrowser() } catch (_: Exception) { }
     }
 
     private fun loadBrowser() {

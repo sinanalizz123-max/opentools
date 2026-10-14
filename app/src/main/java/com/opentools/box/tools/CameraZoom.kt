@@ -1,5 +1,6 @@
 package com.opentools.box.tools
 
+import android.annotation.SuppressLint
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import android.view.TextureView
@@ -31,6 +32,9 @@ class CameraZoom(
         return detector.isInProgress
     }
 
+    // TextureView is a framework class we cannot subclass here; the listener
+    // below calls performClick() on ACTION_UP, which satisfies accessibility.
+    @SuppressLint("ClickableViewAccessibility")
     fun attach(onSingleTap: ((MotionEvent) -> Unit)? = null) {
         view.setOnTouchListener { v, event ->
             detector.onTouchEvent(event)
@@ -43,6 +47,7 @@ class CameraZoom(
         }
     }
 
+    @SuppressLint("ClickableViewAccessibility")
     fun detach() {
         view.setOnTouchListener(null)
     }

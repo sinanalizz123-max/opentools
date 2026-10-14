@@ -10,9 +10,11 @@ import android.hardware.camera2.CameraManager
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CaptureRequest
 import android.media.ImageReader
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.HandlerThread
+import android.widget.Button
 import android.view.Gravity
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -28,7 +30,14 @@ class HeartRateActivity : AppCompatActivity() {
     private lateinit var hintView: TextView
     private lateinit var signalBar: android.widget.ProgressBar
     private lateinit var signalView: TextView
+    private lateinit var flashToggle: Button
     private lateinit var cameraManager: CameraManager
+    private var flashOn = true
+    private var measuring = false
+    private var pausedForCooldown = false
+    private var sessionStartMs = 0L
+    private val safetyHandler = Handler(android.os.Looper.getMainLooper())
+    private val safetyTimeout = Runnable { pauseForCooldown() }
     private var camera: CameraDevice? = null
     private var session: CameraCaptureSession? = null
     private var reader: ImageReader? = null
@@ -68,6 +77,15 @@ class HeartRateActivity : AppCompatActivity() {
             text = "Signal: 0%"
             UiStyle.styleText(this, 13f, false, UiStyle.muted(context))
         }
+        flashToggle = NativeButton(this).apply {
+            text = "Flash: on"
+            setOnClickListener {
+                flashOn = !flashOn
+                text = if (flashOn) "Flash: on" else "Flash: off"
+                if (pausedForCooldown) return@setOnClickListener
+                if (flashOn) restartForFlashChange() else restartForFlashChange()
+            }
+        }
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
@@ -87,6 +105,9 @@ class HeartRateActivity : AppCompatActivity() {
                 topMargin = UiStyle.dp(context, 12f)
             })
             addView(signalView, LinearLayout.LayoutParams(-1, -2))
+            addView(flashToggle, LinearLayout.LayoutParams(-1, -2).apply {
+                topMargin = UiStyle.dp(context, 12f)
+            })
             addView(TextView(context).apply {
                 text = "Camera-based estimate only; not a medical device."
                 gravity = Gravity.CENTER
@@ -99,6 +120,7 @@ class HeartRateActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        pausedForCooldown = false
         thread = HandlerThread("ppg").also { it.start() }
         handler = Handler(thread!!.looper)
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
@@ -110,6 +132,8 @@ class HeartRateActivity : AppCompatActivity() {
     }
 
     override fun onPause() {
+        safetyHandler.removeCallbacks(safetyTimeout)
+        measuring = false
         try { camera?.let { flashOff(it) } } catch (_: Exception) { }
         session?.close(); session = null
         camera?.close(); camera = null
@@ -151,9 +175,23 @@ class HeartRateActivity : AppCompatActivity() {
         }
         val activeReader = reader ?: return
         val surface = activeReader.surface
+        measuring = true
+        sessionStartMs = System.currentTimeMillis()
+        safetyHandler.removeCallbacks(safetyTimeout)
+        safetyHandler.postDelayed(safetyTimeout, 60_000)
+        val strengthSupported = supportsLowTorch(id)
         val req = device.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW).apply {
             addTarget(surface)
-            try { set(CaptureRequest.FLASH_MODE, CaptureRequest.FLASH_MODE_TORCH) } catch (_: Exception) { }
+            try {
+                if (flashOn && strengthSupported && Build.VERSION.SDK_INT >= 35) {
+                    set(CaptureRequest.FLASH_MODE, CaptureRequest.FLASH_MODE_TORCH)
+                    set(CaptureRequest.FLASH_STRENGTH_LEVEL, 1)
+                } else if (flashOn) {
+                    set(CaptureRequest.FLASH_MODE, CaptureRequest.FLASH_MODE_TORCH)
+                } else {
+                    set(CaptureRequest.FLASH_MODE, CaptureRequest.FLASH_MODE_OFF)
+                }
+            } catch (_: Exception) { }
         }
         device.createCaptureSession(listOf(surface), object : CameraCaptureSession.StateCallback() {
             override fun onConfigured(s: CameraCaptureSession) {
@@ -162,6 +200,53 @@ class HeartRateActivity : AppCompatActivity() {
             }
             override fun onConfigureFailed(s: CameraCaptureSession) = Unit
         }, handler)
+    }
+
+    /** Minimum-strength flash needs API 35 (FLASH_STRENGTH_LEVEL key). */
+    private fun supportsLowTorch(id: String): Boolean {
+        return try {
+            if (Build.VERSION.SDK_INT < 35) false
+            else (cameraManager.getCameraCharacteristics(id)
+                .get(CameraCharacteristics.FLASH_INFO_STRENGTH_MAXIMUM_LEVEL) ?: 1) > 1
+        } catch (_: Exception) { false }
+    }
+
+    private fun restartForFlashChange() {
+        try { session?.close() } catch (_: Exception) { }
+        session = null
+        try { camera?.close() } catch (_: Exception) { }
+        camera = null
+        measuring = false
+        safetyHandler.removeCallbacks(safetyTimeout)
+        if (::hintView.isInitialized && !pausedForCooldown) {
+            hintView.text = "Cover the rear camera lens with a fingertip and hold still."
+        }
+        openCamera()
+    }
+
+    private fun pauseForCooldown() {
+        if (!measuring) return
+        measuring = false
+        pausedForCooldown = true
+        try { session?.close() } catch (_: Exception) { }
+        session = null
+        try { camera?.close() } catch (_: Exception) { }
+        camera = null
+        runOnUiThread {
+            hintView.text = "Paused to let the flash cool down — tap to resume"
+            flashToggle.text = "Resume measurement"
+            flashToggle.setOnClickListener {
+                pausedForCooldown = false
+                flashToggle.text = if (flashOn) "Flash: on" else "Flash: off"
+                flashToggle.setOnClickListener(null)
+                flashToggle.setOnClickListener {
+                    flashOn = !flashOn
+                    flashToggle.text = if (flashOn) "Flash: on" else "Flash: off"
+                    if (!pausedForCooldown) restartForFlashChange()
+                }
+                restartForFlashChange()
+            }
+        }
     }
 
     private fun flashOff(device: CameraDevice) { }

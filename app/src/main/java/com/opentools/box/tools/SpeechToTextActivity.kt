@@ -40,7 +40,7 @@ class SpeechToTextActivity : AppCompatActivity() {
             setPadding(UiStyle.dp(context, 18f), UiStyle.dp(context, 18f),
                 UiStyle.dp(context, 18f), UiStyle.dp(context, 18f))
             background = UiStyle.rounded(context, UiStyle.surface(context), 16f, UiStyle.border(context))
-            textIsSelectable = true
+            setTextIsSelectable(true)
         }
         statusView = TextView(this).apply {
             text = "Ready to listen"

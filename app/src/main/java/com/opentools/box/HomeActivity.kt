@@ -94,6 +94,7 @@ class HomeActivity : AppCompatActivity() {
             })
         })
         say("HomeActivity opened, assembling offscreen…")
+        OpenToolsApp.takeLastCrash(this)?.let { say("PREVIOUS CRASH:\n" + it.take(3000)) }
         assemble()
     }
 

@@ -33,10 +33,13 @@ object CctvLan {
             if (running) return
             running = true
             Thread {
+                var localServer: SocketServer? = null
                 try {
-                    server = SocketServer(java.net.ServerSocket(PORT))
+                    val activeServer = SocketServer(java.net.ServerSocket(PORT))
+                    localServer = activeServer
+                    server = activeServer
                     while (running) {
-                        val socket = server?.socket?.accept() ?: break
+                        val socket = activeServer.socket.accept()
                         if (!clientSlots.tryAcquire()) {
                             socket.close()
                             continue
@@ -50,8 +53,8 @@ object CctvLan {
                     if (running) onError?.invoke(error.message ?: "Could not start camera stream")
                 } finally {
                     running = false
-                    try { server?.socket?.close() } catch (_: Exception) { }
-                    server = null
+                    try { localServer?.socket?.close() } catch (_: Exception) { }
+                    if (server === localServer) server = null
                 }
             }.start()
         }

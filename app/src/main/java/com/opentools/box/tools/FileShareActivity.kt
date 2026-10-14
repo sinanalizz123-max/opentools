@@ -30,6 +30,7 @@ class FileShareActivity : AppCompatActivity() {
     @Volatile private var server: ServerSocket? = null
     @Volatile private var serving = false
     @Volatile private var sessionToken = ""
+    @Volatile private var serverGeneration = 0
     private val shared = Collections.synchronizedList(mutableListOf<Uri>())
     private val clientSlots = Semaphore(4)
     private lateinit var status: TextView
@@ -86,17 +87,20 @@ class FileShareActivity : AppCompatActivity() {
     private fun startServer() {
         if (serving) return
         serving = true
+        val generation = ++serverGeneration
         sessionToken = newToken()
         status.text = "Starting server…"
         Thread {
+            var localServer: ServerSocket? = null
             try {
-                val socket = ServerSocket(9999)
-                server = socket
+                val activeServer = ServerSocket(9999)
+                localServer = activeServer
+                server = activeServer
                 runOnUiThread {
-                    if (serving) status.text = "Serving on :9999\nShare token: " + sessionToken
+                    if (serving && generation == serverGeneration) status.text = "Serving on :9999\nShare token: " + sessionToken
                 }
-                while (serving) {
-                    val client = socket.accept()
+                while (serving && generation == serverGeneration) {
+                    val client = activeServer.accept()
                     if (!clientSlots.tryAcquire()) {
                         client.close()
                         continue
@@ -107,13 +111,13 @@ class FileShareActivity : AppCompatActivity() {
                     }.start()
                 }
             } catch (error: Exception) {
-                if (serving) runOnUiThread {
+                if (serving && generation == serverGeneration) runOnUiThread {
                     serving = false
                     status.text = "Server failed: " + (error.message ?: "port unavailable")
                 }
             } finally {
-                try { server?.close() } catch (_: Exception) { }
-                server = null
+                try { localServer?.close() } catch (_: Exception) { }
+                if (server === localServer) server = null
             }
         }.start()
     }
@@ -187,6 +191,7 @@ class FileShareActivity : AppCompatActivity() {
 
     private fun stopServer() {
         serving = false
+        serverGeneration++
         sessionToken = ""
         try { server?.close() } catch (_: Exception) { }
         server = null

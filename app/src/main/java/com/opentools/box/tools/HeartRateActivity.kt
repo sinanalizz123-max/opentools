@@ -107,7 +107,7 @@ class HeartRateActivity : AppCompatActivity() {
             if (chars.get(CameraCharacteristics.LENS_FACING) == CameraCharacteristics.LENS_FACING_BACK
                 && chars.get(CameraCharacteristics.FLASH_INFO_AVAILABLE) == true) return id
         }
-        return cameraManager.cameraIdList.firstOrNull()
+        return null
     }
 
     private fun openCamera() {
@@ -188,7 +188,6 @@ class HeartRateActivity : AppCompatActivity() {
 
     override fun onRequestPermissionsResult(code: Int, perms: Array<String>, results: IntArray) {
         super.onRequestPermissionsResult(code, perms, results)
-        if (code != 1) return
         if (code != 1) return
         if (results.firstOrNull() == PackageManager.PERMISSION_GRANTED) openCamera()
         else hintView.text = "Camera permission denied."

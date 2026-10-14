@@ -9,7 +9,7 @@ flashlight, sensors, converters, media, GPS, LAN sharing, and more.
 > reimplemented from scratch; no assets, strings, layouts, or code from any
 > other app are used here.
 
-## Tools (81)
+## Tools (78)
 
 Light: Torch, White Screen, Color Light · Sensors: Compass, EMF, G-Force,
 Pressure, Humidity, Light, Proximity, Level, Battery, Vibrometer, Altimeter,

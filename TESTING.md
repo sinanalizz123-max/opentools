@@ -7,7 +7,7 @@
   (`core-ktx:1.16.0`, `appcompat:1.7.1` have newer versions) are intentionally
   not applied: the suggested versions require `compileSdk 37`, which is not
   available in this project's SDK; applying them breaks the build (verified).
-- Manifest audit: all 81 `ToolRegistry` activities registered; `ScreenRecordService`
+- Manifest audit: all 78 `ToolRegistry` activities registered; `ScreenRecordService`
   declared with `mediaProjection` type; no auto-init providers remain
   (`androidx.startup` and ML Kit init are stripped on purpose).
 - Permission audit: every `CAMERA` / `RECORD_AUDIO` call site has an explicit
@@ -21,7 +21,7 @@
   no legacy external-storage paths; backups disabled (`allowBackup=false`)
   so vault contents never leave the device via cloud backup.
 - On-device smoke test (Pixel, Android 17): fresh update install opens the
-  rewritten home (header, search, quick access, category chips, 81-tool grid),
+  rewritten home (header, search, quick access, category chips, 78-tool grid),
   no crash, no crash-report dialog, zero `FATAL EXCEPTION` in logcat.
 
 ## Requires real-device testing (not covered here)

@@ -114,8 +114,11 @@ class ScreenRecordService : Service() {
         )
         recorder!!.start()
         statePrefs().edit().putString("state", "recording").remove("error").apply()
-        val manager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
-        manager.notify(NOTIFICATION_ID, buildNotification())
+        if (Build.VERSION.SDK_INT < 33 ||
+            checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            val manager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+            manager.notify(NOTIFICATION_ID, buildNotification())
+        }
     }
 
     private fun buildNotification(): Notification {

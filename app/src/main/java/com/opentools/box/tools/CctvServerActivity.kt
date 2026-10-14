@@ -78,6 +78,10 @@ class CctvServerActivity : AppCompatActivity() {
     }
 
     private fun openCamera() {
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            status.text = "Camera permission required."
+            return
+        }
         try {
             val id = cameraManager.cameraIdList.firstOrNull()
             if (id == null) {

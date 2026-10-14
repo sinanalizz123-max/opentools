@@ -234,6 +234,10 @@ class VideoCallActivity : AppCompatActivity() {
     }
 
     private fun openCamera() {
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            status.text = "Camera permission required."
+            return
+        }
         // Front camera preferred for calls.
         val ids = cameraManager.cameraIdList
         val front = ids.firstOrNull {

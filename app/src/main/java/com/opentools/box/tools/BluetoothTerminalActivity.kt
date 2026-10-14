@@ -61,10 +61,10 @@ class BluetoothTerminalActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         if (Build.VERSION.SDK_INT >= 31 &&
-            ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT)
-            != PackageManager.PERMISSION_GRANTED) {
+            (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED ||
+                ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED)) {
             ActivityCompat.requestPermissions(this,
-                arrayOf(Manifest.permission.BLUETOOTH_CONNECT), 1)
+                arrayOf(Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN), 1)
         }
     }
 
@@ -91,20 +91,28 @@ class BluetoothTerminalActivity : AppCompatActivity() {
     private fun connectTo(mac: String) {
         if (mac.isEmpty()) return
         if (Build.VERSION.SDK_INT >= 31 &&
-            ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.BLUETOOTH_CONNECT), 1)
+            (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED ||
+                ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED)) {
+            ActivityCompat.requestPermissions(this,
+                arrayOf(Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN), 1)
             return
         }
+        try { socket?.close() } catch (_: Exception) { }
+        socket = null
         Thread {
+            var connection: BluetoothSocket? = null
             try {
                 val manager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
                 val device = manager.adapter.getRemoteDevice(mac)
-                socket = device.createRfcommSocketToServiceRecord(spp)
+                connection = device.createRfcommSocketToServiceRecord(spp)
+                socket = connection
                 manager.adapter.cancelDiscovery()
-                socket?.connect()
+                connection.connect()
                 addLine("Connected to $mac")
                 startReading()
             } catch (e: Exception) {
+                try { connection?.close() } catch (_: Exception) { }
+                if (socket === connection) socket = null
                 addLine("Connect failed: ${e.message}")
             }
         }.start()
@@ -144,7 +152,7 @@ class BluetoothTerminalActivity : AppCompatActivity() {
     override fun onRequestPermissionsResult(code: Int, perms: Array<String>, results: IntArray) {
         super.onRequestPermissionsResult(code, perms, results)
         if (code != 1) return
-        if (results.firstOrNull() == PackageManager.PERMISSION_GRANTED) refreshPairedDevices()
+        if (results.isNotEmpty() && results.all { it == PackageManager.PERMISSION_GRANTED }) refreshPairedDevices()
         else bondedView.text = "Bluetooth permission denied."
     }
 

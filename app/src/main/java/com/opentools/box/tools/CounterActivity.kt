@@ -2,36 +2,52 @@ package com.opentools.box.tools
 
 import android.os.Bundle
 import android.view.Gravity
+import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
-import com.google.android.material.button.MaterialButton
+import com.opentools.box.ToolScaffold
+import com.opentools.box.UiStyle
 
-/** Tally counter with increment/decrement/reset. Original implementation. */
+/** Native tally counter with increment, decrement, reset, and rotation-safe state. */
 class CounterActivity : AppCompatActivity() {
-
     private var count = 0
     private lateinit var displayView: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        if (savedInstanceState != null) count = savedInstanceState.getInt("count")
-        displayView = TextView(this).apply { textSize = 72f; gravity = Gravity.CENTER }
-        val plus = MaterialButton(this).apply { text = "+1" }
-        val minus = MaterialButton(this).apply { text = "-1" }
-        val reset = MaterialButton(this).apply { text = "Reset" }
+        count = savedInstanceState?.getInt("count") ?: 0
+        displayView = TextView(this).apply {
+            gravity = Gravity.CENTER
+            UiStyle.styleText(this, 64f, true)
+            setPadding(UiStyle.dp(context, 16f), UiStyle.dp(context, 28f), UiStyle.dp(context, 16f), UiStyle.dp(context, 28f))
+            background = UiStyle.rounded(context, UiStyle.surface(context), 22f, UiStyle.border(context))
+        }
+        val plus = Button(this).apply { text = "+1"; UiStyle.styleButton(this) }
+        val minus = Button(this).apply { text = "−1"; UiStyle.styleButton(this, false) }
+        val reset = Button(this).apply { text = "Reset"; UiStyle.styleButton(this, false) }
         plus.setOnClickListener { count++; render() }
         minus.setOnClickListener { count--; render() }
         reset.setOnClickListener { count = 0; render() }
         render()
-        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Counter",LinearLayout(this).apply {
+
+        val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
-            addView(displayView)
-            addView(plus)
-            addView(minus)
-            addView(reset)
-        }))
+            val pad = UiStyle.dp(context, 24f)
+            setPadding(pad, pad, pad, pad)
+            addView(TextView(context).apply {
+                text = "Tap to keep count"
+                UiStyle.styleText(this, 15f, false, UiStyle.muted(context))
+                gravity = Gravity.CENTER
+                setPadding(0, 0, 0, UiStyle.dp(context, 18f))
+            })
+            addView(displayView, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = UiStyle.dp(context, 24f) })
+            addView(plus, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = UiStyle.dp(context, 10f) })
+            addView(minus, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = UiStyle.dp(context, 10f) })
+            addView(reset, LinearLayout.LayoutParams(-1, -2))
+        }
+        setContentView(ToolScaffold.wrap(this, "Counter", content))
     }
 
     private fun render() { displayView.text = count.toString() }

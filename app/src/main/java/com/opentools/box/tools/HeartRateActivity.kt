@@ -26,6 +26,8 @@ class HeartRateActivity : AppCompatActivity() {
 
     private lateinit var bpmView: TextView
     private lateinit var hintView: TextView
+    private lateinit var signalBar: android.widget.ProgressBar
+    private lateinit var signalView: TextView
     private lateinit var cameraManager: CameraManager
     private var camera: CameraDevice? = null
     private var session: CameraCaptureSession? = null
@@ -36,6 +38,8 @@ class HeartRateActivity : AppCompatActivity() {
     private val redSamples = ArrayDeque<Double>()
     private var lastBeat = 0L
     private val intervals = ArrayDeque<Long>()
+    private val bpmHistory = ArrayDeque<Double>()
+    private var smoothedBpm = 0.0
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -55,6 +59,15 @@ class HeartRateActivity : AppCompatActivity() {
             setPadding(UiStyle.dp(context, 12f), UiStyle.dp(context, 14f),
                 UiStyle.dp(context, 12f), UiStyle.dp(context, 14f))
         }
+        signalBar = android.widget.ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
+            max = 100
+            progress = 0
+        }
+        signalView = TextView(this).apply {
+            gravity = Gravity.CENTER
+            text = "Signal: 0%"
+            UiStyle.styleText(this, 13f, false, UiStyle.muted(context))
+        }
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
@@ -70,6 +83,10 @@ class HeartRateActivity : AppCompatActivity() {
                 bottomMargin = UiStyle.dp(context, 12f)
             })
             addView(hintView, LinearLayout.LayoutParams(-1, -2))
+            addView(signalBar, LinearLayout.LayoutParams(-1, -2).apply {
+                topMargin = UiStyle.dp(context, 12f)
+            })
+            addView(signalView, LinearLayout.LayoutParams(-1, -2))
             addView(TextView(context).apply {
                 text = "Camera-based estimate only; not a medical device."
                 gravity = Gravity.CENTER
@@ -155,6 +172,7 @@ class HeartRateActivity : AppCompatActivity() {
         val h = img.height
         val stride = img.planes[0].rowStride
         var sum = 0L
+        var sumSq = 0L
         var n = 0
         val row = ByteArray(stride)
         var r = h / 4
@@ -162,25 +180,58 @@ class HeartRateActivity : AppCompatActivity() {
             buf.position(r * stride)
             buf.get(row)
             var c = w / 4
-            while (c < w * 3 / 4) { sum += row[c].toInt() and 0xFF; n++; c += 4 }
+            while (c < w * 3 / 4) { val v = row[c].toInt() and 0xFF; sum += v; sumSq += v * v; n++; c += 4 }
             r += 4
         }
         val avg = if (n == 0) return else sum.toDouble() / n
+        val variance = if (n == 0) 0.0 else sumSq.toDouble() / n - avg * avg
+        // Signal strength: fingertip fully covering lens gives mid-bright, low-variance red field.
+        // Too dark = not covered / no flash coupling; very high variance = moving / partial cover.
+        val brightnessScore = (avg / 255.0 * 100.0).coerceIn(0.0, 100.0)
+        val steadiness = (1.0 - (variance / 2500.0)).coerceIn(0.0, 1.0)
+        val strength = (brightnessScore * 0.5 + steadiness * 50.0).toInt().coerceIn(0, 100)
+        val covered = avg > 40 && variance < 2500
+        val still = variance < 900
+        runOnUiThread {
+            signalBar.progress = strength
+            signalView.text = "Signal: $strength%"
+            hintView.text = when {
+                !covered -> "Step 1: cover the lens — press your fingertip fully over the rear camera + flash."
+                !still || redSamples.size < 60 -> "Step 2: hold still — keep the finger steady."
+                intervals.size < 3 -> "Step 3: measuring… keep holding still."
+                else -> "Measuring… keep holding still."
+            }
+        }
         redSamples.addLast(avg)
         while (redSamples.size > 90) redSamples.removeFirst()
         if (redSamples.size < 60) return
-        // Simple peak detection on detrended signal.
+        if (!covered) return
+        // Loosened peak detection on detrended signal.
         val mean = redSamples.average()
+        val std = kotlin.math.sqrt(redSamples.map { (it - mean) * (it - mean) }.average()).coerceAtLeast(0.5)
+        val margin = std * 0.25
         val prev = redSamples.dropLast(1).takeLast(1).firstOrNull() ?: return
         val prevPrev = redSamples.dropLast(2).takeLast(1).firstOrNull() ?: return
         val now = System.currentTimeMillis()
-        if (prevPrev < mean && prev >= mean && avg < mean && now - lastBeat > 350) {
+        if (prevPrev < mean + margin && prev >= mean - margin && avg < mean && now - lastBeat > 300) {
             if (lastBeat > 0) {
-                intervals.addLast(now - lastBeat)
-                while (intervals.size > 6) intervals.removeFirst()
-                val bpm = 60000.0 / intervals.average()
-                if (bpm in 35.0..220.0) {
-                    runOnUiThread { bpmView.text = "%.0f".format(bpm) }
+                val interval = now - lastBeat
+                // Require consistent beats: reject intervals that jump too far from recent average.
+                val ok = intervals.isEmpty() || kotlin.math.abs(interval - intervals.average()) < intervals.average() * 0.35
+                if (ok) {
+                    intervals.addLast(interval)
+                    while (intervals.size > 8) intervals.removeFirst()
+                    if (intervals.size >= 3) {
+                        val bpm = 60000.0 / intervals.average()
+                        if (bpm in 35.0..220.0) {
+                            bpmHistory.addLast(bpm)
+                            while (bpmHistory.size > 5) bpmHistory.removeFirst()
+                            smoothedBpm = bpmHistory.average()
+                            runOnUiThread { bpmView.text = "%.0f".format(smoothedBpm) + " bpm" }
+                        }
+                    } else {
+                        runOnUiThread { bpmView.text = "…" }
+                    }
                 }
             }
             lastBeat = now

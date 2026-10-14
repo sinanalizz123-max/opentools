@@ -190,6 +190,6 @@ class FileBrowserActivity : AppCompatActivity() {
         var value = bytes / 1024.0
         var unit = 0
         while (value >= 1024 && unit < units.size - 1) { value /= 1024; unit++ }
-        return "%.1f %s".format(Locale.US, value, units[unit])
+        return String.format(Locale.US, "%.1f %s", value, units[unit])
     }
 }

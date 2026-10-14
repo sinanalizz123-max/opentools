@@ -36,6 +36,7 @@ class ScannerActivity : AppCompatActivity() {
     private lateinit var rescan: NativeButton
     private lateinit var cameraManager: CameraManager
     private var camera: CameraDevice? = null
+    private var activeCameraId: String? = null
     private var session: CameraCaptureSession? = null
     private var reader: ImageReader? = null
     private var previewSurface: Surface? = null
@@ -144,6 +145,7 @@ class ScannerActivity : AppCompatActivity() {
         }
         openingCamera = true
         try {
+            activeCameraId = id
             cameraManager.openCamera(id, object : CameraDevice.StateCallback() {
                 override fun onOpened(device: CameraDevice) {
                     openingCamera = false
@@ -171,7 +173,11 @@ class ScannerActivity : AppCompatActivity() {
 
     private fun startSession(device: CameraDevice) {
         val texture = preview.surfaceTexture ?: return
-        texture.setDefaultBufferSize(1280, 720)
+        val optimal = activeCameraId?.let { CameraPreview.chooseSize(cameraManager, it, preview.width, preview.height) }
+        val bufferW = optimal?.width ?: 1280
+        val bufferH = optimal?.height ?: 720
+        texture.setDefaultBufferSize(bufferW, bufferH)
+        CameraPreview.fit(preview, bufferW, bufferH)
         previewSurface?.release()
         val surface = Surface(texture)
         previewSurface = surface

@@ -161,7 +161,11 @@ class MagnifierActivity : AppCompatActivity() {
 
     private fun startPreview(device: CameraDevice, id: String) {
         val texture = preview.surfaceTexture ?: return
-        texture.setDefaultBufferSize(preview.width.coerceAtLeast(1), preview.height.coerceAtLeast(1))
+        val optimal = CameraPreview.chooseSize(cameraManager, id, preview.width, preview.height)
+        val bufferW = optimal?.width ?: preview.width.coerceAtLeast(1)
+        val bufferH = optimal?.height ?: preview.height.coerceAtLeast(1)
+        texture.setDefaultBufferSize(bufferW, bufferH)
+        CameraPreview.fit(preview, bufferW, bufferH)
         val surface = Surface(texture)
         currentSurface?.release()
         currentSurface = surface

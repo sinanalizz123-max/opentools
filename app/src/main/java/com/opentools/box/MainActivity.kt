@@ -10,6 +10,7 @@ import android.text.Editable
 import android.text.TextWatcher
 import android.view.Gravity
 import android.view.View
+import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
@@ -19,8 +20,6 @@ import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
-import androidx.recyclerview.widget.GridLayoutManager
-import androidx.recyclerview.widget.RecyclerView
 import java.util.Locale
 
 /** Native, utility-first home screen. Uses standard Android views rather than Material 3 UI. */
@@ -29,8 +28,7 @@ class MainActivity : AppCompatActivity() {
     private var category: ToolCategory? = null
     private var sortAlpha = false
     private var query = ""
-    private lateinit var grid: RecyclerView
-    private lateinit var adapter: ToolGridAdapter
+    private lateinit var grid: android.widget.GridLayout
     private lateinit var categoryRow: LinearLayout
     private lateinit var countView: TextView
     private lateinit var searchField: EditText
@@ -91,13 +89,9 @@ class MainActivity : AppCompatActivity() {
         }
         sectionRow.addView(sort)
         content.addView(sectionRow, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(12) })
-        adapter = ToolGridAdapter(allTools) { openTool(it) }
-        grid = RecyclerView(this).apply {
-            layoutManager = GridLayoutManager(this@MainActivity, 2)
-            adapter = this@MainActivity.adapter
-            isNestedScrollingEnabled = false
-            overScrollMode = View.OVER_SCROLL_NEVER
-            itemAnimator = null
+        grid = android.widget.GridLayout(this).apply {
+            columnCount = 2
+            useDefaultMargins = false
         }
         content.addView(grid, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
         scroll.addView(content)
@@ -282,18 +276,54 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateGrid() {
-        if (!::adapter.isInitialized) return
+        if (!::grid.isInitialized) return
         var tools = allTools.filter { entry ->
             (category == null || entry.category == category) &&
                 (query.isBlank() || entry.title.contains(query, true) ||
                     entry.category.label.contains(query, true) || entry.id.contains(query, true))
         }
         if (sortAlpha) tools = tools.sortedBy { it.title.lowercase(Locale.ROOT) }
-        adapter.update(tools)
+        grid.removeAllViews()
+        tools.forEach { entry -> grid.addView(makeTile(entry)) }
         if (::countView.isInitialized) {
             countView.text = if (query.isBlank()) tools.size.toString() + " tools"
                 else tools.size.toString() + " matches"
         }
+    }
+
+    /** One tool tile. Plain views: never intercepts scroll gestures. */
+    private fun makeTile(entry: ToolEntry): View {
+        val icon = android.widget.ImageView(this).apply {
+            val res = ToolIcons.resId(entry.id)
+            if (res != 0) setImageResource(res)
+            if (ToolIcons.tint(entry.id)) {
+                imageTintList = android.content.res.ColorStateList.valueOf(UiStyle.text(this@MainActivity))
+            }
+            scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
+            layoutParams = LinearLayout.LayoutParams(dp(48), dp(48))
+            setPadding(dp(9), dp(9), dp(9), dp(9))
+        }
+        val label = TextView(this).apply {
+            text = entry.title
+            gravity = Gravity.CENTER
+            maxLines = 2
+            ellipsize = android.text.TextUtils.TruncateAt.END
+            UiStyle.styleText(this, 13f, true)
+        }
+        val cell = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
+            background = UiStyle.rounded(this@MainActivity, UiStyle.surface(this@MainActivity), 17f, UiStyle.border(this@MainActivity))
+            isClickable = true
+            isFocusable = true
+            setPadding(dp(10), dp(12), dp(10), dp(12))
+            addView(icon)
+            addView(label)
+            setOnClickListener { openTool(entry) }
+        }
+        val half = (resources.displayMetrics.widthPixels - dp(56)) / 2
+        cell.layoutParams = ViewGroup.LayoutParams(half, ViewGroup.LayoutParams.WRAP_CONTENT)
+        return cell
     }
 
     private fun showMenu(anchor: View) {

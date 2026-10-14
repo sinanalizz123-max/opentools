@@ -129,7 +129,11 @@ class MirrorActivity : AppCompatActivity() {
 
     private fun startPreview(device: CameraDevice) {
         val texture = preview.surfaceTexture ?: return
-        texture.setDefaultBufferSize(preview.width.coerceAtLeast(1), preview.height.coerceAtLeast(1))
+        val optimal = cameraId?.let { CameraPreview.chooseSize(cameraManager, it, preview.width, preview.height) }
+        val bufferW = optimal?.width ?: preview.width.coerceAtLeast(1)
+        val bufferH = optimal?.height ?: preview.height.coerceAtLeast(1)
+        texture.setDefaultBufferSize(bufferW, bufferH)
+        CameraPreview.fit(preview, bufferW, bufferH)
         previewSurface?.release()
         val surface = Surface(texture)
         previewSurface = surface

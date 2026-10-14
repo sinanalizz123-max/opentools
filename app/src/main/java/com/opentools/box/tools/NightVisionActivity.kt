@@ -29,6 +29,7 @@ class NightVisionActivity : AppCompatActivity() {
     private lateinit var cameraManager: CameraManager
     private lateinit var gainLabel: TextView
     private var camera: CameraDevice? = null
+    private var activeCameraId: String? = null
     private var session: CameraCaptureSession? = null
     private var thread: HandlerThread? = null
     private var handler: Handler? = null
@@ -126,6 +127,7 @@ class NightVisionActivity : AppCompatActivity() {
             gainLabel.text = "No camera available"
             return
         }
+        activeCameraId = id
         openingCamera = true
         try {
             cameraManager.openCamera(id, object : CameraDevice.StateCallback() {
@@ -154,7 +156,11 @@ class NightVisionActivity : AppCompatActivity() {
 
     private fun startPreview(device: CameraDevice) {
         val texture = preview.surfaceTexture ?: return
-        texture.setDefaultBufferSize(preview.width.coerceAtLeast(1), preview.height.coerceAtLeast(1))
+        val optimal = activeCameraId?.let { CameraPreview.chooseSize(cameraManager, it, preview.width, preview.height) }
+        val bufferW = optimal?.width ?: preview.width.coerceAtLeast(1)
+        val bufferH = optimal?.height ?: preview.height.coerceAtLeast(1)
+        texture.setDefaultBufferSize(bufferW, bufferH)
+        CameraPreview.fit(preview, bufferW, bufferH)
         previewSurface?.release()
         val surface = Surface(texture)
         previewSurface = surface

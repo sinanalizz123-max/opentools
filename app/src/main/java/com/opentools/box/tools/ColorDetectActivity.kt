@@ -35,6 +35,7 @@ class ColorDetectActivity : AppCompatActivity() {
     private lateinit var instruction: TextView
     private lateinit var cameraManager: CameraManager
     private var camera: CameraDevice? = null
+    private var activeCameraId: String? = null
     private var session: CameraCaptureSession? = null
     private var reader: ImageReader? = null
     private var previewSurface: Surface? = null
@@ -137,6 +138,7 @@ class ColorDetectActivity : AppCompatActivity() {
             return
         }
         try {
+            activeCameraId = id
             cameraManager.openCamera(id, object : CameraDevice.StateCallback() {
                 override fun onOpened(device: CameraDevice) {
                     camera = device
@@ -166,7 +168,11 @@ class ColorDetectActivity : AppCompatActivity() {
         session?.close()
         session = null
         previewSurface?.release()
-        texture.setDefaultBufferSize(640, 480)
+        val optimal = activeCameraId?.let { CameraPreview.chooseSize(cameraManager, it, preview.width, preview.height) }
+        val bufferW = optimal?.width ?: 640
+        val bufferH = optimal?.height ?: 480
+        texture.setDefaultBufferSize(bufferW, bufferH)
+        CameraPreview.fit(preview, bufferW, bufferH)
         val surface = Surface(texture)
         previewSurface = surface
         reader?.close()
@@ -244,8 +250,8 @@ class ColorDetectActivity : AppCompatActivity() {
         val green = android.graphics.Color.green(pixel)
         val blue = android.graphics.Color.blue(pixel)
         runOnUiThread {
-            swatch.text = "#%02X%02X%02X  ·  RGB %d, %d, %d".format(0xFFFFFF and pixel, red, green, blue)
-            swatch.setBackgroundColor(pixel or 0xFF000000.toInt())
+            swatch.text = "#%02X%02X%02X  ·  RGB %d, %d, %d".format(red, green, blue, red, green, blue)
+            swatch.setBackgroundColor(android.graphics.Color.rgb(red, green, blue))
             val luminance = (0.299 * red + 0.587 * green + 0.114 * blue)
             swatch.setTextColor(if (luminance < 145) android.graphics.Color.WHITE else android.graphics.Color.BLACK)
             instruction.text = "Sampled the selected point. Tap elsewhere to sample again."

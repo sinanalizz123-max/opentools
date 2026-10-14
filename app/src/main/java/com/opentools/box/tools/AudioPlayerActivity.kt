@@ -1,16 +1,24 @@
 package com.opentools.box.tools
 
+import android.Manifest
+import android.content.ContentUris
+import android.content.pm.PackageManager
 import android.media.MediaPlayer
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.provider.MediaStore
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.SeekBar
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import com.opentools.box.UiStyle
+import java.io.File
 
-/** Audio file player (system picker + MediaPlayer). Original implementation. */
+/** Audio file player (system picker + on-device folder browser + MediaPlayer). */
 class AudioPlayerActivity : AppCompatActivity() {
 
     private var player: MediaPlayer? = null
@@ -18,6 +26,11 @@ class AudioPlayerActivity : AppCompatActivity() {
     private lateinit var nameView: TextView
     private lateinit var seek: SeekBar
     private lateinit var toggle: NativeButton
+    private lateinit var browserStatus: TextView
+    private lateinit var browserList: LinearLayout
+    private var folders: Map<String, List<Pair<String, Uri>>> = emptyMap()
+    private var openFolder: String? = null
+
     private val progress = object : Runnable {
         override fun run() {
             player?.let {
@@ -31,13 +44,22 @@ class AudioPlayerActivity : AppCompatActivity() {
         uri?.let { open(it) }
     }
 
+    private val permLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) loadBrowser() else {
+            browserStatus.text = "Permission denied. Use the system picker below to open audio files."
+        }
+    }
+
+    private fun neededPermission(): String = if (Build.VERSION.SDK_INT >= 33)
+        Manifest.permission.READ_MEDIA_AUDIO else Manifest.permission.READ_EXTERNAL_STORAGE
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         nameView = TextView(this).apply {
             text = "Choose an audio file to begin."
             UiStyle.styleText(this, 18f, true)
-            setPadding(UiStyle.dp(context, 18f), UiStyle.dp(context, 18f),
-                UiStyle.dp(context, 18f), UiStyle.dp(context, 18f))
+            setPadding(UiStyle.dp(this@AudioPlayerActivity, 18f), UiStyle.dp(this@AudioPlayerActivity, 18f),
+                UiStyle.dp(this@AudioPlayerActivity, 18f), UiStyle.dp(this@AudioPlayerActivity, 18f))
             background = UiStyle.rounded(context, UiStyle.surface(context), 16f, UiStyle.border(context))
         }
         seek = SeekBar(this).apply {
@@ -60,26 +82,120 @@ class AudioPlayerActivity : AppCompatActivity() {
             else { p.start(); toggle.text = "Pause" }
             playing = !playing
         }
+        browserStatus = TextView(this).apply {
+            text = "On-device audio"
+            UiStyle.styleText(this, 13f, true, UiStyle.muted(context))
+            setPadding(0, 0, 0, UiStyle.dp(this@AudioPlayerActivity, 8f))
+        }
+        browserList = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val browserScroll = ScrollView(this).apply {
+            addView(browserList, LinearLayout.LayoutParams(-1, -2))
+        }
         setContentView(com.opentools.box.ToolScaffold.wrap(this, "Audio Player", LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            val pad = UiStyle.dp(context, 20f)
+            val pad = UiStyle.dp(this@AudioPlayerActivity, 20f)
             setPadding(pad, pad, pad, pad)
+            addView(browserStatus, LinearLayout.LayoutParams(-1, -2))
+            addView(browserScroll, LinearLayout.LayoutParams(-1, UiStyle.dp(this@AudioPlayerActivity, 180f)).apply {
+                bottomMargin = UiStyle.dp(this@AudioPlayerActivity, 16f)
+            })
             addView(TextView(context).apply {
                 text = "Now playing"
                 UiStyle.styleText(this, 13f, true, UiStyle.muted(context))
-                setPadding(0, 0, 0, UiStyle.dp(context, 8f))
+                setPadding(0, 0, 0, UiStyle.dp(this@AudioPlayerActivity, 8f))
             })
             addView(nameView, LinearLayout.LayoutParams(-1, -2).apply {
-                bottomMargin = UiStyle.dp(context, 16f)
+                bottomMargin = UiStyle.dp(this@AudioPlayerActivity, 16f)
             })
             addView(seek, LinearLayout.LayoutParams(-1, -2).apply {
-                bottomMargin = UiStyle.dp(context, 12f)
+                bottomMargin = UiStyle.dp(this@AudioPlayerActivity, 12f)
             })
             addView(pick, LinearLayout.LayoutParams(-1, -2).apply {
-                bottomMargin = UiStyle.dp(context, 8f)
+                bottomMargin = UiStyle.dp(this@AudioPlayerActivity, 8f)
             })
             addView(toggle, LinearLayout.LayoutParams(-1, -2))
         }))
+        if (ContextCompat.checkSelfPermission(this, neededPermission()) == PackageManager.PERMISSION_GRANTED) {
+            loadBrowser()
+        } else {
+            browserStatus.text = "Loading on-device audio…"
+            permLauncher.launch(neededPermission())
+        }
+    }
+
+    private fun loadBrowser() {
+        browserStatus.text = "Loading on-device audio…"
+        browserList.removeAllViews()
+        openFolder = null
+        Thread {
+            val grouped = linkedMapOf<String, MutableList<Pair<String, Uri>>>()
+            try {
+                val uri = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
+                val proj = arrayOf(
+                    MediaStore.Audio.Media._ID,
+                    MediaStore.Audio.Media.DISPLAY_NAME,
+                    MediaStore.Audio.Media.DATA,
+                    MediaStore.Audio.Media.BUCKET_DISPLAY_NAME
+                )
+                contentResolver.query(uri, proj, null, null, MediaStore.Audio.Media.DISPLAY_NAME + " ASC")?.use { c ->
+                    val idCol = c.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
+                    val nameCol = c.getColumnIndexOrThrow(MediaStore.Audio.Media.DISPLAY_NAME)
+                    val dataCol = c.getColumnIndex(MediaStore.Audio.Media.DATA)
+                    val bucketCol = c.getColumnIndex(MediaStore.Audio.Media.BUCKET_DISPLAY_NAME)
+                    while (c.moveToNext()) {
+                        val id = c.getLong(idCol)
+                        val name = c.getString(nameCol) ?: "Audio"
+                        val data = if (dataCol >= 0) c.getString(dataCol) else null
+                        val bucket = if (bucketCol >= 0) c.getString(bucketCol) else null
+                        val folder = data?.let { try { File(it).parentFile?.name } catch (_: Exception) { null } }
+                            ?: bucket ?: "Device audio"
+                        val contentUri = ContentUris.withAppendedId(uri, id)
+                        grouped.getOrPut(folder) { mutableListOf() }.add(name to contentUri)
+                    }
+                }
+            } catch (_: Exception) { }
+            folders = grouped
+            runOnUiThread { renderBrowser() }
+        }.start()
+    }
+
+    private fun renderBrowser() {
+        browserList.removeAllViews()
+        val current = openFolder
+        if (current == null) {
+            browserStatus.text = if (folders.isEmpty()) "No on-device audio found."
+                else "On-device audio — choose a folder"
+            folders.forEach { (folder, files) ->
+                browserList.addView(NativeButton(this, false).apply {
+                    text = "$folder (${files.size})"
+                    setOnClickListener {
+                        openFolder = folder
+                        renderBrowser()
+                    }
+                }, LinearLayout.LayoutParams(-1, -2).apply {
+                    bottomMargin = UiStyle.dp(this@AudioPlayerActivity, 6f)
+                })
+            }
+        } else {
+            browserStatus.text = current
+            browserList.addView(NativeButton(this, false).apply {
+                text = "← All folders"
+                setOnClickListener {
+                    openFolder = null
+                    renderBrowser()
+                }
+            }, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = UiStyle.dp(this@AudioPlayerActivity, 6f)
+            })
+            folders[current]?.forEach { (name, contentUri) ->
+                browserList.addView(NativeButton(this, false).apply {
+                    text = name
+                    setOnClickListener { open(contentUri) }
+                }, LinearLayout.LayoutParams(-1, -2).apply {
+                    bottomMargin = UiStyle.dp(this@AudioPlayerActivity, 6f)
+                })
+            }
+        }
     }
 
     private fun open(uri: Uri) {
@@ -126,12 +242,12 @@ class AudioPlayerActivity : AppCompatActivity() {
     override fun onPause() {
         player?.pause()
         playing = false
-        toggle.text = "Play"
+        try { toggle.text = "Play" } catch (_: Exception) { }
         super.onPause()
     }
 
     override fun onDestroy() {
-        seek.removeCallbacks(progress)
+        try { seek.removeCallbacks(progress) } catch (_: Exception) { }
         player?.release()
         super.onDestroy()
     }

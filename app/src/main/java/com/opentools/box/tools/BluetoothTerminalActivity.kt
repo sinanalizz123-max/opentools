@@ -27,6 +27,13 @@ class BluetoothTerminalActivity : AppCompatActivity() {
     private var reading = false
     private lateinit var logView: ListView
     private lateinit var bondedView: TextView
+    private lateinit var statusView: TextView
+    private lateinit var pairedList: ListView
+    private lateinit var sendButton: NativeButton
+    private val pairedEntries = mutableListOf<Pair<String, String>>()
+    private lateinit var pairedAdapter: ArrayAdapter<String>
+    private var connectedName: String? = null
+    private var connecting = false
     private lateinit var adapter: ArrayAdapter<String>
     private val lines = mutableListOf<String>()
 
@@ -57,7 +64,8 @@ class BluetoothTerminalActivity : AppCompatActivity() {
             UiStyle.styleInput(this)
             setSingleLine(true)
         }
-        val send = NativeButton(this).apply { text = "Send" }
+        val send = NativeButton(this).apply { text = "Send"; isEnabled = false }
+        sendButton = send
         connect.setOnClickListener { connectTo(address.text.toString().trim()) }
         send.setOnClickListener {
             try {
@@ -70,7 +78,21 @@ class BluetoothTerminalActivity : AppCompatActivity() {
             setPadding(UiStyle.dp(context, 12f), UiStyle.dp(context, 12f),
                 UiStyle.dp(context, 12f), UiStyle.dp(context, 12f))
             background = UiStyle.rounded(context, UiStyle.surface(context), 14f, UiStyle.border(context))
+            text = "Connect to Bluetooth serial devices like Arduino HC-05/HC-06.\n1. Pair in system Settings → Bluetooth\n2. Pick a device below or enter its MAC\n3. Tap Connect\n4. Type a message + Send"
         }
+        statusView = TextView(this).apply {
+            UiStyle.styleText(this, 14f, true)
+            setPadding(UiStyle.dp(context, 12f), UiStyle.dp(context, 10f),
+                UiStyle.dp(context, 12f), UiStyle.dp(context, 10f))
+            background = UiStyle.rounded(context, UiStyle.surface(context), 14f, UiStyle.border(context))
+        }
+        pairedList = ListView(this)
+        pairedAdapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, mutableListOf<String>())
+        pairedList.adapter = pairedAdapter
+        pairedList.setOnItemClickListener { _, _, pos, _ ->
+            pairedEntries.getOrNull(pos)?.let { address.setText(it.second) }
+        }
+        updateStatus()
         refreshPairedDevices()
         setContentView(com.opentools.box.ToolScaffold.wrap(this, "BT Terminal", LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -79,6 +101,12 @@ class BluetoothTerminalActivity : AppCompatActivity() {
             addView(TextView(context).apply { text = "Bluetooth serial terminal"; UiStyle.styleText(this, 23f, true) })
             addView(bondedView, LinearLayout.LayoutParams(-1, -2).apply {
                 topMargin = UiStyle.dp(context, 10f)
+                bottomMargin = UiStyle.dp(context, 10f)
+            })
+            addView(statusView, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = UiStyle.dp(context, 10f)
+            })
+            addView(pairedList, LinearLayout.LayoutParams(-1, UiStyle.dp(context, 110f)).apply {
                 bottomMargin = UiStyle.dp(context, 10f)
             })
             addView(address, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = UiStyle.dp(context, 8f) })
@@ -101,6 +129,16 @@ class BluetoothTerminalActivity : AppCompatActivity() {
         }
     }
 
+    private fun updateStatus() {
+        val text = when {
+            socket != null && socket?.isConnected == true -> "Connected" + (connectedName?.let { " — $it" } ?: "")
+            connecting -> "Connecting…"
+            else -> "Disconnected"
+        }
+        statusView.text = "Status: $text"
+        if (::sendButton.isInitialized) sendButton.isEnabled = socket?.isConnected == true
+    }
+
     private fun refreshPairedDevices() {
         if (Build.VERSION.SDK_INT >= 31 &&
             ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
@@ -110,14 +148,27 @@ class BluetoothTerminalActivity : AppCompatActivity() {
         try {
             val manager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
             val bluetooth = manager.adapter
-            bondedView.text = when {
-                bluetooth == null -> "Bluetooth is not available on this device."
-                !bluetooth.isEnabled -> "Turn Bluetooth on to see paired devices."
-                bluetooth.bondedDevices.isEmpty() -> "No paired devices. Pair a device in Android Settings first."
-                else -> "Paired devices:\n" + bluetooth.bondedDevices.joinToString("\n") { (it.name ?: "Unknown device") + " — " + it.address }
+            pairedEntries.clear()
+            val labels = mutableListOf<String>()
+            when {
+                bluetooth == null -> labels.add("Bluetooth is not available on this device.")
+                !bluetooth.isEnabled -> labels.add("Turn Bluetooth on to see paired devices.")
+                bluetooth.bondedDevices.isEmpty() -> labels.add("No paired devices. Pair a device in Android Settings first.")
+                else -> bluetooth.bondedDevices.forEach {
+                    pairedEntries.add((it.name ?: "Unknown device") to it.address)
+                    labels.add((it.name ?: "Unknown device") + " — " + it.address)
+                }
+            }
+            if (::pairedAdapter.isInitialized) {
+                pairedAdapter.clear()
+                pairedAdapter.addAll(labels)
+                pairedAdapter.notifyDataSetChanged()
             }
         } catch (error: Exception) {
-            bondedView.text = "Could not read paired devices: " + (error.message ?: "Bluetooth unavailable")
+            if (::pairedAdapter.isInitialized) {
+                pairedAdapter.clear()
+                pairedAdapter.add("Could not read paired devices: " + (error.message ?: "Bluetooth unavailable"))
+            }
         }
     }
 
@@ -132,21 +183,31 @@ class BluetoothTerminalActivity : AppCompatActivity() {
         }
         try { socket?.close() } catch (_: Exception) { }
         socket = null
+        connectedName = null
+        connecting = true
+        runOnUiThread { updateStatus() }
         Thread {
             var connection: BluetoothSocket? = null
             try {
                 val manager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
                 val device = manager.adapter.getRemoteDevice(mac)
+                connectedName = try { device.name } catch (_: Exception) { null }
+                runOnUiThread { updateStatus() }
                 connection = device.createRfcommSocketToServiceRecord(spp)
                 socket = connection
                 manager.adapter.cancelDiscovery()
                 connection.connect()
+                connecting = false
                 addLine("Connected to $mac")
+                runOnUiThread { updateStatus() }
                 startReading()
             } catch (e: Exception) {
                 try { connection?.close() } catch (_: Exception) { }
                 if (socket === connection) socket = null
+                connecting = false
+                connectedName = null
                 addLine("Connect failed: ${e.message}")
+                runOnUiThread { updateStatus() }
             }
         }.start()
     }
@@ -193,6 +254,9 @@ class BluetoothTerminalActivity : AppCompatActivity() {
         reading = false
         try { socket?.close() } catch (_: Exception) { }
         socket = null
+        connecting = false
+        connectedName = null
+        try { updateStatus() } catch (_: Exception) { }
         super.onPause()
     }
 }

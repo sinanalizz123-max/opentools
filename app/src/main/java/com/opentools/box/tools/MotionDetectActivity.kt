@@ -136,7 +136,8 @@ class MotionDetectActivity : AppCompatActivity() {
                 } finally { img.close() }
             }, handler)
         }
-        val surface = reader!!.surface
+        val activeReader = reader ?: return
+        val surface = activeReader.surface
         val req = device.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW).apply {
             addTarget(surface)
         }

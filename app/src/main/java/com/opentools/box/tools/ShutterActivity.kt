@@ -117,7 +117,8 @@ class ShutterActivity : AppCompatActivity() {
                 finally { img.close() }
             }, handler)
         }
-        val surface = reader!!.surface
+        val activeReader = reader ?: return
+        val surface = activeReader.surface
         device.createCaptureSession(listOf(surface), object : CameraCaptureSession.StateCallback() {
             override fun onConfigured(s: CameraCaptureSession) { session = s }
             override fun onConfigureFailed(s: CameraCaptureSession) = Unit

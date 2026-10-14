@@ -132,7 +132,8 @@ class HeartRateActivity : AppCompatActivity() {
                 try { process(img) } finally { img.close() }
             }, handler)
         }
-        val surface = reader!!.surface
+        val activeReader = reader ?: return
+        val surface = activeReader.surface
         val req = device.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW).apply {
             addTarget(surface)
             try { set(CaptureRequest.FLASH_MODE, CaptureRequest.FLASH_MODE_TORCH) } catch (_: Exception) { }
@@ -164,7 +165,7 @@ class HeartRateActivity : AppCompatActivity() {
             while (c < w * 3 / 4) { sum += row[c].toInt() and 0xFF; n++; c += 4 }
             r += 4
         }
-        val avg = sum.toDouble() / n
+        val avg = if (n == 0) return else sum.toDouble() / n
         redSamples.addLast(avg)
         while (redSamples.size > 90) redSamples.removeFirst()
         if (redSamples.size < 60) return

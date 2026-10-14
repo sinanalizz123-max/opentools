@@ -171,10 +171,16 @@ class MusicShareActivity : AppCompatActivity() {
         status.text = "Listening on :9994"
         Thread {
             try {
-                recvSocket = DatagramSocket(9994)
+                val sock = try { DatagramSocket(9994) } catch (_: Exception) { null }
+                if (sock == null) {
+                    runOnUiThread { status.text = "Could not listen: port busy" }
+                    joining = false
+                    return@Thread
+                }
+                recvSocket = sock
                 // Header first.
                 val hbuf = ByteArray(8)
-                recvSocket!!.receive(DatagramPacket(hbuf, hbuf.size))
+                sock.receive(DatagramPacket(hbuf, hbuf.size))
                 val header = ByteBuffer.wrap(hbuf)
                 val sampleRate = header.int
                 val channels = header.int

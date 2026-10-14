@@ -20,4 +20,9 @@ class NativeButton : AppCompatButton {
         this.primary = primary
         UiStyle.styleButton(this, primary)
     }
+
+    override fun performClick(): Boolean {
+        super.performClick()
+        return true
+    }
 }

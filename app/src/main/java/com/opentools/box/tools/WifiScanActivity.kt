@@ -25,6 +25,14 @@ class WifiScanActivity : AppCompatActivity() {
     private lateinit var adapter: ArrayAdapter<String>
     private lateinit var status: TextView
     private lateinit var scanButton: NativeButton
+    private var reenableTask: Runnable? = null
+    private var destroyed = false
+
+    override fun onDestroy() {
+        destroyed = true
+        if (::scanButton.isInitialized) reenableTask?.let { scanButton.removeCallbacks(it) }
+        super.onDestroy()
+    }
     private val networks = mutableListOf<String>()
     private var receiverRegistered = false
 
@@ -122,7 +130,8 @@ class WifiScanActivity : AppCompatActivity() {
             scanButton.isEnabled = false
             val started = wifi.startScan()
             if (!started) status.text = "Android throttled the scan. Wait a moment and try again."
-            scanButton.postDelayed({ if (::scanButton.isInitialized) scanButton.isEnabled = true }, 1500)
+            reenableTask = Runnable { if (!destroyed) scanButton.isEnabled = true }
+            scanButton.postDelayed(reenableTask, 1500)
         } catch (_: Exception) {
             status.text = "Could not start a Wi-Fi scan."
             scanButton.isEnabled = true

@@ -204,7 +204,8 @@ class CctvServerActivity : AppCompatActivity() {
             }, handler)
         }
         try {
-            val surface = reader!!.surface
+            val activeReader = reader ?: return
+        val surface = activeReader.surface
             val req = device.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW).apply {
                 addTarget(surface)
             }

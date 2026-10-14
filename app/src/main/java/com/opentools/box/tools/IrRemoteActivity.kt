@@ -22,7 +22,7 @@ class IrRemoteActivity : AppCompatActivity() {
         status = TextView(this).apply {
             text = if (available) {
                 try {
-                    "IR emitter ready · " + ir!!.carrierFrequencies.joinToString { "${it.minFrequency}–${it.maxFrequency} Hz" }
+                    "IR emitter ready · " + (ir?.carrierFrequencies?.joinToString { "${it.minFrequency}–${it.maxFrequency} Hz" } ?: "frequency list unavailable")
                 } catch (_: Exception) { "IR emitter ready" }
             } else "No IR emitter is available on this device."
             UiStyle.styleText(this, 14f, false, UiStyle.muted(context))

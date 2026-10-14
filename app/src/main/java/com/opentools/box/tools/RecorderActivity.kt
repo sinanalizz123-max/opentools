@@ -103,15 +103,22 @@ class RecorderActivity : AppCompatActivity() {
             return
         }
         val stamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
-        lastFile = File(filesDir, "rec-$stamp.m4a")
-        recorder = (if (Build.VERSION.SDK_INT >= 31) MediaRecorder(this) else MediaRecorder()).apply {
-            setAudioSource(MediaRecorder.AudioSource.MIC)
-            setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
-            setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
-            setOutputFile(lastFile!!.absolutePath)
-            prepare()
-            start()
-        }
+        val dest = File(filesDir, "rec-$stamp.m4a")
+        lastFile = dest
+        recorder = try {
+            (if (Build.VERSION.SDK_INT >= 31) MediaRecorder(this) else MediaRecorder()).apply {
+                setAudioSource(MediaRecorder.AudioSource.MIC)
+                setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+                setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+                setOutputFile(dest.absolutePath)
+                prepare()
+                start()
+            }
+        } catch (_: Exception) {
+            statusView.text = "Microphone unavailable"
+            lastFile = null
+            null
+        } ?: return
         recording = true
         timer.base = SystemClock.elapsedRealtime()
         timer.start()

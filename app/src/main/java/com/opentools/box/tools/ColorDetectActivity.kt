@@ -180,9 +180,9 @@ class ColorDetectActivity : AppCompatActivity() {
         try {
             val request = device.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW).apply {
                 addTarget(surface)
-                addTarget(reader!!.surface)
+                addTarget((reader ?: return).surface)
             }
-            device.createCaptureSession(listOf(surface, reader!!.surface),
+            device.createCaptureSession(listOf(surface, (reader ?: return).surface),
                 object : CameraCaptureSession.StateCallback() {
                     override fun onConfigured(configured: CameraCaptureSession) {
                         if (camera !== device) {

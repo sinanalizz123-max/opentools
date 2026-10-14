@@ -73,9 +73,10 @@ class PdfViewerActivity : AppCompatActivity() {
     private fun open(uri: Uri) {
         close()
         try {
-            pfd = contentResolver.openFileDescriptor(uri, "r")
+            val fd = contentResolver.openFileDescriptor(uri, "r")
                 ?: throw IllegalStateException("Could not open this PDF")
-            renderer = PdfRenderer(pfd!!)
+            pfd = fd
+            renderer = PdfRenderer(fd)
             pageCount = renderer!!.pageCount
             page = 0
             if (pageCount <= 0) throw IllegalStateException("This PDF has no pages")

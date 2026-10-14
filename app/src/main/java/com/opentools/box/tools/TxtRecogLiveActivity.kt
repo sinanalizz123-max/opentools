@@ -212,11 +212,11 @@ class TxtRecogLiveActivity : AppCompatActivity() {
         }
         val request = device.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW).apply {
             addTarget(surface)
-            addTarget(reader!!.surface)
+            addTarget((reader ?: return).surface)
             set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE)
         }
         try {
-            device.createCaptureSession(listOf(surface, reader!!.surface), object : CameraCaptureSession.StateCallback() {
+            device.createCaptureSession(listOf(surface, (reader ?: return).surface), object : CameraCaptureSession.StateCallback() {
                 override fun onConfigured(configured: CameraCaptureSession) {
                     if (camera !== device) { configured.close(); return }
                     session = configured

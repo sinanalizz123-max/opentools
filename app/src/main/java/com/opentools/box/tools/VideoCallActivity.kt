@@ -77,19 +77,27 @@ class VideoCallActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        thread = HandlerThread("vcall").also { it.start() }
-        handler = Handler(thread!!.looper)
+        startCaptureIfAllowed()
+    }
+
+    private fun startCaptureIfAllowed() {
         val need = mutableListOf<String>()
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
-            != PackageManager.PERMISSION_GRANTED) need.add(Manifest.permission.CAMERA)
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
-            != PackageManager.PERMISSION_GRANTED) need.add(Manifest.permission.RECORD_AUDIO)
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            need.add(Manifest.permission.CAMERA)
+        }
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            need.add(Manifest.permission.RECORD_AUDIO)
+        }
         if (need.isNotEmpty()) {
             ActivityCompat.requestPermissions(this, need.toTypedArray(), 1)
             return
         }
-        mjpegServer = CctvLan.MjpegServer { latestJpeg.get() }.also { it.start() }
-        openCamera()
+        if (thread == null) {
+            thread = HandlerThread("vcall").also { it.start() }
+            handler = Handler(thread!!.looper)
+        }
+        if (mjpegServer == null) mjpegServer = CctvLan.MjpegServer { latestJpeg.get() }.also { it.start() }
+        if (camera == null) openCamera()
     }
 
     override fun onPause() {
@@ -227,9 +235,11 @@ class VideoCallActivity : AppCompatActivity() {
         }, handler)
     }
 
+    @Deprecated("Deprecated in Android API; retained for compatibility with minSdk 26")
     override fun onRequestPermissionsResult(code: Int, perms: Array<String>, results: IntArray) {
         super.onRequestPermissionsResult(code, perms, results)
-        if (results.all { it == PackageManager.PERMISSION_GRANTED }) onResume()
+        if (code != 1) return
+        if (results.isNotEmpty() && results.all { it == PackageManager.PERMISSION_GRANTED }) startCaptureIfAllowed()
         else finish()
     }
 }

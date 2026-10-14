@@ -16,9 +16,8 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import com.google.android.material.button.MaterialButton
 
-/** Calorie + step counter (step-detector sensor with manual fallback). Original implementation. */
+/** Calorie + step counter (step-detector sensor with manual fallback). */
 class CalorieActivity : AppCompatActivity(), SensorEventListener {
-
     private var steps = 0
     private var weightKg = 70.0
     private lateinit var sensorManager: SensorManager
@@ -36,13 +35,13 @@ class CalorieActivity : AppCompatActivity(), SensorEventListener {
         }
         val set = MaterialButton(this).apply { text = "Set weight" }
         set.setOnClickListener {
-            weight.text.toString().toDoubleOrNull()?.let { weightKg = it }
+            weight.text.toString().toDoubleOrNull()?.takeIf { it in 1.0..500.0 }?.let { weightKg = it }
             render()
         }
         val reset = MaterialButton(this).apply { text = "Reset steps" }
         reset.setOnClickListener { steps = 0; render() }
         render()
-        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Calorie Counter",LinearLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Calorie Counter", LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             val pad = (16 * resources.displayMetrics.density).toInt()
             setPadding(pad, pad, pad, pad)
@@ -52,15 +51,17 @@ class CalorieActivity : AppCompatActivity(), SensorEventListener {
 
     override fun onResume() {
         super.onResume()
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACTIVITY_RECOGNITION)
-            == PackageManager.PERMISSION_GRANTED) {
-            sensorManager.getDefaultSensor(Sensor.TYPE_STEP_DETECTOR)?.let {
-                sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_UI)
-            }
-        } else {
-            ActivityCompat.requestPermissions(this,
-                arrayOf(Manifest.permission.ACTIVITY_RECOGNITION), 1)
+        requestOrRegisterSensor()
+    }
+
+    private fun requestOrRegisterSensor() {
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACTIVITY_RECOGNITION) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.ACTIVITY_RECOGNITION), 1)
+            return
         }
+        sensorManager.getDefaultSensor(Sensor.TYPE_STEP_DETECTOR)?.let {
+            sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_UI)
+        } ?: run { calorieView.text = "Step sensor unavailable" }
     }
 
     override fun onPause() {
@@ -68,21 +69,23 @@ class CalorieActivity : AppCompatActivity(), SensorEventListener {
         super.onPause()
     }
 
-    override fun onSensorChanged(e: SensorEvent) {
-        steps += e.values[0].toInt()
+    override fun onSensorChanged(event: SensorEvent) {
+        steps += event.values[0].toInt()
         render()
     }
 
-    override fun onAccuracyChanged(s: Sensor?, a: Int) = Unit
+    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
 
     private fun render() {
-        stepsView.text = "$steps steps"
-        // ~0.04 kcal per step for a 70kg adult, scaled by weight.
+        stepsView.text = steps.toString() + " steps"
         calorieView.text = "≈ %.1f kcal".format(steps * 0.04 * weightKg / 70.0)
     }
 
+    @Deprecated("Deprecated in Android API; retained for compatibility with minSdk 26")
     override fun onRequestPermissionsResult(code: Int, perms: Array<String>, results: IntArray) {
         super.onRequestPermissionsResult(code, perms, results)
-        onResume()
+        if (code != 1) return
+        if (results.firstOrNull() == PackageManager.PERMISSION_GRANTED) requestOrRegisterSensor()
+        else calorieView.text = "Activity permission denied"
     }
 }

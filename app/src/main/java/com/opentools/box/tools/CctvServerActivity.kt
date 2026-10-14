@@ -43,16 +43,21 @@ class CctvServerActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        thread = HandlerThread("cctv").also { it.start() }
-        handler = Handler(thread!!.looper)
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
-            != PackageManager.PERMISSION_GRANTED) {
+        startCaptureIfAllowed()
+    }
+
+    private fun startCaptureIfAllowed() {
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.CAMERA), 1)
             return
         }
-        server = CctvLan.MjpegServer { latestJpeg.get() }.also { it.start() }
-        status.text = "Streaming on :${CctvLan.PORT}"
-        openCamera()
+        if (thread == null) {
+            thread = HandlerThread("cctv").also { it.start() }
+            handler = Handler(thread!!.looper)
+        }
+        if (server == null) server = CctvLan.MjpegServer { latestJpeg.get() }.also { it.start() }
+        status.text = "Streaming on :" + CctvLan.PORT
+        if (camera == null) openCamera()
     }
 
     override fun onPause() {
@@ -120,9 +125,11 @@ class CctvServerActivity : AppCompatActivity() {
         }, handler)
     }
 
+    @Deprecated("Deprecated in Android API; retained for compatibility with minSdk 26")
     override fun onRequestPermissionsResult(code: Int, perms: Array<String>, results: IntArray) {
         super.onRequestPermissionsResult(code, perms, results)
-        if (results.firstOrNull() == PackageManager.PERMISSION_GRANTED) onResume()
+        if (code != 1) return
+        if (results.firstOrNull() == PackageManager.PERMISSION_GRANTED) startCaptureIfAllowed()
         else finish()
     }
 }

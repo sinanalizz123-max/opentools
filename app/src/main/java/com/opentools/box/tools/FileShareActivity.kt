@@ -22,6 +22,8 @@ import java.net.Socket
  */
 class FileShareActivity : AppCompatActivity() {
 
+    companion object { private const val MAX_FILE_BYTES = 512L * 1024L * 1024L }
+
     private var server: ServerSocket? = null
     private var serving = false
     private val shared = mutableListOf<Uri>()
@@ -138,14 +140,34 @@ class FileShareActivity : AppCompatActivity() {
                             fo.writeUTF("GET $index")
                             fo.flush()
                             val size = fi.readLong()
-                            if (size > 0) {
-                                val bytes = ByteArray(size.toInt())
-                                fi.readFully(bytes)
-                                val name = fi.readUTF().takeLast(60)
-                                val dest = File(getExternalFilesDir(null), "recv-$name")
-                                dest.writeBytes(bytes)
+                            if (size in 0..MAX_FILE_BYTES) {
+                                val folder = getExternalFilesDir(null) ?: filesDir
+                                val temp = File(folder, "incoming-" + System.currentTimeMillis() + ".tmp")
+                                temp.outputStream().buffered().use { out ->
+                                    val buffer = ByteArray(16 * 1024)
+                                    var remaining = size
+                                    while (remaining > 0) {
+                                        val count = fi.read(buffer, 0, minOf(buffer.size.toLong(), remaining).toInt())
+                                        if (count < 0) throw java.io.EOFException("File transfer ended early")
+                                        out.write(buffer, 0, count)
+                                        remaining -= count
+                                    }
+                                }
+                                val rawName = fi.readUTF().substringAfterLast('/').takeLast(60)
+                                val safeName = rawName.replace(Regex("[^A-Za-z0-9._-]"), "_").ifBlank { "file" }
+                                var dest = File(folder, "recv-" + safeName)
+                                if (dest.exists()) dest = File(folder, "recv-" + System.currentTimeMillis() + "-" + safeName)
+                                if (!temp.renameTo(dest)) {
+                                    temp.copyTo(dest, overwrite = true)
+                                    temp.delete()
+                                }
                                 runOnUiThread {
-                                    log.add(0, "Received: ${dest.name}")
+                                    log.add(0, "Received: " + dest.name)
+                                    adapter.notifyDataSetChanged()
+                                }
+                            } else {
+                                runOnUiThread {
+                                    log.add(0, "Rejected invalid/oversized file (" + size + " bytes)")
                                     adapter.notifyDataSetChanged()
                                 }
                             }

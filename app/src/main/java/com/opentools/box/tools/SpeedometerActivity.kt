@@ -13,9 +13,8 @@ import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 
-/** GPS speedometer (km/h + mph). Original implementation. */
+/** GPS speedometer (km/h + mph). */
 class SpeedometerActivity : AppCompatActivity(), LocationListener {
-
     private lateinit var manager: LocationManager
     private lateinit var speedView: TextView
     private var useMph = false
@@ -29,24 +28,29 @@ class SpeedometerActivity : AppCompatActivity(), LocationListener {
             useMph = !useMph
             unit.text = if (useMph) "mph" else "km/h"
         }
-        setContentView(com.opentools.box.ToolScaffold.wrap(this, "GPS Speedometer",LinearLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "GPS Speedometer", LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
-            addView(speedView); addView(unit)
+            addView(speedView)
+            addView(unit)
         }))
     }
 
     override fun onResume() {
         super.onResume()
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
-            != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(this,
-                arrayOf(Manifest.permission.ACCESS_FINE_LOCATION), 1)
+        ensureLocationPermission()
+    }
+
+    private fun ensureLocationPermission() {
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.ACCESS_FINE_LOCATION), 1)
             return
         }
         try {
             manager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 500, 0f, this)
-        } catch (_: SecurityException) { }
+        } catch (_: SecurityException) {
+            speedView.text = "--"
+        }
     }
 
     override fun onPause() {
@@ -54,14 +58,16 @@ class SpeedometerActivity : AppCompatActivity(), LocationListener {
         super.onPause()
     }
 
-    override fun onLocationChanged(l: Location) {
-        val kmh = l.speed * 3.6
+    override fun onLocationChanged(location: Location) {
+        val kmh = location.speed * 3.6
         speedView.text = if (useMph) "%.0f".format(kmh * 0.621371) else "%.0f".format(kmh)
     }
 
+    @Deprecated("Deprecated in Android API; retained for compatibility with minSdk 26")
     override fun onRequestPermissionsResult(code: Int, perms: Array<String>, results: IntArray) {
         super.onRequestPermissionsResult(code, perms, results)
-        if (results.firstOrNull() == PackageManager.PERMISSION_GRANTED) onResume()
-        else finish()
+        if (code != 1) return
+        if (results.firstOrNull() == PackageManager.PERMISSION_GRANTED) ensureLocationPermission()
+        else speedView.text = "Permission needed"
     }
 }

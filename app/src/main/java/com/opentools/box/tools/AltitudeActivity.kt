@@ -25,11 +25,11 @@ class AltitudeActivity : AppCompatActivity(), SensorEventListener {
         sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
         altitudeView = TextView(this).apply { textSize = 52f; gravity = Gravity.CENTER }
         pressureView = TextView(this).apply { textSize = 20f; gravity = Gravity.CENTER }
-        setContentView(LinearLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Altimeter",LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
             addView(altitudeView); addView(pressureView)
-        })
+        }))
     }
 
     override fun onResume() {

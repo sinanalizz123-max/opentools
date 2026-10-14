@@ -37,7 +37,7 @@ class FileBrowserActivity : AppCompatActivity() {
         }
         if (!dir.canRead()) dir = filesDir
         refresh()
-        setContentView(LinearLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "File Browser",LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             addView(path)
             addView(LinearLayout(context).apply {
@@ -46,7 +46,7 @@ class FileBrowserActivity : AppCompatActivity() {
             })
             addView(list, LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
-        })
+        }))
     }
 
     private fun refresh() {

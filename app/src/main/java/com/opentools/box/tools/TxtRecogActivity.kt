@@ -30,12 +30,12 @@ class TxtRecogActivity : AppCompatActivity() {
         output = TextView(this).apply { textSize = 16f }
         val pick = MaterialButton(this).apply { text = "Open image" }
         pick.setOnClickListener { picker.launch(arrayOf("image/*")) }
-        setContentView(LinearLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Image OCR",LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             addView(image, LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
             addView(pick); addView(output)
-        })
+        }))
     }
 
     private fun recognize(uri: Uri) {

@@ -29,11 +29,11 @@ class BmiActivity : AppCompatActivity() {
             }
             result.text = "BMI: %.1f (%s)".format(bmi, cat)
         }
-        setContentView(LinearLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "BMI",LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             val pad = (16 * resources.displayMetrics.density).toInt()
             setPadding(pad, pad, pad, pad)
             addView(weight); addView(height); addView(calc); addView(result)
-        })
+        }))
     }
 }

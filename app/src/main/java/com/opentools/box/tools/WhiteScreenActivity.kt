@@ -30,7 +30,7 @@ class WhiteScreenActivity : AppCompatActivity() {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         window.attributes = window.attributes.apply { screenBrightness = 1f }
         view.setOnClickListener { seek.visibility = if (seek.visibility == View.VISIBLE) View.GONE else View.VISIBLE }
-        setContentView(android.widget.FrameLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "White Screen",android.widget.FrameLayout(this).apply {
             addView(view, android.widget.FrameLayout.LayoutParams(
                 android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
                 android.widget.FrameLayout.LayoutParams.MATCH_PARENT))
@@ -39,6 +39,6 @@ class WhiteScreenActivity : AppCompatActivity() {
                 android.widget.FrameLayout.LayoutParams.WRAP_CONTENT).apply {
                 gravity = android.view.Gravity.BOTTOM
             })
-        })
+        }))
     }
 }

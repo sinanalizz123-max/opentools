@@ -30,12 +30,12 @@ class WifiSpeedActivity : AppCompatActivity() {
         val go = MaterialButton(this).apply { text = "Test speed" }
         go.setOnClickListener { test(url.text.toString()) }
         showInfo()
-        setContentView(LinearLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "WiFi Speed",LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             val pad = (16 * resources.displayMetrics.density).toInt()
             setPadding(pad, pad, pad, pad)
             addView(info); addView(url); addView(go); addView(result)
-        })
+        }))
     }
 
     @SuppressLint("SetTextI18n")

@@ -35,10 +35,10 @@ class CctvServerActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         cameraManager = getSystemService(Context.CAMERA_SERVICE) as CameraManager
         status = TextView(this).apply { textSize = 16f; text = "Starting…" }
-        setContentView(LinearLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "CCTV Camera",LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             addView(status)
-        })
+        }))
     }
 
     override fun onResume() {

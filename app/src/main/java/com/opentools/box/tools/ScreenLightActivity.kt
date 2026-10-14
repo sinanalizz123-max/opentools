@@ -40,7 +40,7 @@ class ScreenLightActivity : AppCompatActivity() {
             hueSlider.visibility = if (uiVisible) View.VISIBLE else View.GONE
             whiteBtn.visibility = if (uiVisible) View.VISIBLE else View.GONE
         }
-        setContentView(android.widget.FrameLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Color Light",android.widget.FrameLayout(this).apply {
             addView(screen, android.widget.FrameLayout.LayoutParams(
                 android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
                 android.widget.FrameLayout.LayoutParams.MATCH_PARENT))
@@ -52,6 +52,6 @@ class ScreenLightActivity : AppCompatActivity() {
                 android.widget.FrameLayout.LayoutParams.WRAP_CONTENT).apply {
                 gravity = android.view.Gravity.BOTTOM
             })
-        })
+        }))
     }
 }

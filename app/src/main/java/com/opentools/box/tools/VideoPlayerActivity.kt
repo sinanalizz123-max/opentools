@@ -28,12 +28,12 @@ class VideoPlayerActivity : AppCompatActivity() {
         }
         val pick = MaterialButton(this).apply { text = "Open video" }
         pick.setOnClickListener { picker.launch(arrayOf("video/*")) }
-        setContentView(LinearLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Video Player",LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             addView(video, LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
             addView(pick)
-        })
+        }))
     }
 
     override fun onPause() {

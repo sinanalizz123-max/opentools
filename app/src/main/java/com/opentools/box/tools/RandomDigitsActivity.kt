@@ -29,11 +29,11 @@ class RandomDigitsActivity : AppCompatActivity() {
             if (lo > hi) { output.text = "Min must be ≤ max"; return@setOnClickListener }
             output.text = (1..n).map { Random.nextInt(lo, hi + 1).toString() }.joinToString("\n")
         }
-        setContentView(LinearLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Random Digits",LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             val pad = (16 * resources.displayMetrics.density).toInt()
             setPadding(pad, pad, pad, pad)
             addView(min); addView(max); addView(count); addView(go); addView(output)
-        })
+        }))
     }
 }

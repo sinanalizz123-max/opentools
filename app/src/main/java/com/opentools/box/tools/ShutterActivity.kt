@@ -41,12 +41,12 @@ class ShutterActivity : AppCompatActivity() {
         status = TextView(this).apply { textSize = 18f; text = "Ready" }
         val snap = MaterialButton(this).apply { text = "Capture photo" }
         snap.setOnClickListener { capture() }
-        setContentView(LinearLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Quick Camera",LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             val pad = (16 * resources.displayMetrics.density).toInt()
             setPadding(pad, pad, pad, pad)
             addView(status); addView(snap)
-        })
+        }))
     }
 
     override fun onResume() {

@@ -20,11 +20,11 @@ class BatteryTempActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         tempView = TextView(this).apply { textSize = 52f; gravity = Gravity.CENTER }
         levelView = TextView(this).apply { textSize = 22f; gravity = Gravity.CENTER }
-        setContentView(LinearLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Battery Temp",LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
             addView(tempView); addView(levelView)
-        })
+        }))
         refresh()
     }
 

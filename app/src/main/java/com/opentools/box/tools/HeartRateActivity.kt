@@ -43,11 +43,11 @@ class HeartRateActivity : AppCompatActivity() {
             textSize = 16f; gravity = Gravity.CENTER
             text = "Cover the lens with a fingertip"
         }
-        setContentView(LinearLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Heart Rate",LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
             addView(bpmView); addView(hintView)
-        })
+        }))
     }
 
     override fun onResume() {

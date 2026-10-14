@@ -28,12 +28,12 @@ class LanScanActivity : AppCompatActivity() {
         list.adapter = adapter
         val go = MaterialButton(this).apply { text = "Scan LAN" }
         go.setOnClickListener { scan() }
-        setContentView(LinearLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "LAN Scanner",LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             addView(status); addView(go)
             addView(list, LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
-        })
+        }))
     }
 
     private fun scan() {

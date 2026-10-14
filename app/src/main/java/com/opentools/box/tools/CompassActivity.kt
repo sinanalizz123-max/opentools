@@ -26,12 +26,12 @@ class CompassActivity : AppCompatActivity(), SensorEventListener {
         sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
         dial = DialView(this)
         heading = TextView(this).apply { textSize = 28f; text = "--°" }
-        setContentView(LinearLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Compass",LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             addView(dial, LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
             addView(heading)
-        })
+        }))
     }
 
     override fun onResume() {

@@ -25,11 +25,11 @@ class DevInfoActivity : AppCompatActivity() {
                 Memory class: ${(getSystemService(ACTIVITY_SERVICE) as android.app.ActivityManager).memoryClass} MB
             """.trimIndent()
         }
-        setContentView(LinearLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Device Info",LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             val pad = (16 * resources.displayMetrics.density).toInt()
             setPadding(pad, pad, pad, pad)
             addView(info)
-        })
+        }))
     }
 }

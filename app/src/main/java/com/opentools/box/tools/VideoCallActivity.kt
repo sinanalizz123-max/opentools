@@ -63,7 +63,7 @@ class VideoCallActivity : AppCompatActivity() {
         val hangup = MaterialButton(this).apply { text = "Hang up" }
         join.setOnClickListener { joinCall(ip.text.toString().trim()) }
         hangup.setOnClickListener { hangUp() }
-        setContentView(LinearLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "LAN Video Call",LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             addView(ip); addView(status)
             addView(LinearLayout(context).apply {
@@ -72,7 +72,7 @@ class VideoCallActivity : AppCompatActivity() {
             })
             addView(remoteView, LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
-        })
+        }))
     }
 
     override fun onResume() {

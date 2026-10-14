@@ -7,7 +7,7 @@ import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 
 class ToolGridAdapter(
-    private val tools: List<ToolEntry>,
+    private var tools: List<ToolEntry>,
     private val onClick: (ToolEntry) -> Unit,
 ) : RecyclerView.Adapter<ToolGridAdapter.Holder>() {
 
@@ -28,4 +28,9 @@ class ToolGridAdapter(
     }
 
     override fun getItemCount() = tools.size
+
+    fun update(next: List<ToolEntry>) {
+        tools = next
+        notifyDataSetChanged()
+    }
 }

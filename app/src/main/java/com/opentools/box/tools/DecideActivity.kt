@@ -29,12 +29,12 @@ class DecideActivity : AppCompatActivity() {
             val list = choices.text.toString().lines().map { it.trim() }.filter { it.isNotEmpty() }
             output.text = if (list.isEmpty()) "Enter choices first" else list.random()
         }
-        setContentView(LinearLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Decide",LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             val pad = (16 * resources.displayMetrics.density).toInt()
             setPadding(pad, pad, pad, pad)
             addView(output); addView(choices)
             addView(yesNo); addView(coin); addView(dice); addView(pick)
-        })
+        }))
     }
 }

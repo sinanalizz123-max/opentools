@@ -40,7 +40,7 @@ class MirrorActivity : AppCompatActivity() {
         } ?: cameraManager.cameraIdList.firstOrNull()
 
         preview = TextureView(this)
-        setContentView(FrameLayout(this).apply { addView(preview) })
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Mirror",FrameLayout(this).apply { addView(preview) }))
 
         preview.surfaceTextureListener = object : TextureView.SurfaceTextureListener {
             override fun onSurfaceTextureAvailable(s: SurfaceTexture, w: Int, h: Int) = openCamera()

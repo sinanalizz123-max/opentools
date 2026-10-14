@@ -21,11 +21,11 @@ class SignalActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         valueView = TextView(this).apply { textSize = 22f; gravity = Gravity.CENTER }
-        setContentView(LinearLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Signal Strength",LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
             addView(valueView)
-        })
+        }))
     }
 
     override fun onResume() {

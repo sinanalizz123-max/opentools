@@ -39,7 +39,7 @@ class ChecklistActivity : AppCompatActivity() {
                 adapter.notifyItemInserted(items.size - 1)
             }
         }
-        setContentView(LinearLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Checklist",LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             addView(list, LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
@@ -49,7 +49,7 @@ class ChecklistActivity : AppCompatActivity() {
                     LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
                 addView(add)
             })
-        })
+        }))
     }
 
     private fun prefs() = getSharedPreferences("checklist", Context.MODE_PRIVATE)

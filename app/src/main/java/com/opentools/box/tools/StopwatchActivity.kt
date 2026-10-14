@@ -65,13 +65,13 @@ class StopwatchActivity : AppCompatActivity() {
                 displayView.text = format(0L)
             }
         }
-        setContentView(LinearLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Stopwatch",LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             addView(displayView)
             addView(startPause)
             addView(lapReset)
             addView(lapList)
-        })
+        }))
     }
 
     override fun onPause() {

@@ -31,7 +31,7 @@ class TimerActivity : AppCompatActivity() {
         seconds = NumberPicker(this).apply { minValue = 0; maxValue = 59 }
         toggle = MaterialButton(this).apply { text = "Start" }
         toggle.setOnClickListener { if (running) cancel() else start() }
-        setContentView(LinearLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Timer",LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             val pad = (16 * resources.displayMetrics.density).toInt()
             setPadding(pad, pad, pad, pad)
@@ -42,7 +42,7 @@ class TimerActivity : AppCompatActivity() {
                 addView(hours); addView(minutes); addView(seconds)
             })
             addView(toggle)
-        })
+        }))
     }
 
     private fun start() {

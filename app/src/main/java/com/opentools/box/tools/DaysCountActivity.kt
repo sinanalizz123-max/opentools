@@ -23,12 +23,12 @@ class DaysCountActivity : AppCompatActivity() {
         val pickTo = MaterialButton(this).apply { text = "Pick end date" }
         pickFrom.setOnClickListener { pickDate { from = it; render() } }
         pickTo.setOnClickListener { pickDate { to = it; render() } }
-        setContentView(LinearLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Days Counter",LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             val pad = (16 * resources.displayMetrics.density).toInt()
             setPadding(pad, pad, pad, pad)
             addView(pickFrom); addView(pickTo); addView(result)
-        })
+        }))
     }
 
     private fun pickDate(onPick: (Long) -> Unit) {

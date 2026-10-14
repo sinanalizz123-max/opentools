@@ -9,10 +9,12 @@ data class ToolEntry(
 )
 
 enum class ToolCategory(val label: String) {
-    LIGHT("Light"),
-    SENSORS("Sensors"),
+    WIFI("WiFi"),
+    BASIC("Basic"),
+    CAMERA("Camera"),
+    HEALTH("Health"),
+    MEASURE("Measure"),
+    EDITORS("Editors"),
     AUDIO("Audio"),
-    EVERYDAY("Everyday"),
-    NETWORK("Network"),
-    MEDIA("Media"),
+    EXTRA("Extra"),
 }

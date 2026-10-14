@@ -28,11 +28,11 @@ class EmiActivity : AppCompatActivity() {
             val emi = if (monthly == 0.0) p / n else p * monthly * (1 + monthly).pow(n) / ((1 + monthly).pow(n) - 1)
             result.text = "Monthly EMI: %.2f\nTotal payable: %.2f\nTotal interest: %.2f".format(emi, emi * n, emi * n - p)
         }
-        setContentView(LinearLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "EMI Loan",LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             val pad = (16 * resources.displayMetrics.density).toInt()
             setPadding(pad, pad, pad, pad)
             addView(principal); addView(rate); addView(years); addView(calc); addView(result)
-        })
+        }))
     }
 }

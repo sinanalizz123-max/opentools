@@ -34,11 +34,11 @@ class DocViewerActivity : AppCompatActivity() {
         val open = MaterialButton(this).apply { text = "Open text file" }
         open.setOnClickListener { picker.launch(arrayOf("text/*")) }
         val scroll = ScrollView(this).apply { addView(text) }
-        setContentView(LinearLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Text Viewer",LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             addView(open)
             addView(scroll, LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
-        })
+        }))
     }
 }

@@ -53,14 +53,14 @@ class FileShareActivity : AppCompatActivity() {
             toggle.text = if (serving) "Stop server" else "Start server :9999"
         }
         fetch.setOnClickListener { fetchFrom(peer.text.toString().trim()) }
-        setContentView(LinearLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "LAN File Share",LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             val pad = (16 * resources.displayMetrics.density).toInt()
             setPadding(pad, pad, pad, pad)
             addView(status); addView(share); addView(toggle); addView(peer); addView(fetch)
             addView(list, LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
-        })
+        }))
     }
 
     private fun startServer() {

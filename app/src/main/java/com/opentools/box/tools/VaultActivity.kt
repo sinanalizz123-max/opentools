@@ -56,7 +56,7 @@ class VaultActivity : AppCompatActivity() {
             }
         }
         unlockedView = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        setContentView(lockView)
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "File Vault",lockView))
     }
 
     private fun hasPin() = prefs().contains("pin")
@@ -84,7 +84,7 @@ class VaultActivity : AppCompatActivity() {
         unlockedView.addView(list, LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
         unlockedView.addView(add)
-        setContentView(unlockedView)
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "File Vault",unlockedView))
     }
 
     private fun import(uri: Uri) {

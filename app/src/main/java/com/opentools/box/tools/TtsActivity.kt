@@ -42,12 +42,12 @@ class TtsActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         val stop = MaterialButton(this).apply { text = "Stop" }
         stop.setOnClickListener { tts?.stop() }
         tts = TextToSpeech(this, this)
-        setContentView(LinearLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Text to Speech",LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             val pad = (16 * resources.displayMetrics.density).toInt()
             setPadding(pad, pad, pad, pad)
             addView(input); addView(pitchSlider); addView(speedSlider); addView(speak); addView(stop)
-        })
+        }))
         speak.tag = "speak"
     }
 

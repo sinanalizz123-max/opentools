@@ -42,12 +42,12 @@ class CalorieActivity : AppCompatActivity(), SensorEventListener {
         val reset = MaterialButton(this).apply { text = "Reset steps" }
         reset.setOnClickListener { steps = 0; render() }
         render()
-        setContentView(LinearLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Calorie Counter",LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             val pad = (16 * resources.displayMetrics.density).toInt()
             setPadding(pad, pad, pad, pad)
             addView(stepsView); addView(calorieView); addView(weight); addView(set); addView(reset)
-        })
+        }))
     }
 
     override fun onResume() {

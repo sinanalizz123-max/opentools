@@ -25,10 +25,10 @@ class TorchActivity : AppCompatActivity() {
             cameraManager.setTorchMode(id, enabled)
             button.text = if (enabled) "Turn off" else "Turn on"
         }
-        setContentView(LinearLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Torch",LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             addView(button)
-        })
+        }))
     }
 
     override fun onPause() {

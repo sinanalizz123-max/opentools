@@ -29,12 +29,12 @@ class CctvViewerActivity : AppCompatActivity() {
             }
             status.text = "Streaming"
         }
-        setContentView(LinearLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "CCTV Viewer",LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             addView(ip); addView(watch); addView(status)
             addView(view, LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
-        })
+        }))
     }
 
     override fun onPause() {

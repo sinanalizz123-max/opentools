@@ -45,12 +45,12 @@ class WalkieActivity : AppCompatActivity() {
             }
             true
         }
-        setContentView(LinearLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Walkie-Talkie",LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             val pad = (16 * resources.displayMetrics.density).toInt()
             setPadding(pad, pad, pad, pad)
             addView(peerInput); addView(status); addView(talk)
-        })
+        }))
     }
 
     override fun onResume() {

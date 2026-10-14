@@ -44,12 +44,12 @@ class GpsCompassActivity : AppCompatActivity(), SensorEventListener, LocationLis
             hint = "Target longitude"
             inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL or InputType.TYPE_NUMBER_FLAG_SIGNED
         }
-        setContentView(LinearLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "GPS Compass",LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             val pad = (16 * resources.displayMetrics.density).toInt()
             setPadding(pad, pad, pad, pad)
             addView(bearingView); addView(distView); addView(latInput); addView(lonInput)
-        })
+        }))
     }
 
     override fun onResume() {

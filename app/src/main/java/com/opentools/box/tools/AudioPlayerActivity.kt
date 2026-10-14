@@ -51,12 +51,12 @@ class AudioPlayerActivity : AppCompatActivity() {
             else { p.start(); toggle.text = "Pause" }
             playing = !playing
         }
-        setContentView(LinearLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Audio Player",LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             val pad = (16 * resources.displayMetrics.density).toInt()
             setPadding(pad, pad, pad, pad)
             addView(nameView); addView(seek); addView(pick); addView(toggle)
-        })
+        }))
     }
 
     private fun open(uri: Uri) {

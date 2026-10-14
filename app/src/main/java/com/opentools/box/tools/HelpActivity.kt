@@ -10,13 +10,13 @@ import com.google.android.material.appbar.MaterialToolbar
 class HelpActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(LinearLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Help",LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             addView(MaterialToolbar(context).apply { title = "Help" })
             addView(TextView(context).apply {
                 text = "Tap a tool to open it.\nLong-press a checklist item to delete it.\nGrant camera/mic permissions only for the tools that need them."
                 textSize = 16f
             })
-        })
+        }))
     }
 }

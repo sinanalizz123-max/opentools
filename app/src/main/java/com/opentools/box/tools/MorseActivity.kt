@@ -48,12 +48,12 @@ class MorseActivity : AppCompatActivity() {
         flash.setOnClickListener { transmit(output.text.toString().ifEmpty { input.text.toString() }) }
         val sound = MaterialButton(this).apply { text = "Play as sound" }
         sound.setOnClickListener { transmitSound(output.text.toString().ifEmpty { input.text.toString() }) }
-        setContentView(LinearLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Morse Code",LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             val pad = (16 * resources.displayMetrics.density).toInt()
             setPadding(pad, pad, pad, pad)
             addView(input); addView(toMorse); addView(toText); addView(flash); addView(sound); addView(output)
-        })
+        }))
     }
 
     private fun transmit(morse: String) {

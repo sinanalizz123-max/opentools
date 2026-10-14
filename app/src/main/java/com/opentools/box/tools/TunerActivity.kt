@@ -73,7 +73,7 @@ class TunerActivity : AppCompatActivity() {
             max = 100
             setProgressCompat(50, false)
         }
-        setContentView(LinearLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Tuner",LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = android.view.Gravity.CENTER
             val pad = (24 * resources.displayMetrics.density).toInt()
@@ -83,7 +83,7 @@ class TunerActivity : AppCompatActivity() {
             addView(needle, LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT))
-        })
+        }))
     }
 
     override fun onResume() {

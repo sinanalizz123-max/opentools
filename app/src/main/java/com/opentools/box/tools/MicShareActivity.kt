@@ -42,12 +42,12 @@ class MicShareActivity : AppCompatActivity() {
         listen.setOnClickListener {
             if (!listening) startListen()
         }
-        setContentView(LinearLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Mic Share",LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             val pad = (16 * resources.displayMetrics.density).toInt()
             setPadding(pad, pad, pad, pad)
             addView(peer); addView(stream); addView(listen); addView(status)
-        })
+        }))
     }
 
     override fun onResume() {

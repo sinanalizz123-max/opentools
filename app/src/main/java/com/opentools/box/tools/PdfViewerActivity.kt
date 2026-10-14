@@ -36,7 +36,7 @@ class PdfViewerActivity : AppCompatActivity() {
         pick.setOnClickListener { picker.launch(arrayOf("application/pdf")) }
         prev.setOnClickListener { if (page > 0) { page--; render() } }
         next.setOnClickListener { if (page < pageCount - 1) { page++; render() } }
-        setContentView(LinearLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "PDF Viewer",LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             addView(image, LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
@@ -45,7 +45,7 @@ class PdfViewerActivity : AppCompatActivity() {
                 orientation = LinearLayout.HORIZONTAL
                 addView(pick); addView(prev); addView(next)
             })
-        })
+        }))
     }
 
     private fun open(uri: Uri) {

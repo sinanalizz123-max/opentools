@@ -46,12 +46,12 @@ class MusicShareActivity : AppCompatActivity() {
         stopHost.setOnClickListener { hosting = false; status.text = "Idle" }
         joinBtn.setOnClickListener { if (!joining) join() }
         pendingPeer = peer
-        setContentView(LinearLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Music Share",LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             val pad = (16 * resources.displayMetrics.density).toInt()
             setPadding(pad, pad, pad, pad)
             addView(status); addView(peer); addView(hostBtn); addView(stopHost); addView(joinBtn)
-        })
+        }))
     }
 
     private var pendingPeer: EditText? = null

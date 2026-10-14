@@ -40,10 +40,10 @@ class TxtRecogLiveActivity : AppCompatActivity() {
         cameraManager = getSystemService(Context.CAMERA_SERVICE) as CameraManager
         preview = TextureView(this)
         output = TextView(this).apply { textSize = 16f; text = "Point at text" }
-        setContentView(FrameLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Live OCR",FrameLayout(this).apply {
             addView(preview)
             addView(output)
-        })
+        }))
     }
 
     override fun onResume() {

@@ -36,14 +36,14 @@ class PaintActivity : AppCompatActivity() {
         thin.setOnClickListener { canvas.strokeWidth = 5f }
         thick.setOnClickListener { canvas.strokeWidth = 22f }
         save.setOnClickListener { canvas.saveTo(File(filesDir, "note-${System.currentTimeMillis()}.png")) }
-        setContentView(LinearLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Paint Notes",LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             addView(canvas, LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
             addView(LinearLayout(context).apply {
                 addView(black); addView(red); addView(blue); addView(thin); addView(thick); addView(clear); addView(save)
             })
-        })
+        }))
     }
 
     class PaintView(context: Context) : View(context) {

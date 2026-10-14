@@ -25,11 +25,11 @@ class GalleryActivity : AppCompatActivity() {
         }
         val pick = MaterialButton(this).apply { text = "Open image" }
         pick.setOnClickListener { picker.launch(arrayOf("image/*")) }
-        setContentView(LinearLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Gallery",LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             addView(image, LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
             addView(pick)
-        })
+        }))
     }
 }

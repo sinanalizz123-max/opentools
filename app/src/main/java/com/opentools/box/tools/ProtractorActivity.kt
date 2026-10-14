@@ -26,12 +26,12 @@ class ProtractorActivity : AppCompatActivity(), SensorEventListener {
         sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
         dial = Dial(this)
         label = TextView(this).apply { textSize = 32f }
-        setContentView(LinearLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Protractor",LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             addView(dial, LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
             addView(label)
-        })
+        }))
     }
 
     override fun onResume() {

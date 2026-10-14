@@ -85,7 +85,7 @@ class ConverterActivity : AppCompatActivity() {
         })
 
         selectCategory(0)
-        setContentView(LinearLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Converter",LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             val pad = (16 * resources.displayMetrics.density).toInt()
             setPadding(pad, pad, pad, pad)
@@ -94,7 +94,7 @@ class ConverterActivity : AppCompatActivity() {
             addView(fromSpinner)
             addView(toSpinner)
             addView(output)
-        })
+        }))
     }
 
     private fun selectCategory(index: Int) {

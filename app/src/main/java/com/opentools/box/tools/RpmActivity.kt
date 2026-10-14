@@ -30,10 +30,10 @@ class RpmActivity : AppCompatActivity() {
             }
         }
         reset.setOnClickListener { taps.clear(); valueView.text = "Tap!" }
-        setContentView(LinearLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Tap RPM",LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
             addView(valueView); addView(tap); addView(reset)
-        })
+        }))
     }
 }

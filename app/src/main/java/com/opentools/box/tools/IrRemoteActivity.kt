@@ -50,7 +50,7 @@ class IrRemoteActivity : AppCompatActivity() {
                 })
             }
         }
-        setContentView(layout)
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "IR Remote",layout))
     }
 
     /** Build an NEC frame (µs pulse sequence) for address + command. */

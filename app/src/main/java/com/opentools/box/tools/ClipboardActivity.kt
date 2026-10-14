@@ -46,7 +46,7 @@ class ClipboardActivity : AppCompatActivity() {
         list.setOnItemClickListener { _, _, pos, _ ->
             clipboard.setPrimaryClip(ClipData.newPlainText("note", history[pos]))
         }
-        setContentView(LinearLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Clipboard",LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             addView(list, LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
@@ -55,6 +55,6 @@ class ClipboardActivity : AppCompatActivity() {
                 orientation = LinearLayout.HORIZONTAL
                 addView(copy); addView(paste)
             })
-        })
+        }))
     }
 }

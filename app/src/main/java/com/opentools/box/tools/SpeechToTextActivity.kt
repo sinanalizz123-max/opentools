@@ -41,11 +41,11 @@ class SpeechToTextActivity : AppCompatActivity() {
                 output.text = "No speech recognizer on this device"
             }
         }
-        setContentView(LinearLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Speech to Text",LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             val pad = (16 * resources.displayMetrics.density).toInt()
             setPadding(pad, pad, pad, pad)
             addView(listen); addView(output)
-        })
+        }))
     }
 }

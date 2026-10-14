@@ -42,12 +42,12 @@ class WifiScanActivity : AppCompatActivity() {
         list.adapter = adapter
         val scan = MaterialButton(this).apply { text = "Scan" }
         scan.setOnClickListener { startScan() }
-        setContentView(LinearLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "WiFi Scanner",LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             addView(scan)
             addView(list, LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
-        })
+        }))
     }
 
     override fun onResume() {

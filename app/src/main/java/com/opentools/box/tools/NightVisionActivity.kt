@@ -51,10 +51,10 @@ class NightVisionActivity : AppCompatActivity() {
                 override fun onStopTrackingTouch(s: SeekBar?) = Unit
             })
         }
-        setContentView(FrameLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Night Vision",FrameLayout(this).apply {
             addView(preview)
             addView(gain)
-        })
+        }))
     }
 
     override fun onResume() {

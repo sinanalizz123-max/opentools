@@ -20,10 +20,10 @@ class SettingsActivity : AppCompatActivity() {
             """.trimIndent()
             textSize = 16f
         }
-        setContentView(LinearLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Settings",LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             addView(bar)
             addView(info)
-        })
+        }))
     }
 }

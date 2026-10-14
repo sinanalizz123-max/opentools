@@ -34,12 +34,12 @@ class LocationShareActivity : AppCompatActivity(), LocationListener {
                 putExtra(Intent.EXTRA_TEXT, text)
             }, "Share location"))
         }
-        setContentView(LinearLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Share Location",LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             val pad = (16 * resources.displayMetrics.density).toInt()
             setPadding(pad, pad, pad, pad)
             addView(coords); addView(share)
-        })
+        }))
     }
 
     override fun onResume() {

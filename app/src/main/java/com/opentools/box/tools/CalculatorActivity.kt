@@ -34,11 +34,11 @@ class CalculatorActivity : AppCompatActivity() {
                 setOnClickListener { onKey(key) }
             })
         }
-        setContentView(LinearLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Calculator",LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             addView(displayView)
             addView(grid)
-        })
+        }))
     }
 
     private fun onKey(key: String) {

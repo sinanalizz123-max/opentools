@@ -50,10 +50,10 @@ class ColorDetectActivity : AppCompatActivity() {
             }
         }
         swatch = TextView(this).apply { textSize = 20f; text = "Tap to sample" }
-        setContentView(FrameLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Color Detector",FrameLayout(this).apply {
             addView(preview)
             addView(swatch)
-        })
+        }))
     }
 
     override fun onResume() {

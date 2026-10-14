@@ -24,14 +24,14 @@ class CounterActivity : AppCompatActivity() {
         minus.setOnClickListener { count--; render() }
         reset.setOnClickListener { count = 0; render() }
         render()
-        setContentView(LinearLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Counter",LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
             addView(displayView)
             addView(plus)
             addView(minus)
             addView(reset)
-        })
+        }))
     }
 
     private fun render() { displayView.text = count.toString() }

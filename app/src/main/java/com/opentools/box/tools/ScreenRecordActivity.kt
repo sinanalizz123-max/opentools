@@ -48,12 +48,12 @@ class ScreenRecordActivity : AppCompatActivity() {
             if (recording) stop()
             else capture.launch(projectionManager.createScreenCaptureIntent())
         }
-        setContentView(LinearLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Screen Recorder",LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             val pad = (16 * resources.displayMetrics.density).toInt()
             setPadding(pad, pad, pad, pad)
             addView(status); addView(toggle)
-        })
+        }))
     }
 
     private fun begin() {

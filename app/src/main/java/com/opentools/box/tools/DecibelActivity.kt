@@ -32,7 +32,7 @@ class DecibelActivity : AppCompatActivity() {
         levelView = TextView(this).apply { textSize = 56f; text = "-- dB" }
         peakView = TextView(this).apply { textSize = 20f; text = "Peak: --" }
         bar = LinearProgressIndicator(this).apply { max = 120 }
-        setContentView(LinearLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Decibel Meter",LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = android.view.Gravity.CENTER
             val pad = (24 * resources.displayMetrics.density).toInt()
@@ -42,7 +42,7 @@ class DecibelActivity : AppCompatActivity() {
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT))
             addView(peakView)
-        })
+        }))
     }
 
     override fun onResume() {

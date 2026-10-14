@@ -25,11 +25,11 @@ class GpsActivity : AppCompatActivity(), LocationListener {
         manager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
         coords = TextView(this).apply { textSize = 24f; gravity = Gravity.CENTER }
         extra = TextView(this).apply { textSize = 18f; gravity = Gravity.CENTER }
-        setContentView(LinearLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "GPS Location",LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
             addView(coords); addView(extra)
-        })
+        }))
     }
 
     override fun onResume() {

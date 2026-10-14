@@ -49,12 +49,12 @@ class MotionDetectActivity : AppCompatActivity() {
             arm.text = if (armed) "Disarm" else "Arm"
             status.text = if (armed) "Watching…" else "Disarmed"
         }
-        setContentView(LinearLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Motion Detector",LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             val pad = (16 * resources.displayMetrics.density).toInt()
             setPadding(pad, pad, pad, pad)
             addView(status); addView(sensitivity); addView(arm)
-        })
+        }))
     }
 
     override fun onResume() {

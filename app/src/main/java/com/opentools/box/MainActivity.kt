@@ -1,185 +1,354 @@
 package com.opentools.box
 
+import android.app.Activity
+import android.content.Context
+import android.content.Intent
 import android.os.Bundle
+import android.speech.RecognizerIntent
+import android.text.Editable
+import android.text.TextWatcher
+import android.view.Gravity
+import android.view.View
+import android.view.ViewGroup
+import android.widget.ArrayAdapter
+import android.widget.EditText
+import android.widget.FrameLayout
+import android.widget.LinearLayout
+import android.widget.ListView
+import android.widget.ScrollView
+import android.widget.TextView
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.app.AppCompatDelegate
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.opentools.box.tools.CalculatorActivity
-import com.opentools.box.tools.CompassActivity
-import com.opentools.box.tools.ConverterActivity
-import com.opentools.box.tools.DecibelActivity
-import com.opentools.box.tools.TimerActivity
-import com.opentools.box.tools.CounterActivity
-import com.opentools.box.tools.ChecklistActivity
-import com.opentools.box.tools.PaintActivity
-import com.opentools.box.tools.SettingsActivity
-import com.opentools.box.tools.AboutActivity
-import com.opentools.box.tools.HelpActivity
-import com.opentools.box.tools.BmiActivity
-import com.opentools.box.tools.EmiActivity
-import com.opentools.box.tools.DaysCountActivity
-import com.opentools.box.tools.RandomDigitsActivity
-import com.opentools.box.tools.TtsActivity
-import com.opentools.box.tools.SpeechToTextActivity
-import com.opentools.box.tools.MusicShareActivity
-import com.opentools.box.tools.GpsCompassActivity
-import com.opentools.box.tools.LocationShareActivity
-import com.opentools.box.tools.ScreenLightActivity
-import com.opentools.box.tools.ShutterActivity
-import com.opentools.box.tools.FileBrowserActivity
-import com.opentools.box.tools.MeasureActivity
-import com.opentools.box.tools.ProtractorActivity
-import com.opentools.box.tools.SpeedometerActivity
-import com.opentools.box.tools.SoundGenActivity
-import com.opentools.box.tools.DecideActivity
-import com.opentools.box.tools.NightVisionActivity
-import com.opentools.box.tools.MotionDetectActivity
-import com.opentools.box.tools.BluetoothTerminalActivity
-import com.opentools.box.tools.ContactsActivity
-import com.opentools.box.tools.DocViewerActivity
-import com.opentools.box.tools.CctvServerActivity
-import com.opentools.box.tools.CctvViewerActivity
-import com.opentools.box.tools.VideoCallActivity
-import com.opentools.box.tools.FileShareActivity
-import com.opentools.box.tools.WalkieActivity
-import com.opentools.box.tools.MicShareActivity
-import com.opentools.box.tools.TxtRecogActivity
-import com.opentools.box.tools.TxtRecogLiveActivity
-import com.opentools.box.tools.ScreenRecordActivity
-import com.opentools.box.tools.VaultActivity
-import com.opentools.box.tools.IrRemoteActivity
-import com.opentools.box.tools.WifiSpeedActivity
-import com.opentools.box.tools.WifiScanActivity
-import com.opentools.box.tools.LanScanActivity
-import com.opentools.box.tools.DevInfoActivity
-import com.opentools.box.tools.SignalActivity
-import com.opentools.box.tools.AudioPlayerActivity
-import com.opentools.box.tools.VideoPlayerActivity
-import com.opentools.box.tools.GalleryActivity
-import com.opentools.box.tools.PdfViewerActivity
-import com.opentools.box.tools.GpsActivity
-import com.opentools.box.tools.ClipboardActivity
-import com.opentools.box.tools.ColorDetectActivity
-import com.opentools.box.tools.MagnifierActivity
-import com.opentools.box.tools.HeartRateActivity
-import com.opentools.box.tools.EmfActivity
-import com.opentools.box.tools.GMeterActivity
-import com.opentools.box.tools.PressureActivity
-import com.opentools.box.tools.HumidityActivity
-import com.opentools.box.tools.LightSensorActivity
-import com.opentools.box.tools.ProximityActivity
-import com.opentools.box.tools.LevelActivity
-import com.opentools.box.tools.BatteryTempActivity
-import com.opentools.box.tools.VibrometerActivity
-import com.opentools.box.tools.RpmActivity
-import com.opentools.box.tools.MorseActivity
-import com.opentools.box.tools.QrGenerateActivity
-import com.opentools.box.tools.ScannerActivity
-import com.opentools.box.tools.CalorieActivity
-import com.opentools.box.tools.AltitudeActivity
-import com.opentools.box.tools.MetronomeActivity
-import com.opentools.box.tools.MirrorActivity
-import com.opentools.box.tools.RecorderActivity
-import com.opentools.box.tools.RulerActivity
-import com.opentools.box.tools.StopwatchActivity
-import com.opentools.box.tools.TorchActivity
-import com.opentools.box.tools.TunerActivity
-import com.opentools.box.tools.WhiteScreenActivity
+import androidx.viewpager2.widget.ViewPager2
+import com.google.android.material.appbar.MaterialToolbar
+import com.google.android.material.button.MaterialButton
+import com.google.android.material.card.MaterialCardView
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.search.SearchBar
+import java.util.Locale
 
+/**
+ * Home screen mirroring the reference utility-box structure:
+ * header + menu, search (+voice), featured carousel, editable
+ * shortcuts, category rail + grid, common tools, recommended.
+ * Original M3 Expressive implementation.
+ */
 class MainActivity : AppCompatActivity() {
 
-    private val tools = listOf(
-        ToolEntry("torch", "Torch", ToolCategory.LIGHT, TorchActivity::class.java),
-        ToolEntry("stopwatch", "Stopwatch", ToolCategory.EVERYDAY, StopwatchActivity::class.java),
-        ToolEntry("calculator", "Calculator", ToolCategory.EVERYDAY, CalculatorActivity::class.java),
-        ToolEntry("compass", "Compass", ToolCategory.SENSORS, CompassActivity::class.java),
-        ToolEntry("converter", "Converter", ToolCategory.EVERYDAY, ConverterActivity::class.java),
-        ToolEntry("ruler", "Ruler", ToolCategory.EVERYDAY, RulerActivity::class.java),
-        ToolEntry("whitescreen", "White Screen", ToolCategory.LIGHT, WhiteScreenActivity::class.java),
-        ToolEntry("mirror", "Mirror", ToolCategory.EVERYDAY, MirrorActivity::class.java),
-        ToolEntry("recorder", "Recorder", ToolCategory.AUDIO, RecorderActivity::class.java),
-        ToolEntry("metronome", "Metronome", ToolCategory.AUDIO, MetronomeActivity::class.java),
-        ToolEntry("tuner", "Tuner", ToolCategory.AUDIO, TunerActivity::class.java),
-        ToolEntry("decibel", "Decibel Meter", ToolCategory.SENSORS, DecibelActivity::class.java),
-        ToolEntry("timer", "Timer", ToolCategory.EVERYDAY, TimerActivity::class.java),
-        ToolEntry("counter", "Counter", ToolCategory.EVERYDAY, CounterActivity::class.java),
-        ToolEntry("checklist", "Checklist", ToolCategory.EVERYDAY, ChecklistActivity::class.java),
-        ToolEntry("paint", "Paint Notes", ToolCategory.EVERYDAY, PaintActivity::class.java),
-        ToolEntry("settings", "Settings", ToolCategory.EVERYDAY, SettingsActivity::class.java),
-        ToolEntry("about", "About", ToolCategory.EVERYDAY, AboutActivity::class.java),
-        ToolEntry("help", "Help", ToolCategory.EVERYDAY, HelpActivity::class.java),
-        ToolEntry("bmi", "BMI", ToolCategory.EVERYDAY, BmiActivity::class.java),
-        ToolEntry("emi", "EMI Loan", ToolCategory.EVERYDAY, EmiActivity::class.java),
-        ToolEntry("dayscount", "Days Counter", ToolCategory.EVERYDAY, DaysCountActivity::class.java),
-        ToolEntry("randdigi", "Random Digits", ToolCategory.EVERYDAY, RandomDigitsActivity::class.java),
-        ToolEntry("ttosp", "Text to Speech", ToolCategory.AUDIO, TtsActivity::class.java),
-        ToolEntry("sptotxt", "Speech to Text", ToolCategory.AUDIO, SpeechToTextActivity::class.java),
-        ToolEntry("musicshare", "Music Share", ToolCategory.NETWORK, MusicShareActivity::class.java),
-        ToolEntry("gpscompass", "GPS Compass", ToolCategory.NETWORK, GpsCompassActivity::class.java),
-        ToolEntry("locshare", "Share Location", ToolCategory.NETWORK, LocationShareActivity::class.java),
-        ToolEntry("screenlight", "Color Light", ToolCategory.LIGHT, ScreenLightActivity::class.java),
-        ToolEntry("shutter", "Quick Camera", ToolCategory.MEDIA, ShutterActivity::class.java),
-        ToolEntry("files", "File Browser", ToolCategory.EVERYDAY, FileBrowserActivity::class.java),
-        ToolEntry("measure", "Measure Height/Distance", ToolCategory.SENSORS, MeasureActivity::class.java),
-        ToolEntry("smartpro", "Protractor", ToolCategory.SENSORS, ProtractorActivity::class.java),
-        ToolEntry("speedo", "GPS Speedometer", ToolCategory.SENSORS, SpeedometerActivity::class.java),
-        ToolEntry("sdgen", "Tone Generator", ToolCategory.AUDIO, SoundGenActivity::class.java),
-        ToolEntry("decide", "Decide / Dice", ToolCategory.EVERYDAY, DecideActivity::class.java),
-        ToolEntry("nightvis", "Night Vision", ToolCategory.MEDIA, NightVisionActivity::class.java),
-        ToolEntry("mdetect", "Motion Detector", ToolCategory.MEDIA, MotionDetectActivity::class.java),
-        ToolEntry("aurdino", "BT Terminal", ToolCategory.NETWORK, BluetoothTerminalActivity::class.java),
-        ToolEntry("contacts", "Contacts", ToolCategory.EVERYDAY, ContactsActivity::class.java),
-        ToolEntry("docviewer", "Text Viewer", ToolCategory.MEDIA, DocViewerActivity::class.java),
-        ToolEntry("cctvserver", "CCTV Camera", ToolCategory.NETWORK, CctvServerActivity::class.java),
-        ToolEntry("cctvviewer", "CCTV Viewer", ToolCategory.NETWORK, CctvViewerActivity::class.java),
-        ToolEntry("vcall", "LAN Video Call", ToolCategory.NETWORK, VideoCallActivity::class.java),
-        ToolEntry("filetrans", "LAN File Share", ToolCategory.NETWORK, FileShareActivity::class.java),
-        ToolEntry("walki", "Walkie-Talkie", ToolCategory.NETWORK, WalkieActivity::class.java),
-        ToolEntry("mike", "Mic Share", ToolCategory.NETWORK, MicShareActivity::class.java),
-        ToolEntry("txtrecog", "Image OCR", ToolCategory.MEDIA, TxtRecogActivity::class.java),
-        ToolEntry("txtrecoglive", "Live OCR", ToolCategory.MEDIA, TxtRecogLiveActivity::class.java),
-        ToolEntry("scrnrec", "Screen Recorder", ToolCategory.MEDIA, ScreenRecordActivity::class.java),
-        ToolEntry("vault", "File Vault", ToolCategory.EVERYDAY, VaultActivity::class.java),
-        ToolEntry("remote", "IR Remote", ToolCategory.EVERYDAY, IrRemoteActivity::class.java),
-        ToolEntry("wifispeed", "WiFi Speed", ToolCategory.NETWORK, WifiSpeedActivity::class.java),
-        ToolEntry("wifiscan", "WiFi Scanner", ToolCategory.NETWORK, WifiScanActivity::class.java),
-        ToolEntry("wifiscanip", "LAN Scanner", ToolCategory.NETWORK, LanScanActivity::class.java),
-        ToolEntry("devinfo", "Device Info", ToolCategory.EVERYDAY, DevInfoActivity::class.java),
-        ToolEntry("sigstr", "Signal Strength", ToolCategory.NETWORK, SignalActivity::class.java),
-        ToolEntry("audioply", "Audio Player", ToolCategory.MEDIA, AudioPlayerActivity::class.java),
-        ToolEntry("vidply", "Video Player", ToolCategory.MEDIA, VideoPlayerActivity::class.java),
-        ToolEntry("gallery", "Gallery", ToolCategory.MEDIA, GalleryActivity::class.java),
-        ToolEntry("pdfviewer", "PDF Viewer", ToolCategory.MEDIA, PdfViewerActivity::class.java),
-        ToolEntry("gps", "GPS Location", ToolCategory.NETWORK, GpsActivity::class.java),
-        ToolEntry("clipboard", "Clipboard", ToolCategory.EVERYDAY, ClipboardActivity::class.java),
-        ToolEntry("colordetect", "Color Detector", ToolCategory.SENSORS, ColorDetectActivity::class.java),
-        ToolEntry("magnifi", "Magnifier", ToolCategory.SENSORS, MagnifierActivity::class.java),
-        ToolEntry("heart", "Heart Rate", ToolCategory.SENSORS, HeartRateActivity::class.java),
-        ToolEntry("emf", "EMF Meter", ToolCategory.SENSORS, EmfActivity::class.java),
-        ToolEntry("gmeter", "G-Force", ToolCategory.SENSORS, GMeterActivity::class.java),
-        ToolEntry("pressure", "Pressure", ToolCategory.SENSORS, PressureActivity::class.java),
-        ToolEntry("humidity", "Humidity", ToolCategory.SENSORS, HumidityActivity::class.java),
-        ToolEntry("lightsensor", "Light Meter", ToolCategory.SENSORS, LightSensorActivity::class.java),
-        ToolEntry("proximity", "Proximity", ToolCategory.SENSORS, ProximityActivity::class.java),
-        ToolEntry("level", "Bubble Level", ToolCategory.SENSORS, LevelActivity::class.java),
-        ToolEntry("battemp", "Battery Temp", ToolCategory.SENSORS, BatteryTempActivity::class.java),
-        ToolEntry("vibrometer", "Vibrometer", ToolCategory.SENSORS, VibrometerActivity::class.java),
-        ToolEntry("rpm", "Tap RPM", ToolCategory.EVERYDAY, RpmActivity::class.java),
-        ToolEntry("morse", "Morse Code", ToolCategory.EVERYDAY, MorseActivity::class.java),
-        ToolEntry("qrgenerate", "QR Generator", ToolCategory.MEDIA, QrGenerateActivity::class.java),
-        ToolEntry("scanner", "QR / Barcode Scanner", ToolCategory.MEDIA, ScannerActivity::class.java),
-        ToolEntry("calorie", "Calorie Counter", ToolCategory.SENSORS, CalorieActivity::class.java),
-        ToolEntry("altitude", "Altimeter", ToolCategory.SENSORS, AltitudeActivity::class.java),
-    )
+    private val allTools = ToolRegistry.tools
+    private var category = ToolCategory.BASIC
+    private var sortAlpha = false
+    private lateinit var grid: RecyclerView
+    private lateinit var gridAdapter: ToolGridAdapter
+    private lateinit var rail: LinearLayout
+    private lateinit var searchResults: ListView
+    private lateinit var shortcutRow: LinearLayout
+
+    private val voiceLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val match = result.data
+                ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
+            if (match != null) {
+                searchInput?.setText(match)
+                runSearch(match)
+            }
+        }
+    }
+
+    private var searchInput: EditText? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val grid = RecyclerView(this).apply {
-            layoutManager = GridLayoutManager(this@MainActivity, 3)
-            adapter = ToolGridAdapter(tools) { entry ->
-                startActivity(android.content.Intent(this@MainActivity, entry.activityClass))
+        val root = ScrollView(this).apply {
+            addView(LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
+                addView(buildHeader())
+                addView(buildSearch())
+                addView(buildFeatured())
+                addView(sectionTitle("Shortcuts"))
+                shortcutRow = LinearLayout(context).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                }
+                addView(shortcutRow)
+                addView(sectionTitle("Categories"))
+                addView(buildCategorySection())
+                addView(buildCommonCard())
+                addView(buildRecommended())
+            })
+        }
+        searchResults = ListView(this).apply { visibility = View.GONE }
+        val frame = FrameLayout(this).apply {
+            addView(root)
+            addView(searchResults)
+        }
+        setContentView(frame)
+        refreshShortcuts()
+        selectCategory(category)
+    }
+
+    // ---- Header + menu ----
+
+    private fun buildHeader(): View {
+        val bar = MaterialToolbar(this).apply { title = "OpenTools" }
+        bar.inflateMenu(R.menu.home_menu)
+        bar.setOnMenuItemClickListener { item ->
+            when (item.itemId) {
+                R.id.menu_dark -> {
+                    val night = AppCompatDelegate.getDefaultNightMode() ==
+                        AppCompatDelegate.MODE_NIGHT_YES
+                    AppCompatDelegate.setDefaultNightMode(
+                        if (night) AppCompatDelegate.MODE_NIGHT_NO
+                        else AppCompatDelegate.MODE_NIGHT_YES)
+                    true
+                }
+                R.id.menu_files -> { openTool("files"); true }
+                R.id.menu_about -> { openTool("about"); true }
+                R.id.menu_help -> { openTool("help"); true }
+                R.id.menu_settings -> { openTool("settings"); true }
+                else -> false
             }
         }
-        setContentView(grid)
+        return bar
+    }
+
+    // ---- Search ----
+
+    private fun buildSearch(): View {
+        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        val searchBar = SearchBar(this).apply { hint = "Search tools" }
+        searchInput = searchBar.textView as? EditText
+        searchInput?.addTextChangedListener(object : TextWatcher {
+            override fun afterTextChanged(s: Editable?) = runSearch(s.toString())
+            override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) = Unit
+            override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) = Unit
+        })
+        val voice = MaterialButton(this).apply {
+            text = "🎤"
+            setOnClickListener {
+                try {
+                    voiceLauncher.launch(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                        putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                            RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                        putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
+                    })
+                } catch (_: Exception) { }
+            }
+        }
+        row.addView(searchBar, LinearLayout.LayoutParams(0,
+            LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        row.addView(voice)
+        return row
+    }
+
+    private fun runSearch(query: String) {
+        if (query.isBlank()) {
+            searchResults.visibility = View.GONE
+            return
+        }
+        val hits = allTools.filter { it.title.contains(query, ignoreCase = true) }
+        searchResults.adapter = ArrayAdapter(this,
+            android.R.layout.simple_list_item_1, hits.map { it.title })
+        searchResults.setOnItemClickListener { _, _, pos, _ -> openTool(hits[pos]) }
+        searchResults.visibility = View.VISIBLE
+        searchResults.bringToFront()
+    }
+
+    // ---- Featured carousel ----
+
+    private fun featured(): List<ToolEntry> = listOf("torch", "qrgenerate", "compass", "recorder")
+        .mapNotNull { id -> allTools.find { it.id == id } }
+
+    private fun buildFeatured(): View {
+        val pager = ViewPager2(this).apply {
+            adapter = FeaturedAdapter(featured()) { openTool(it) }
+        }
+        val dots = LinearLayout(this).apply {
+            gravity = Gravity.CENTER
+            orientation = LinearLayout.HORIZONTAL
+        }
+        val items = featured()
+        repeat(items.size) { dots.addView(dotView(it == 0)) }
+        pager.registerOnPageChangeCallback(object : ViewPager2.OnPageChangeCallback() {
+            override fun onPageSelected(position: Int) {
+                for (i in 0 until dots.childCount) {
+                    dots.getChildAt(i).alpha = if (i == position) 1f else 0.3f
+                }
+            }
+        })
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(sectionTitle("Featured"))
+            addView(pager, LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, 420))
+            addView(dots)
+        }
+    }
+
+    private fun dotView(active: Boolean) = View(this).apply {
+        alpha = if (active) 1f else 0.3f
+        val d = (8 * resources.displayMetrics.density).toInt()
+        layoutParams = LinearLayout.LayoutParams(d, d).apply {
+            setMargins(d / 2, d, d / 2, d)
+        }
+        setBackgroundColor(getColor(android.R.color.holo_blue_light))
+    }
+
+    // ---- Shortcuts (editable) ----
+
+    private fun shortcutPrefs() = getSharedPreferences("home", Context.MODE_PRIVATE)
+
+    private fun shortcutIds(): MutableList<String> {
+        val saved = shortcutPrefs().getString("shortcuts", null)
+        return if (saved == null) mutableListOf("torch", "calculator", "compass", "qrgenerate")
+        else saved.split(",").toMutableList()
+    }
+
+    private fun refreshShortcuts() {
+        shortcutRow.removeAllViews()
+        val ids = shortcutIds()
+        for (id in ids) {
+            val tool = allTools.find { it.id == id }
+            shortcutRow.addView(MaterialButton(this).apply {
+                text = tool?.title ?: "+"
+                setOnClickListener { if (tool != null) openTool(tool) }
+            }, LinearLayout.LayoutParams(0,
+                LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        }
+        shortcutRow.addView(MaterialButton(this).apply {
+            text = "✎"
+            setOnClickListener { editShortcuts() }
+        })
+    }
+
+    private fun editShortcuts() {
+        val titles = allTools.map { it.title }.toTypedArray()
+        val current = shortcutIds()
+        val checked = allTools.map { current.contains(it.id) }.toBooleanArray()
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Pick 4 shortcuts")
+            .setMultiChoiceItems(titles, checked) { _, which, isChecked ->
+                checked[which] = isChecked
+            }
+            .setPositiveButton("Save") { _, _ ->
+                val picked = allTools.filterIndexed { i, _ -> checked[i] }
+                    .take(4).map { it.id }
+                if (picked.isNotEmpty()) {
+                    shortcutPrefs().edit().putString("shortcuts", picked.joinToString(",")).apply()
+                    refreshShortcuts()
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    // ---- Category rail + grid ----
+
+    private fun buildCategorySection(): View {
+        rail = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        for (cat in ToolCategory.values()) {
+            rail.addView(MaterialButton(this).apply {
+                text = cat.label
+                setOnClickListener { selectCategory(cat) }
+            })
+        }
+        gridAdapter = ToolGridAdapter(emptyList()) { openTool(it) }
+        grid = RecyclerView(this).apply {
+            layoutManager = GridLayoutManager(context, 3)
+            adapter = gridAdapter
+            isNestedScrollingEnabled = false
+        }
+        val sortRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        sortRow.addView(MaterialButton(this).apply {
+            text = "A–Z"
+            setOnClickListener { sortAlpha = true; selectCategory(category) }
+        })
+        sortRow.addView(MaterialButton(this).apply {
+            text = "Default"
+            setOnClickListener { sortAlpha = false; selectCategory(category) }
+        })
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(sortRow)
+            addView(LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                addView(rail, LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT))
+                addView(grid, LinearLayout.LayoutParams(0,
+                    LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+            })
+        }
+    }
+
+    private fun selectCategory(cat: ToolCategory) {
+        category = cat
+        var list = allTools.filter { it.category == cat }
+        if (sortAlpha) list = list.sortedBy { it.title }
+        gridAdapter.update(list)
+        for (i in 0 until rail.childCount) {
+            (rail.getChildAt(i) as MaterialButton).alpha =
+                if (ToolCategory.values()[i] == cat) 1f else 0.55f
+        }
+    }
+
+    // ---- Common + recommended ----
+
+    private fun commonTools(): List<ToolEntry> =
+        listOf("torch", "calculator", "clipboard", "converter", "qrgenerate", "stopwatch")
+            .mapNotNull { id -> allTools.find { it.id == id } }
+
+    private fun buildCommonCard(): View {
+        val card = MaterialCardView(this)
+        val inner = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val header = MaterialButton(this).apply { text = "Common tools ▾" }
+        val list = RecyclerView(this).apply {
+            layoutManager = GridLayoutManager(context, 4)
+            adapter = ToolGridAdapter(commonTools()) { openTool(it) }
+            isNestedScrollingEnabled = false
+            visibility = View.GONE
+        }
+        header.setOnClickListener {
+            list.visibility = if (list.visibility == View.VISIBLE) View.GONE else View.VISIBLE
+            header.text = if (list.visibility == View.VISIBLE) "Common tools ▴" else "Common tools ▾"
+        }
+        inner.addView(header)
+        inner.addView(list)
+        card.addView(inner)
+        return card
+    }
+
+    private fun buildRecommended(): View {
+        val ids = listOf("filetrans", "walki", "vcall", "vault")
+        val items = ids.mapNotNull { id -> allTools.find { it.id == id } }
+        val row = RecyclerView(this).apply {
+            layoutManager = GridLayoutManager(context, 4)
+            adapter = ToolGridAdapter(items) { openTool(it) }
+            isNestedScrollingEnabled = false
+        }
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(sectionTitle("Recommended"))
+            addView(row)
+        }
+    }
+
+    private fun sectionTitle(text: String) = TextView(this).apply {
+        this.text = text
+        textSize = 18f
+        val pad = ToolScaffold.pad(context)
+        setPadding(pad, pad / 2, pad, pad / 4)
+    }
+
+    private fun openTool(id: String) {
+        allTools.find { it.id == id }?.let { openTool(it) }
+    }
+
+    private fun openTool(entry: ToolEntry) {
+        searchResults.visibility = View.GONE
+        startActivity(Intent(this, entry.activityClass))
     }
 }

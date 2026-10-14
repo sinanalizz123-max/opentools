@@ -54,7 +54,7 @@ class RecorderActivity : AppCompatActivity() {
         }
         recordBtn.setOnClickListener { if (recording) stopRecording() else startRecording() }
         playBtn.setOnClickListener { if (playing) stopPlaying() else startPlaying() }
-        setContentView(LinearLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Recorder",LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             val pad = (16 * resources.displayMetrics.density).toInt()
             setPadding(pad, pad, pad, pad)
@@ -62,7 +62,7 @@ class RecorderActivity : AppCompatActivity() {
             addView(level)
             addView(recordBtn)
             addView(playBtn)
-        })
+        }))
     }
 
     private fun startRecording() {

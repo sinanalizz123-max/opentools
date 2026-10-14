@@ -26,12 +26,12 @@ class QrGenerateActivity : AppCompatActivity() {
             val text = input.text.toString()
             if (text.isNotEmpty()) image.setImageBitmap(makeQr(text, 768))
         }
-        setContentView(LinearLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "QR Generator",LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             val pad = (16 * resources.displayMetrics.density).toInt()
             setPadding(pad, pad, pad, pad)
             addView(input); addView(go); addView(image)
-        })
+        }))
     }
 
     private fun makeQr(text: String, size: Int): Bitmap {

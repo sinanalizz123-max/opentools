@@ -43,12 +43,12 @@ class MeasureActivity : AppCompatActivity(), SensorEventListener {
             knownInput.hint = if (modeHeight) "Your eye height (m)" else "Object height (m)"
             render()
         }
-        setContentView(LinearLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Measure",LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             val pad = (16 * resources.displayMetrics.density).toInt()
             setPadding(pad, pad, pad, pad)
             addView(angleView); addView(knownInput); addView(mode); addView(resultView)
-        })
+        }))
         knownInput.setOnEditorActionListener { _, _, _ -> render(); false }
     }
 

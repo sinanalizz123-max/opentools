@@ -39,12 +39,12 @@ class SoundGenActivity : AppCompatActivity() {
             if (playing) stopTone() else startTone()
             toggle.text = if (playing) "Stop" else "Play"
         }
-        setContentView(LinearLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Tone Generator",LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             val pad = (16 * resources.displayMetrics.density).toInt()
             setPadding(pad, pad, pad, pad)
             addView(freqLabel); addView(slider); addView(type); addView(toggle)
-        })
+        }))
     }
 
     private fun startTone() {

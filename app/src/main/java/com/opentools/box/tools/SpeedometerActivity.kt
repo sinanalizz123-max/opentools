@@ -29,11 +29,11 @@ class SpeedometerActivity : AppCompatActivity(), LocationListener {
             useMph = !useMph
             unit.text = if (useMph) "mph" else "km/h"
         }
-        setContentView(LinearLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "GPS Speedometer",LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
             addView(speedView); addView(unit)
-        })
+        }))
     }
 
     override fun onResume() {

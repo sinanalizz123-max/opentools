@@ -44,12 +44,12 @@ class MagnifierActivity : AppCompatActivity() {
             override fun onSurfaceTextureDestroyed(s: SurfaceTexture): Boolean = true
             override fun onSurfaceTextureUpdated(s: SurfaceTexture) = Unit
         }
-        setContentView(LinearLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Magnifier",LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             addView(preview, LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
             addView(slider)
-        })
+        }))
     }
 
     override fun onResume() {

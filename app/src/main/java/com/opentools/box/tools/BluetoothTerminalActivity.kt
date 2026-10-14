@@ -51,14 +51,14 @@ class BluetoothTerminalActivity : AppCompatActivity() {
             bonded.text = "Paired:\n" + manager.adapter.bondedDevices
                 .joinToString("\n") { "${it.name} — ${it.address}" }
         } catch (_: Exception) { }
-        setContentView(LinearLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "BT Terminal",LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             addView(bonded)
             addView(address); addView(connect)
             addView(logView, LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
             addView(input); addView(send)
-        })
+        }))
     }
 
     override fun onResume() {

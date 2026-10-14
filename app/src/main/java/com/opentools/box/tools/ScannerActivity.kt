@@ -46,7 +46,7 @@ class ScannerActivity : AppCompatActivity() {
         val frame = FrameLayout(this)
         frame.addView(preview)
         frame.addView(result)
-        setContentView(frame)
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "QR Scanner",frame))
     }
 
     override fun onResume() {

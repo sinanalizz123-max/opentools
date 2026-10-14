@@ -13,7 +13,7 @@ class RulerActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(RulerView(this))
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Ruler",RulerView(this)))
     }
 
     private class RulerView(context: Context) : View(context) {

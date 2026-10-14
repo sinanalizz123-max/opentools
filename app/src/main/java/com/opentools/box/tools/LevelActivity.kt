@@ -22,7 +22,7 @@ class LevelActivity : AppCompatActivity(), SensorEventListener {
         super.onCreate(savedInstanceState)
         sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
         view = LevelView(this)
-        setContentView(view)
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Bubble Level",view))
     }
 
     override fun onResume() {

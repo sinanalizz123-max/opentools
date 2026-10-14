@@ -23,11 +23,11 @@ class VibrometerActivity : AppCompatActivity(), SensorEventListener {
         super.onCreate(savedInstanceState)
         sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
         valueView = TextView(this).apply { textSize = 48f; gravity = Gravity.CENTER }
-        setContentView(LinearLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Vibrometer",LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
             addView(valueView)
-        })
+        }))
     }
 
     override fun onResume() {

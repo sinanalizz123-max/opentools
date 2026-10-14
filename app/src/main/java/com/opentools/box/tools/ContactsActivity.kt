@@ -34,12 +34,12 @@ class ContactsActivity : AppCompatActivity() {
         loadBtn.setOnClickListener {
             permission.launch(android.Manifest.permission.READ_CONTACTS)
         }
-        setContentView(LinearLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Contacts",LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             addView(loadBtn); addView(count)
             addView(list, LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
-        })
+        }))
     }
 
     private fun load() {

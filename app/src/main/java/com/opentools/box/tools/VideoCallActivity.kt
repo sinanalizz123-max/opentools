@@ -23,7 +23,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
-import com.google.android.material.button.MaterialButton
+import com.opentools.box.UiStyle
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
@@ -59,28 +59,54 @@ class VideoCallActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         cameraManager = getSystemService(Context.CAMERA_SERVICE) as CameraManager
-        val ip = EditText(this).apply { hint = "Peer IP, e.g. 192.168.1.5" }
-        val peerToken = EditText(this).apply { hint = "Peer camera/audio token" }
-        status = TextView(this).apply { text = "Enter peer IP and token to join" }
+        val ip = EditText(this).apply {
+            hint = "Peer IP address"
+            UiStyle.styleInput(this)
+            setSingleLine(true)
+        }
+        val peerToken = EditText(this).apply {
+            hint = "Peer camera/audio token"
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+            UiStyle.styleInput(this)
+            setSingleLine(true)
+        }
+        status = TextView(this).apply {
+            text = "Enter a peer IP and token to join a call."
+            UiStyle.styleText(this, 13f, false, UiStyle.muted(context))
+            setPadding(UiStyle.dp(context, 12f), UiStyle.dp(context, 10f),
+                UiStyle.dp(context, 12f), UiStyle.dp(context, 10f))
+            background = UiStyle.rounded(context, UiStyle.surface(context), 12f, UiStyle.border(context))
+        }
         val localToken = TextView(this).apply {
             text = "Your access token: " + accessToken
-            textSize = 12f
+            UiStyle.styleText(this, 12f, false, UiStyle.muted(context))
             setTextIsSelectable(true)
+            setPadding(0, UiStyle.dp(context, 8f), 0, UiStyle.dp(context, 8f))
         }
-        remoteView = ImageView(this).apply { adjustViewBounds = true }
-        val join = MaterialButton(this).apply { text = "Join call" }
-        val hangup = MaterialButton(this).apply { text = "Hang up" }
+        remoteView = ImageView(this).apply {
+            adjustViewBounds = true
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            contentDescription = "Remote video stream"
+            setBackgroundColor(android.graphics.Color.BLACK)
+        }
+        val join = NativeButton(this).apply { text = "Join call" }
+        val hangup = NativeButton(this, false).apply { text = "Hang up" }
         join.setOnClickListener { joinCall(ip.text.toString().trim(), peerToken.text.toString().trim()) }
         hangup.setOnClickListener { hangUp() }
-        setContentView(com.opentools.box.ToolScaffold.wrap(this, "LAN Video Call",LinearLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "LAN Video Call", LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            addView(ip); addView(peerToken); addView(localToken); addView(status)
+            val pad = UiStyle.dp(context, 12f)
+            setPadding(pad, pad, pad, pad)
+            addView(ip, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = UiStyle.dp(context, 8f) })
+            addView(peerToken, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = UiStyle.dp(context, 8f) })
+            addView(localToken, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = UiStyle.dp(context, 4f) })
+            addView(status, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = UiStyle.dp(context, 8f) })
             addView(LinearLayout(context).apply {
                 orientation = LinearLayout.HORIZONTAL
-                addView(join); addView(hangup)
-            })
-            addView(remoteView, LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
+                addView(join, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = UiStyle.dp(context, 6f) })
+                addView(hangup, LinearLayout.LayoutParams(0, -2, 1f))
+            }, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = UiStyle.dp(context, 8f) })
+            addView(remoteView, LinearLayout.LayoutParams(-1, 0, 1f))
         }))
     }
 

@@ -13,11 +13,12 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.HandlerThread
 import android.widget.LinearLayout
+import android.widget.SeekBar
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
-import com.google.android.material.button.MaterialButton
-import com.google.android.material.slider.Slider
+import com.opentools.box.ToolScaffold
+import com.opentools.box.UiStyle
 import kotlin.math.abs
 
 /** Motion detector: alerts when preview frames change. Original implementation. */
@@ -33,28 +34,62 @@ class MotionDetectActivity : AppCompatActivity() {
     private var armed = false
     private var threshold = 25.0
     private var previous: ByteArray? = null
+    private lateinit var armButton: NativeButton
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         cameraManager = getSystemService(Context.CAMERA_SERVICE) as CameraManager
-        status = TextView(this).apply { textSize = 22f; text = "Disarmed" }
-        val sensitivity = Slider(this).apply {
-            valueFrom = 5f; valueTo = 80f; value = 25f
-            addOnChangeListener { _, v, _ -> threshold = v.toDouble() }
+        status = TextView(this).apply {
+            text = "Disarmed · arm detection to watch for frame changes."
+            UiStyle.styleText(this, 14f, false, UiStyle.muted(context))
+            setPadding(UiStyle.dp(context, 14f), UiStyle.dp(context, 12f),
+                UiStyle.dp(context, 14f), UiStyle.dp(context, 12f))
+            background = UiStyle.rounded(context, UiStyle.surface(context), 14f, UiStyle.border(context))
         }
-        val arm = MaterialButton(this).apply { text = "Arm" }
-        arm.setOnClickListener {
+        val sensitivity = SeekBar(this).apply {
+            max = 75
+            progress = 20
+            progressTintList = android.content.res.ColorStateList.valueOf(UiStyle.accent(context))
+            thumbTintList = android.content.res.ColorStateList.valueOf(UiStyle.accent(context))
+            contentDescription = "Motion sensitivity threshold"
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    threshold = (progress + 5).toDouble()
+                }
+                override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+                override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+            })
+        }
+        armButton = NativeButton(this).apply { text = "Arm motion detection" }
+        armButton.setOnClickListener {
             armed = !armed
             previous = null
-            arm.text = if (armed) "Disarm" else "Arm"
-            status.text = if (armed) "Watching…" else "Disarmed"
+            armButton.text = if (armed) "Disarm motion detection" else "Arm motion detection"
+            status.text = if (armed) "Watching for motion…" else "Detection disarmed."
         }
-        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Motion Detector",LinearLayout(this).apply {
+        val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            val pad = (16 * resources.displayMetrics.density).toInt()
+            val pad = UiStyle.dp(context, 20f)
             setPadding(pad, pad, pad, pad)
-            addView(status); addView(sensitivity); addView(arm)
-        }))
+            addView(TextView(context).apply { text = "Motion detector"; UiStyle.styleText(this, 24f, true) })
+            addView(TextView(context).apply {
+                text = "The camera compares frames locally. Sensitivity controls how much a frame must change."
+                UiStyle.styleText(this, 14f, false, UiStyle.muted(context))
+                setPadding(0, UiStyle.dp(context, 4f), 0, UiStyle.dp(context, 14f))
+            })
+            addView(TextView(context).apply {
+                text = "Sensitivity · threshold ${threshold.toInt()}"
+                UiStyle.styleText(this, 13f, true, UiStyle.muted(context))
+            })
+            addView(sensitivity, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = UiStyle.dp(context, 14f)
+            })
+            addView(armButton, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = UiStyle.dp(context, 12f)
+            })
+            addView(status, LinearLayout.LayoutParams(-1, -2))
+        }
+        setContentView(ToolScaffold.wrap(this, "Motion Detector", content))
     }
 
     override fun onResume() {
@@ -70,6 +105,10 @@ class MotionDetectActivity : AppCompatActivity() {
     }
 
     override fun onPause() {
+        armed = false
+        previous = null
+        if (::armButton.isInitialized) armButton.text = "Arm motion detection"
+        if (::status.isInitialized) status.text = "Detection paused."
         session?.close(); session = null
         camera?.close(); camera = null
         reader?.close(); reader = null
@@ -136,7 +175,11 @@ class MotionDetectActivity : AppCompatActivity() {
 
     override fun onRequestPermissionsResult(code: Int, perms: Array<String>, results: IntArray) {
         super.onRequestPermissionsResult(code, perms, results)
+        if (code != 1) return
         if (results.firstOrNull() == PackageManager.PERMISSION_GRANTED) openCamera()
-        else finish()
+        else {
+            status.text = "Camera permission denied."
+            finish()
+        }
     }
 }

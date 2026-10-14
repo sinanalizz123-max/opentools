@@ -69,7 +69,7 @@ class TxtRecogLiveActivity : AppCompatActivity() {
             setPadding(UiStyle.dp(context, 14f), UiStyle.dp(context, 14f),
                 UiStyle.dp(context, 14f), UiStyle.dp(context, 14f))
             background = UiStyle.rounded(context, UiStyle.surface(context), 14f, UiStyle.border(context))
-            textIsSelectable = true
+            setTextIsSelectable(true)
         }
         status = TextView(this).apply {
             text = "Live OCR is processed on-device."

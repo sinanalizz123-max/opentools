@@ -8,7 +8,6 @@
 <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
 <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-<uses-permission android:name="android.permission.FLASHLIGHT" />
 <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
 <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
 <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
@@ -17,8 +16,8 @@
 <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 <uses-permission android:name="android.permission.READ_PHONE_STATE" />
 <uses-permission android:name="android.permission.TRANSMIT_IR" />
-<uses-permission android:name="android.permission.BLUETOOTH" />
-<uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
+<uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+<uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
 <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <!-- usesPermissionFlags is honored on API 31+; harmless below. -->
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation"
@@ -152,8 +151,6 @@
             android:name="androidx.emoji2.text.EmojiCompatInitializer"
             android:value="androidx.startup"
             tools:node="remove" />
-        <!-- No startup initializers are used (no emoji, lifecycle, or work
-             auto-init needed): drop the provider entirely. -->
     </application>
 
 

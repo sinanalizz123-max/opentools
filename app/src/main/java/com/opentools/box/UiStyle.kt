@@ -62,6 +62,7 @@ object UiStyle {
             rounded(context, fill, 14f, if (primary) null else border(context)),
             null
         )
+        view.backgroundTintList = null
     }
 
     /** Native edit field styling shared by tool screens. */

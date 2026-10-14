@@ -138,7 +138,7 @@ class StopwatchActivity : AppCompatActivity() {
 
     override fun onSaveInstanceState(out: Bundle) {
         super.onSaveInstanceState(out)
-        out.putLong("elapsed", currentElapsed())
+        out.putLong("elapsed", baseElapsed)
         out.putBoolean("running", running)
     }
 }

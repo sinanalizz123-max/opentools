@@ -2,7 +2,6 @@ package com.opentools.box.tools
 
 import android.content.Context
 import android.net.Uri
-import android.os.Build
 import android.os.Bundle
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties

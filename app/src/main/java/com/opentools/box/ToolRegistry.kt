@@ -82,7 +82,7 @@ import com.opentools.box.tools.WhiteScreenActivity
 import com.opentools.box.tools.WifiScanActivity
 import com.opentools.box.tools.WifiSpeedActivity
 
-/** Full clean-room tool catalogue (81 entries). */
+/** Full clean-room tool catalogue (78 entries). */
 object ToolRegistry {
     val tools = listOf(
         ToolEntry("torch", "Torch", ToolCategory.BASIC, TorchActivity::class.java),

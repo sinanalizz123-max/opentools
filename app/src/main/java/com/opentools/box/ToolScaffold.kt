@@ -24,6 +24,7 @@ object ToolScaffold {
             this.title = title
             navigationIcon = androidx.appcompat.content.res.AppCompatResources.getDrawable(
                 activity, R.drawable.ic_arrow_back)
+            navigationIcon?.setColorFilter(UiStyle.text(activity), android.graphics.PorterDuff.Mode.SRC_IN)
             setNavigationOnClickListener { activity.finish() }
             elevation = 0f
         }

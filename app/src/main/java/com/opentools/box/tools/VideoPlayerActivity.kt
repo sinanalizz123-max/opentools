@@ -83,7 +83,6 @@ class VideoPlayerActivity : AppCompatActivity() {
                 UiStyle.dp(this@VideoPlayerActivity, 12f), UiStyle.dp(this@VideoPlayerActivity, 10f))
         }
         video = VideoView(this).apply {
-            setMediaController(MediaController(this@VideoPlayerActivity))
             setOnPreparedListener {
                 status.text = "Video ready"
                 start()
@@ -95,7 +94,7 @@ class VideoPlayerActivity : AppCompatActivity() {
             }
             setBackgroundColor(android.graphics.Color.BLACK)
         }
-        mediaControls = MediaController(this).also { video.setMediaController(it) }
+        mediaControls = MediaController(this).also { video.setMediaController(it); it.setAnchorView(video) }
         backBtn = NativeButton(this, false).apply {
             text = "← Back to folders"
             visibility = android.view.View.GONE
@@ -203,6 +202,7 @@ class VideoPlayerActivity : AppCompatActivity() {
         if (current == null) {
             browserStatus.text = if (folders.isEmpty()) "No on-device videos found."
                 else "On-device videos — choose a folder"
+            retryPerm.visibility = if (folders.isEmpty()) android.view.View.VISIBLE else retryPerm.visibility
             folders.forEach { (folder, files) ->
                 browserList.addView(NativeButton(this, false).apply {
                     text = "$folder (${files.size})"

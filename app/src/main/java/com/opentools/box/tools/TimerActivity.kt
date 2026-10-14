@@ -16,6 +16,7 @@ import android.widget.Button
 class TimerActivity : AppCompatActivity() {
     private var countdown: CountDownTimer? = null
     private var totalMs = 0L
+    private var remainingMs = 0L
     private var running = false
     private lateinit var displayView: TextView
     private lateinit var bar: ProgressBar
@@ -105,8 +106,14 @@ class TimerActivity : AppCompatActivity() {
         hours.isEnabled = false
         minutes.isEnabled = false
         seconds.isEnabled = false
-        countdown = object : CountDownTimer(totalMs, 100) {
+        remainingMs = totalMs
+        startCountdown(totalMs)
+    }
+
+    private fun startCountdown(millis: Long) {
+        countdown = object : CountDownTimer(millis, 100) {
             override fun onTick(left: Long) {
+                remainingMs = left
                 val wholeSeconds = left / 1000
                 displayView.text = "%02d:%02d:%02d".format(
                     wholeSeconds / 3600, (wholeSeconds % 3600) / 60, wholeSeconds % 60
@@ -118,6 +125,7 @@ class TimerActivity : AppCompatActivity() {
                 displayView.text = "Time's up!"
                 bar.progress = 1000
                 running = false
+                remainingMs = 0L
                 toggle.text = "Start timer"
                 setPickersEnabled(true)
             }
@@ -129,6 +137,7 @@ class TimerActivity : AppCompatActivity() {
         countdown = null
         running = false
         totalMs = 0L
+        remainingMs = 0L
         toggle.text = "Start timer"
         displayView.text = "00:00:00"
         bar.progress = 0
@@ -139,6 +148,21 @@ class TimerActivity : AppCompatActivity() {
         hours.isEnabled = enabled
         minutes.isEnabled = enabled
         seconds.isEnabled = enabled
+    }
+
+    override fun onPause() {
+        if (running) {
+            countdown?.cancel()
+            countdown = null
+        }
+        super.onPause()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (running && remainingMs > 0L && countdown == null) {
+            startCountdown(remainingMs)
+        }
     }
 
     override fun onDestroy() {

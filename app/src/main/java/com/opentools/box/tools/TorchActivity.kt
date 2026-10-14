@@ -128,7 +128,7 @@ class TorchActivity : AppCompatActivity() {
             }
             enabled = on
             toggle.text = if (enabled) "Turn off flashlight" else "Turn on flashlight"
-            toggle.setTextColor(if (enabled) android.graphics.Color.WHITE else android.graphics.Color.WHITE)
+            toggle.setTextColor(if (enabled) android.graphics.Color.WHITE else UiStyle.muted(this))
             status.text = if (enabled) "Flashlight is on" else "Flashlight is off"
         } catch (_: SecurityException) {
             Toast.makeText(this, "Camera permission required for flashlight.", Toast.LENGTH_SHORT).show()

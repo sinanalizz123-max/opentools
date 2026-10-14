@@ -35,6 +35,7 @@ class MotionDetectActivity : AppCompatActivity() {
     private var threshold = 25.0
     private var previous: ByteArray? = null
     private lateinit var armButton: NativeButton
+    private lateinit var sensitivityLabel: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -55,6 +56,7 @@ class MotionDetectActivity : AppCompatActivity() {
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                     threshold = (progress + 5).toDouble()
+                    if (::sensitivityLabel.isInitialized) sensitivityLabel.text = "Sensitivity · threshold ${threshold.toInt()}"
                 }
                 override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
                 override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
@@ -80,6 +82,7 @@ class MotionDetectActivity : AppCompatActivity() {
             addView(TextView(context).apply {
                 text = "Sensitivity · threshold ${threshold.toInt()}"
                 UiStyle.styleText(this, 13f, true, UiStyle.muted(context))
+                sensitivityLabel = this
             })
             addView(sensitivity, LinearLayout.LayoutParams(-1, -2).apply {
                 bottomMargin = UiStyle.dp(context, 14f)

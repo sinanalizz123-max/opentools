@@ -38,7 +38,7 @@ class AudioPlayerActivity : AppCompatActivity() {
         override fun run() {
             player?.let {
                 try { seek.progress = it.currentPosition } catch (_: Exception) { }
-                seek.postDelayed(this, 500)
+                if (::seek.isInitialized) seek.postDelayed(this, 500)
             }
         }
     }
@@ -64,13 +64,8 @@ class AudioPlayerActivity : AppCompatActivity() {
     private fun neededPermission(): String = if (Build.VERSION.SDK_INT >= 33)
         Manifest.permission.READ_MEDIA_AUDIO else Manifest.permission.READ_EXTERNAL_STORAGE
 
-    /** Full access, or partial (user-selected) access on API 34+. */
     private fun hasMediaAccess(): Boolean {
-        if (ContextCompat.checkSelfPermission(this, neededPermission()) == PackageManager.PERMISSION_GRANTED)
-            return true
-        return Build.VERSION.SDK_INT >= 34 && ContextCompat.checkSelfPermission(
-            this, Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED,
-        ) == PackageManager.PERMISSION_GRANTED
+        return ContextCompat.checkSelfPermission(this, neededPermission()) == PackageManager.PERMISSION_GRANTED
     }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -218,6 +213,7 @@ class AudioPlayerActivity : AppCompatActivity() {
             backBtn.visibility = android.view.View.GONE
             browserStatus.text = if (folders.isEmpty()) "No on-device audio found."
                 else "On-device audio — choose a folder"
+            retryPerm.visibility = if (folders.isEmpty()) android.view.View.VISIBLE else android.view.View.GONE
             folders.forEach { (folder, files) ->
                 browserList.addView(NativeButton(this, false).apply {
                     text = "$folder (${files.size})"
@@ -253,7 +249,7 @@ class AudioPlayerActivity : AppCompatActivity() {
     }
 
     private fun open(uri: Uri, displayName: String? = null) {
-        seek.removeCallbacks(progress)
+        if (::seek.isInitialized) seek.removeCallbacks(progress)
         try { player?.release() } catch (_: Exception) { }
         player = null
         playing = false
@@ -270,7 +266,7 @@ class AudioPlayerActivity : AppCompatActivity() {
                     prepared.start()
                     playing = true
                     toggle.text = "Pause"
-                    seek.post(progress)
+                    if (::seek.isInitialized) seek.post(progress)
                 }
                 setOnCompletionListener {
                     playing = false
@@ -303,7 +299,7 @@ class AudioPlayerActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
-        try { seek.removeCallbacks(progress) } catch (_: Exception) { }
+        try { if (::seek.isInitialized) seek.removeCallbacks(progress) } catch (_: Exception) { }
         player?.release()
         super.onDestroy()
     }

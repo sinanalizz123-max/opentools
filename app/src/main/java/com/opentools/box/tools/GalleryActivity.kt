@@ -197,6 +197,7 @@ class GalleryActivity : AppCompatActivity() {
             backToFolders.visibility = android.view.View.GONE
             browserStatus.text = if (folders.isEmpty()) "No on-device images found."
                 else "On-device images — choose a folder"
+            retryPerm.visibility = if (folders.isEmpty()) android.view.View.VISIBLE else retryPerm.visibility
             folders.forEach { (folder, files) ->
                 browserList.addView(NativeButton(this, false).apply {
                     text = "$folder (${files.size})"

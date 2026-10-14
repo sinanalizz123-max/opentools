@@ -66,6 +66,12 @@ class RulerActivity : AppCompatActivity() {
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             addView(ruler, LinearLayout.LayoutParams(-1, 0, 1f))
+            addView(TextView(context).apply {
+                text = "If this looks off, adjust calibration with a real ruler."
+                UiStyle.styleText(this, 12f, false, UiStyle.muted(context))
+                gravity = Gravity.CENTER
+                setPadding(0, UiStyle.dp(context, 4f), 0, 0)
+            })
             addView(controls, LinearLayout.LayoutParams(-1, -2).apply {
                 val margin = UiStyle.dp(context, 10f)
                 setMargins(margin, margin, margin, margin)

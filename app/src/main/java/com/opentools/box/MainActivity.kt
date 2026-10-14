@@ -49,6 +49,14 @@ class MainActivity : AppCompatActivity() {
         window.decorView.systemUiVisibility = if (UiStyle.isDark(this)) 0 else
             (View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR)
         buildHome()
+        val crash = OpenToolsApp.takeLastCrash(this)
+        if (!crash.isNullOrEmpty()) {
+            android.app.AlertDialog.Builder(this)
+                .setTitle("The app crashed last time")
+                .setMessage(crash.take(500))
+                .setPositiveButton("OK", null)
+                .show()
+        }
     }
 
     private fun buildHome() {
@@ -202,7 +210,11 @@ class MainActivity : AppCompatActivity() {
                 setPadding(dp(8), dp(12), dp(8), dp(11))
                 addView(android.widget.ImageView(this@MainActivity).apply {
                     val res = ToolIcons.resId(entry.id)
-                    if (res != 0) setImageResource(res)
+                    if (res != 0) {
+                        setImageResource(res)
+                    } else {
+                        setImageResource(android.R.drawable.ic_menu_help)
+                    }
                     if (ToolIcons.tint(entry.id)) {
                         imageTintList = android.content.res.ColorStateList.valueOf(
                             UiStyle.accent(this@MainActivity))
@@ -241,11 +253,15 @@ class MainActivity : AppCompatActivity() {
         val names = allTools.map { it.title }.toTypedArray()
         val ids = allTools.map { it.id }
         val selected = ids.map { it in shortcutIds() }.toBooleanArray()
+        val order = ids.indices.filter { selected[it] }.toMutableList()
         android.app.AlertDialog.Builder(this)
             .setTitle("Choose quick access tools")
-            .setMultiChoiceItems(names, selected) { _, which, checked -> selected[which] = checked }
+            .setMultiChoiceItems(names, selected) { _, which, checked ->
+                selected[which] = checked
+                if (checked) { if (which !in order) order.add(which) } else { order.remove(which) }
+            }
             .setPositiveButton("Save") { _, _ ->
-                val chosen = ids.filterIndexed { index, _ -> selected[index] }.take(4)
+                val chosen = order.map { ids[it] }.take(4)
                 getSharedPreferences("home", Context.MODE_PRIVATE).edit()
                     .putString("shortcuts", chosen.joinToString(",")).apply()
                 refreshShortcuts()

@@ -14,7 +14,6 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import com.opentools.box.ToolScaffold
 import com.opentools.box.UiStyle
-import kotlin.math.abs
 import kotlin.math.log2
 import kotlin.math.roundToInt
 

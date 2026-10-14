@@ -233,7 +233,6 @@ class CctvServerActivity : AppCompatActivity() {
     @Deprecated("Deprecated in Android API; retained for compatibility with minSdk 26")
     override fun onRequestPermissionsResult(code: Int, perms: Array<String>, results: IntArray) {
         super.onRequestPermissionsResult(code, perms, results)
-        if (code != 1) return
         if (code != REQUEST_CAMERA) return
         if (results.firstOrNull() == PackageManager.PERMISSION_GRANTED) startCaptureIfAllowed()
         else {

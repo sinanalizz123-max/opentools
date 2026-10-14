@@ -13,7 +13,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
-import com.google.android.material.button.MaterialButton
+import com.opentools.box.UiStyle
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
@@ -37,20 +37,54 @@ class MusicShareActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        status = TextView(this).apply { textSize = 16f; text = "Idle" }
-        val peer = EditText(this).apply { hint = "Peer IP to stream to" }
-        val hostBtn = MaterialButton(this).apply { text = "Host: pick audio" }
-        val stopHost = MaterialButton(this).apply { text = "Stop hosting" }
-        val joinBtn = MaterialButton(this).apply { text = "Join: listen :9994" }
+        status = TextView(this).apply {
+            text = "Idle · host a file or join another device."
+            UiStyle.styleText(this, 14f, false, UiStyle.muted(context))
+            setPadding(UiStyle.dp(context, 14f), UiStyle.dp(context, 12f),
+                UiStyle.dp(context, 14f), UiStyle.dp(context, 12f))
+            background = UiStyle.rounded(context, UiStyle.surface(context), 14f, UiStyle.border(context))
+        }
+        val peer = EditText(this).apply {
+            hint = "Peer IP address"
+            UiStyle.styleInput(this)
+            setSingleLine(true)
+        }
+        val hostBtn = NativeButton(this).apply { text = "Host audio file" }
+        val stopHost = NativeButton(this, false).apply { text = "Stop hosting" }
+        val joinBtn = NativeButton(this, false).apply { text = "Join audio stream" }
+        val stopJoin = NativeButton(this, false).apply { text = "Stop listening" }
         hostBtn.setOnClickListener { picker.launch(arrayOf("audio/*")) }
         stopHost.setOnClickListener { hosting = false; status.text = "Idle" }
         joinBtn.setOnClickListener { if (!joining) join() }
+        stopJoin.setOnClickListener {
+            joining = false
+            try { recvSocket?.close() } catch (_: Exception) { }
+            try { track?.pause(); track?.flush(); track?.stop(); track?.release() } catch (_: Exception) { }
+            track = null
+            status.text = "Listening stopped."
+        }
         pendingPeer = peer
-        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Music Share",LinearLayout(this).apply {
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Music Share", LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            val pad = (16 * resources.displayMetrics.density).toInt()
+            val pad = UiStyle.dp(context, 20f)
             setPadding(pad, pad, pad, pad)
-            addView(status); addView(peer); addView(hostBtn); addView(stopHost); addView(joinBtn)
+            addView(TextView(context).apply { text = "Share music on your LAN"; UiStyle.styleText(this, 24f, true) })
+            addView(TextView(context).apply {
+                text = "Host an audio file for a peer or join a stream on port 9994."
+                UiStyle.styleText(this, 14f, false, UiStyle.muted(context))
+                setPadding(0, UiStyle.dp(context, 4f), 0, UiStyle.dp(context, 16f))
+            })
+            addView(status, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = UiStyle.dp(context, 12f)
+            })
+            addView(peer, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = UiStyle.dp(context, 10f)
+            })
+            listOf(hostBtn, stopHost, joinBtn, stopJoin).forEach { button ->
+                addView(button, LinearLayout.LayoutParams(-1, -2).apply {
+                    bottomMargin = UiStyle.dp(context, 8f)
+                })
+            }
         }))
     }
 

@@ -18,6 +18,8 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
+import com.opentools.box.ToolScaffold
+import com.opentools.box.UiStyle
 
 /** Heart-rate via camera PPG (finger over lens + flash). Original implementation. */
 class HeartRateActivity : AppCompatActivity() {
@@ -38,16 +40,44 @@ class HeartRateActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         cameraManager = getSystemService(Context.CAMERA_SERVICE) as CameraManager
-        bpmView = TextView(this).apply { textSize = 64f; gravity = Gravity.CENTER; text = "--" }
-        hintView = TextView(this).apply {
-            textSize = 16f; gravity = Gravity.CENTER
-            text = "Cover the lens with a fingertip"
+        bpmView = TextView(this).apply {
+            text = "—"
+            gravity = Gravity.CENTER
+            UiStyle.styleText(this, 60f, true)
+            setPadding(UiStyle.dp(context, 18f), UiStyle.dp(context, 28f),
+                UiStyle.dp(context, 18f), UiStyle.dp(context, 28f))
+            background = UiStyle.rounded(context, UiStyle.surface(context), 20f, UiStyle.border(context))
         }
-        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Heart Rate",LinearLayout(this).apply {
+        hintView = TextView(this).apply {
+            gravity = Gravity.CENTER
+            text = "Cover the rear camera lens with a fingertip and hold still."
+            UiStyle.styleText(this, 14f, false, UiStyle.muted(context))
+            setPadding(UiStyle.dp(context, 12f), UiStyle.dp(context, 14f),
+                UiStyle.dp(context, 12f), UiStyle.dp(context, 14f))
+        }
+        val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
-            addView(bpmView); addView(hintView)
-        }))
+            val pad = UiStyle.dp(context, 22f)
+            setPadding(pad, pad, pad, pad)
+            addView(TextView(context).apply {
+                text = "Heart rate estimate"
+                gravity = Gravity.CENTER
+                UiStyle.styleText(this, 24f, true)
+                setPadding(0, 0, 0, UiStyle.dp(context, 18f))
+            })
+            addView(bpmView, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = UiStyle.dp(context, 12f)
+            })
+            addView(hintView, LinearLayout.LayoutParams(-1, -2))
+            addView(TextView(context).apply {
+                text = "Camera-based estimate only; not a medical device."
+                gravity = Gravity.CENTER
+                UiStyle.styleText(this, 12f, false, UiStyle.muted(context))
+                setPadding(0, UiStyle.dp(context, 14f), 0, 0)
+            })
+        }
+        setContentView(ToolScaffold.wrap(this, "Heart Rate", content))
     }
 
     override fun onResume() {
@@ -81,7 +111,11 @@ class HeartRateActivity : AppCompatActivity() {
     }
 
     private fun openCamera() {
-        val id = backCameraId() ?: return
+        val id = backCameraId()
+        if (id == null) {
+            hintView.text = "A rear camera with a flash is required for this estimate."
+            return
+        }
         try {
             cameraManager.openCamera(id, object : CameraDevice.StateCallback() {
                 override fun onOpened(c: CameraDevice) { camera = c; startSession(c, id) }
@@ -154,7 +188,8 @@ class HeartRateActivity : AppCompatActivity() {
 
     override fun onRequestPermissionsResult(code: Int, perms: Array<String>, results: IntArray) {
         super.onRequestPermissionsResult(code, perms, results)
+        if (code != 1) return
         if (results.firstOrNull() == PackageManager.PERMISSION_GRANTED) openCamera()
-        else finish()
+        else hintView.text = "Camera permission denied."
     }
 }

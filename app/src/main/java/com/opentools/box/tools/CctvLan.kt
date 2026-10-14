@@ -119,21 +119,22 @@ object CctvLan {
             stop()
             running = true
             Thread {
+                var socket: Socket? = null
                 try {
                     val parsed = URL(url)
                     require(parsed.protocol == "http") { "Only local HTTP camera streams are supported" }
-                    val socket = Socket()
+                    socket = Socket()
                     connection = socket
-                    socket.connect(InetSocketAddress(parsed.host, if (parsed.port > 0) parsed.port else PORT), 8000)
-                    socket.soTimeout = 10000
+                    socket!!.connect(InetSocketAddress(parsed.host, if (parsed.port > 0) parsed.port else PORT), 8000)
+                    socket!!.soTimeout = 10000
                     val requestPath = parsed.file.ifBlank { "/" }
                     val authorization = token?.takeIf { it.isNotBlank() }?.let { "Authorization: Bearer " + it + "\r\n" }.orEmpty()
-                    socket.getOutputStream().apply {
+                    socket!!.getOutputStream().apply {
                         write(("GET " + requestPath + " HTTP/1.0\r\nHost: " + parsed.host +
                             "\r\n" + authorization + "Connection: close\r\n\r\n").toByteArray(Charsets.US_ASCII))
                         flush()
                     }
-                    val input = BufferedInputStream(socket.getInputStream())
+                    val input = BufferedInputStream(socket!!.getInputStream())
                     val responseHeaders = readHeaders(input)
                     if (!responseHeaders.startsWith("HTTP/1.0 200") && !responseHeaders.startsWith("HTTP/1.1 200")) {
                         throw IOException("Camera rejected the access token or is unavailable")
@@ -179,8 +180,8 @@ object CctvLan {
                 } catch (e: Exception) {
                     if (running) view.post { onError(e.message ?: "Connection failed") }
                 } finally {
-                    try { connection?.close() } catch (_: Exception) { }
-                    connection = null
+                    try { socket?.close() } catch (_: Exception) { }
+                    if (connection === socket) connection = null
                 }
             }.start()
         }

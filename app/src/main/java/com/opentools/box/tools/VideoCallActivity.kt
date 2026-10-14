@@ -115,7 +115,9 @@ class VideoCallActivity : AppCompatActivity() {
     }
 
     override fun onPause() {
-        hangUp()
+        // A permission prompt can briefly pause the activity; don't discard a pending join
+        // before its permission result arrives.
+        if (callActive || mjpegServer != null || camera != null) hangUp()
         super.onPause()
     }
 
@@ -124,7 +126,7 @@ class VideoCallActivity : AppCompatActivity() {
             status.text = "Enter both the peer IP and token."
             return
         }
-        if (callActive || pendingPeer != null) return
+        if (callActive) return
         pendingPeer = ip
         pendingPeerToken = peerToken
         status.text = "Checking permissions…"
@@ -279,6 +281,10 @@ class VideoCallActivity : AppCompatActivity() {
         super.onRequestPermissionsResult(code, perms, results)
         if (code != 1) return
         if (results.isNotEmpty() && results.all { it == PackageManager.PERMISSION_GRANTED }) startCaptureIfAllowed()
-        else finish()
+        else {
+            pendingPeer = null
+            pendingPeerToken = null
+            finish()
+        }
     }
 }

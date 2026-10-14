@@ -156,7 +156,7 @@ class MainActivity : AppCompatActivity() {
         })
         searchField = EditText(this).apply {
             hint = "Search " + allTools.size + " tools"
-            singleLine = true
+            setSingleLine(true)
             textSize = 15f
             setTextColor(UiStyle.text(this@MainActivity))
             setHintTextColor(UiStyle.muted(this@MainActivity))

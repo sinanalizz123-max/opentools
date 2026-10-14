@@ -34,7 +34,7 @@ class DevInfoActivity : AppCompatActivity() {
             UiStyle.styleText(this, 14f, false)
             setPadding(UiStyle.dp(context, 16f), UiStyle.dp(context, 16f),
                 UiStyle.dp(context, 16f), UiStyle.dp(context, 16f))
-            textIsSelectable = true
+            setTextIsSelectable(true)
             background = UiStyle.rounded(context, UiStyle.surface(context), 14f, UiStyle.border(context))
         }
         val copy = NativeButton(this).apply { text = "Copy device details" }

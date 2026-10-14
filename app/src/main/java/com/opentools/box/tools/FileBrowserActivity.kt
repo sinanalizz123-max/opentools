@@ -9,7 +9,7 @@ import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.documentfile.provider.DocumentFile
-import com.google.android.material.button.MaterialButton
+import com.opentools.box.UiStyle
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -34,14 +34,17 @@ class FileBrowserActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         localDir = filesDir
         path = TextView(this).apply {
-            textSize = 13f
-            setPadding(12, 10, 12, 10)
+            maxLines = 2
             setTextIsSelectable(true)
+            UiStyle.styleText(this, 13f, false, UiStyle.muted(context))
+            setPadding(UiStyle.dp(context, 14f), UiStyle.dp(context, 12f),
+                UiStyle.dp(context, 14f), UiStyle.dp(context, 12f))
+            background = UiStyle.rounded(context, UiStyle.surface(context), 14f, UiStyle.border(context))
         }
         val list = ListView(this)
         adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, labels)
         list.adapter = adapter
-        val up = MaterialButton(this).apply { text = "Up" }
+        val up = NativeButton(this, false).apply { text = "Up" }
         val home = MaterialButton(this).apply { text = "App files" }
         val choose = MaterialButton(this).apply { text = "Choose shared folder" }
         up.setOnClickListener { navigateUp() }
@@ -70,13 +73,28 @@ class FileBrowserActivity : AppCompatActivity() {
         refresh()
         setContentView(com.opentools.box.ToolScaffold.wrap(this, "File Browser", LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            addView(path)
+            val pad = UiStyle.dp(context, 16f)
+            setPadding(pad, pad, pad, pad)
+            addView(TextView(context).apply {
+                text = "Browse files"
+                UiStyle.styleText(this, 23f, true)
+                setPadding(0, 0, 0, UiStyle.dp(context, 12f))
+            })
+            addView(path, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = UiStyle.dp(context, 12f)
+            })
             addView(LinearLayout(context).apply {
                 orientation = LinearLayout.HORIZONTAL
-                addView(up)
-                addView(home)
+                addView(up, LinearLayout.LayoutParams(0, -2, 1f).apply {
+                    marginEnd = UiStyle.dp(context, 6f)
+                })
+                addView(home, LinearLayout.LayoutParams(0, -2, 1f))
+            }, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = UiStyle.dp(context, 8f)
             })
-            addView(choose)
+            addView(choose, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = UiStyle.dp(context, 12f)
+            })
             addView(list, LinearLayout.LayoutParams(-1, 0, 1f))
         }))
     }

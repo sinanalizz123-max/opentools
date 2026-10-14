@@ -2,6 +2,8 @@ package com.opentools.box.tools
 
 import android.Manifest
 import android.content.Context
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.pm.PackageManager
 import android.graphics.ImageFormat
 import android.hardware.camera2.CameraCaptureSession
@@ -16,6 +18,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
+import com.opentools.box.UiStyle
 import java.util.concurrent.atomic.AtomicReference
 
 /** CCTV camera server: streams MJPEG on :9996. Original implementation. */
@@ -23,6 +26,8 @@ class CctvServerActivity : AppCompatActivity() {
 
     private lateinit var cameraManager: CameraManager
     private lateinit var status: TextView
+    private lateinit var startButton: NativeButton
+    private lateinit var stopButton: NativeButton
     private var camera: CameraDevice? = null
     private var session: CameraCaptureSession? = null
     private var reader: ImageReader? = null
@@ -36,11 +41,46 @@ class CctvServerActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         cameraManager = getSystemService(Context.CAMERA_SERVICE) as CameraManager
-        status = TextView(this).apply { textSize = 16f; text = "Starting…"; setTextIsSelectable(true) }
-        setContentView(com.opentools.box.ToolScaffold.wrap(this, "CCTV Camera",LinearLayout(this).apply {
+        status = TextView(this).apply {
+            text = "Starting camera stream…"
+            UiStyle.styleText(this, 14f, false, UiStyle.muted(context))
+            setPadding(UiStyle.dp(context, 14f), UiStyle.dp(context, 14f),
+                UiStyle.dp(context, 14f), UiStyle.dp(context, 14f))
+            background = UiStyle.rounded(context, UiStyle.surface(context), 14f, UiStyle.border(context))
+            textIsSelectable = true
+        }
+        startButton = NativeButton(this).apply { text = "Start stream"; isEnabled = false }
+        stopButton = NativeButton(this, false).apply { text = "Stop stream"; isEnabled = false }
+        val copyToken = NativeButton(this, false).apply { text = "Copy viewer token" }
+        copyToken.setOnClickListener {
+            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            clipboard.setPrimaryClip(ClipData.newPlainText("CCTV viewer token", accessToken))
+            android.widget.Toast.makeText(this, "Viewer token copied", android.widget.Toast.LENGTH_SHORT).show()
+        }
+        startButton.setOnClickListener { startCaptureIfAllowed() }
+        stopButton.setOnClickListener { stopCapture() }
+        val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            addView(status)
-        }))
+            val pad = UiStyle.dp(context, 18f)
+            setPadding(pad, pad, pad, pad)
+            addView(TextView(context).apply { text = "Share your camera on the local network"; UiStyle.styleText(this, 23f, true) })
+            addView(TextView(context).apply {
+                text = "Keep both devices on a trusted network. Only share the viewer token with the intended peer."
+                UiStyle.styleText(this, 14f, false, UiStyle.muted(context))
+                setPadding(0, UiStyle.dp(context, 4f), 0, UiStyle.dp(context, 16f))
+            })
+            addView(status, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = UiStyle.dp(context, 12f)
+            })
+            addView(copyToken, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = UiStyle.dp(context, 8f)
+            })
+            addView(startButton, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = UiStyle.dp(context, 8f)
+            })
+            addView(stopButton, LinearLayout.LayoutParams(-1, -2))
+        }
+        setContentView(com.opentools.box.ToolScaffold.wrap(this, "CCTV Camera", content))
     }
 
     override fun onResume() {
@@ -51,7 +91,8 @@ class CctvServerActivity : AppCompatActivity() {
 
     private fun startCaptureIfAllowed() {
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.CAMERA), 1)
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.CAMERA), REQUEST_CAMERA)
+            status.text = "Camera permission is required to stream."
             return
         }
         if (thread == null) {
@@ -63,17 +104,28 @@ class CctvServerActivity : AppCompatActivity() {
             accessToken,
             { message -> runOnUiThread { status.text = "Stream failed: " + message } }
         ).also { it.start() }
-        status.text = "Streaming on :" + CctvLan.PORT + "\nViewer access token: " + accessToken
+        status.text = "Streaming on port " + CctvLan.PORT + "\nViewer access token: " + accessToken
+        startButton.isEnabled = false
+        stopButton.isEnabled = true
         if (camera == null) openCamera()
     }
 
-    override fun onPause() {
+    private fun stopCapture() {
         active = false
         server?.stop(); server = null
         session?.close(); session = null
         camera?.close(); camera = null
         reader?.close(); reader = null
         thread?.quitSafely(); thread = null
+        handler = null
+        latestJpeg.set(null)
+        if (::startButton.isInitialized) startButton.isEnabled = true
+        if (::stopButton.isInitialized) stopButton.isEnabled = false
+        if (::status.isInitialized) status.text = "Stream stopped. Tap Start stream to begin again."
+    }
+
+    override fun onPause() {
+        stopCapture()
         super.onPause()
     }
 
@@ -181,7 +233,9 @@ class CctvServerActivity : AppCompatActivity() {
     override fun onRequestPermissionsResult(code: Int, perms: Array<String>, results: IntArray) {
         super.onRequestPermissionsResult(code, perms, results)
         if (code != 1) return
+        if (code != REQUEST_CAMERA) return
         if (results.firstOrNull() == PackageManager.PERMISSION_GRANTED) startCaptureIfAllowed()
+        else status.text = "Camera permission denied."
         else finish()
     }
 }

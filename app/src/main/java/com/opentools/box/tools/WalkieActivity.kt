@@ -20,6 +20,8 @@ import com.opentools.box.UiStyle
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
+import java.security.MessageDigest
+import java.security.SecureRandom
 
 /**
  * LAN walkie-talkie: hold to talk, UDP audio to peer IP:9998.
@@ -33,7 +35,7 @@ class WalkieActivity : AppCompatActivity() {
     private var hosting = false
     private var hostName = ""
     private var selectedIp = ""
-    private var selectedPort = 0
+    @Volatile private var sessionToken = ""
     private val peers = mutableListOf<NsdServiceInfo>()
     private lateinit var peerAdapter: ArrayAdapter<String>
     private val svcType = "_opentools-ptt._udp."
@@ -41,7 +43,7 @@ class WalkieActivity : AppCompatActivity() {
         val ip = try { s.host?.hostAddress ?: "?" } catch (_: Exception) { "?" }
         return (s.serviceName ?: "?") + " · " + ip + ":" + s.port
     }
-    private fun ensureLocBrowse(onReady: () -> Unit = {}) {
+    private fun ensureLocBrowse() {
         try {
             browseHandle?.close()
         } catch (_: Exception) { }
@@ -57,9 +59,11 @@ class WalkieActivity : AppCompatActivity() {
         browseHandle = LanDiscovery.browse(this, svcType) { list ->
             runOnUiThread {
                 peers.clear(); peers.addAll(list.filter { it.serviceName != hostName })
-                peerAdapter.clear(); peerAdapter.addAll(peers.map { peerLabel(it) })
-                if (peers.isEmpty()) peerAdapter.add("(searching for hosts…)")
-                peerAdapter.notifyDataSetChanged()
+                if (::peerAdapter.isInitialized) {
+                    peerAdapter.clear(); peerAdapter.addAll(peers.map { peerLabel(it) })
+                    if (peers.isEmpty()) peerAdapter.add("(searching for hosts…)")
+                    peerAdapter.notifyDataSetChanged()
+                }
             }
         }
     }
@@ -67,23 +71,6 @@ class WalkieActivity : AppCompatActivity() {
         try { hostHandle?.close() } catch (_: Exception) { }
         try { browseHandle?.close() } catch (_: Exception) { }
         hostHandle = null; browseHandle = null; hosting = false
-    }
-    private fun toggleHost(port: Int, start: () -> Unit, stop: () -> Unit, statusSet: (String) -> Unit): Boolean {
-        if (hosting) {
-            try { hostHandle?.close() } catch (_: Exception) { }
-            hostHandle = null; hosting = false
-            try { stop() } catch (_: Exception) { }
-            statusSet("Hosting stopped.")
-            startBrowse()
-            return false
-        }
-        try { start() } catch (e: Exception) { statusSet("Start failed: " + (e.message ?: "")); return false }
-        val nm = (android.os.Build.MODEL ?: "device").replace(" ", "-") + "-" + (0..999).random()
-        hostHandle = LanDiscovery.host(this, svcType, port, nm,
-            onRegistered = { n -> runOnUiThread { hostName = n; statusSet("Hosting as " + n) } },
-            onError = { m -> runOnUiThread { statusSet("Host error: " + m) } })
-        hosting = true
-        return true
     }
 
     private var talking = false
@@ -94,15 +81,22 @@ class WalkieActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        sessionToken = newToken()
         peerAdapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, mutableListOf("(searching for hosts…)"))
         val peerList = ListView(this).apply { adapter = peerAdapter }
+        val token = android.widget.EditText(this).apply {
+            hint = "Peer access token"
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+            UiStyle.styleInput(this)
+            setSingleLine(true)
+        }
         val hostBtn = NativeButton(this, false).apply { text = "Start hosting" }
         hostBtn.setOnClickListener {
             if (hosting) { stopDiscovery(); hostBtn.text = "Start hosting"; status.text = "Listening on port 9998."; ensureLocBrowse() }
-            else { hostHandle = LanDiscovery.host(this, svcType, 9998, (android.os.Build.MODEL ?: "walkie").replace(" ","-") + "-" + (0..999).random(), onRegistered = { n -> runOnUiThread { hostName = n; status.text = "Hosting as " + n } }, onError = { m -> runOnUiThread { status.text = "Host error: " + m } }); hosting = true; hostBtn.text = "Stop hosting" }
+            else { hostHandle = LanDiscovery.host(this, svcType, 9998, (android.os.Build.MODEL ?: "walkie").replace(" ","-") + "-" + (0..999).random(), onRegistered = { n -> runOnUiThread { hostName = n; status.text = "Hosting as " + n + "\nShare token: " + sessionToken } }, onError = { m -> runOnUiThread { status.text = "Host error: " + m } }); hosting = true; hostBtn.text = "Stop hosting" }
         }
         peerList.setOnItemClickListener { _, _, pos, _ ->
-            peers.getOrNull(pos)?.let { s -> try { selectedIp = s.host?.hostAddress ?: "" } catch (_: Exception) { }; selectedPort = s.port; status.text = "Peer: " + peerLabel(s) }
+            peers.getOrNull(pos)?.let { s -> try { selectedIp = s.host?.hostAddress ?: "" } catch (_: Exception) { }; status.text = "Peer: " + peerLabel(s) }
         }
         status = TextView(this).apply {
             text = "Listening on port 9998. Enter your peer's IP address."
@@ -119,7 +113,7 @@ class WalkieActivity : AppCompatActivity() {
             when (e.action) {
                 MotionEvent.ACTION_DOWN -> {
                     view.performClick()
-                    startTalking()
+                    startTalking(token.text.toString().trim())
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     stopTalking()
@@ -142,6 +136,9 @@ class WalkieActivity : AppCompatActivity() {
                 bottomMargin = UiStyle.dp(context, 8f)
             })
             addView(peerList, LinearLayout.LayoutParams(-1, UiStyle.dp(context, 140f)).apply {
+                bottomMargin = UiStyle.dp(context, 12f)
+            })
+            addView(token, LinearLayout.LayoutParams(-1, -2).apply {
                 bottomMargin = UiStyle.dp(context, 12f)
             })
             addView(status, LinearLayout.LayoutParams(-1, -2).apply {
@@ -171,6 +168,11 @@ class WalkieActivity : AppCompatActivity() {
         super.onPause()
     }
 
+    private fun newToken(): String {
+        val bytes = ByteArray(16).also { SecureRandom().nextBytes(it) }
+        return bytes.joinToString("") { "%02x".format(it) }
+    }
+
     private fun startListening() {
         listening = true
         Thread {
@@ -181,12 +183,16 @@ class WalkieActivity : AppCompatActivity() {
                 player = AudioTrack(AudioManager.STREAM_VOICE_CALL, 16000,
                     AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT,
                     minOut, AudioTrack.MODE_STREAM).also { it.play() }
-                val buf = ByteArray(2048)
+                val expected = (sessionToken + "\n").toByteArray()
+                val buf = ByteArray(expected.size + 2048)
                 while (listening) {
                     val pkt = DatagramPacket(buf, buf.size)
                     try {
                         socket?.receive(pkt)
-                        if (!talking) player?.write(pkt.data, 0, pkt.length)
+                        if (!talking && pkt.length >= expected.size &&
+                            MessageDigest.isEqual(expected, pkt.data.copyOfRange(0, expected.size))) {
+                            player?.write(pkt.data, expected.size, pkt.length - expected.size)
+                        }
                     } catch (_: Exception) { break }
                 }
             } catch (_: Exception) { }
@@ -195,7 +201,7 @@ class WalkieActivity : AppCompatActivity() {
         }.start()
     }
 
-    private fun startTalking() {
+    private fun startTalking(token: String) {
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.RECORD_AUDIO), 1)
             return
@@ -203,6 +209,7 @@ class WalkieActivity : AppCompatActivity() {
         if (talking) return
         val ip = selectedIp
         if (ip.isEmpty()) { status.text = "Tap a peer in the list first"; return }
+        if (token.isEmpty()) { status.text = "Enter the access token shown on the receiving device"; return }
         talking = true
         status.text = "Talking…"
         Thread {
@@ -216,10 +223,11 @@ class WalkieActivity : AppCompatActivity() {
                 recorder?.startRecording()
                 val send = DatagramSocket()
                 val addr = InetAddress.getByName(ip)
-                val buf = ByteArray(2048)
+                val prefix = (token + "\n").toByteArray()
+                val buf = ByteArray(prefix.size + 2048)
                 while (talking) {
-                    val n = recorder?.read(buf, 0, buf.size) ?: 0
-                    if (n > 0) send.send(DatagramPacket(buf, n, addr, 9998))
+                    val n = recorder?.read(buf, prefix.size, buf.size - prefix.size) ?: 0
+                    if (n > 0) send.send(DatagramPacket(buf, prefix.size + n, addr, 9998))
                 }
                 send.close()
             } catch (e: Exception) {

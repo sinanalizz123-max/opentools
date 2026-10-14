@@ -14,6 +14,7 @@ import android.media.ImageReader
 import android.os.Bundle
 import android.os.Handler
 import android.os.HandlerThread
+import android.view.View
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
@@ -29,6 +30,7 @@ class CctvServerActivity : AppCompatActivity() {
 
     private lateinit var cameraManager: CameraManager
     private lateinit var status: TextView
+    private lateinit var tokenView: TextView
     private lateinit var startButton: NativeButton
     private lateinit var stopButton: NativeButton
     private var camera: CameraDevice? = null
@@ -40,7 +42,6 @@ class CctvServerActivity : AppCompatActivity() {
     private val accessToken = java.util.UUID.randomUUID().toString().replace("-", "")
     private var server: CctvLan.MjpegServer? = null
     private var hostHandle: AutoCloseable? = null
-    private var hostName2 = ""
     @Volatile private var active = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -56,12 +57,19 @@ class CctvServerActivity : AppCompatActivity() {
         }
         startButton = NativeButton(this).apply { text = "Start stream"; isEnabled = false }
         stopButton = NativeButton(this, false).apply { text = "Stop stream"; isEnabled = false }
-        val copyToken = NativeButton(this, false).apply { text = "Copy viewer token" }
-        copyToken.setOnClickListener {
-            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-            clipboard.setPrimaryClip(ClipData.newPlainText("CCTV viewer token", accessToken))
-            android.widget.Toast.makeText(this, "Viewer token copied", android.widget.Toast.LENGTH_SHORT).show()
+        tokenView = TextView(this).apply {
+            text = accessToken
+            importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO
+            contentDescription = "Viewer access token"
+            UiStyle.styleText(this, 14f, true)
+            setPadding(UiStyle.dp(context, 14f), UiStyle.dp(context, 12f),
+                UiStyle.dp(context, 14f), UiStyle.dp(context, 12f))
+            background = UiStyle.rounded(context, UiStyle.surface(context), 14f, UiStyle.border(context))
+            setOnClickListener { copyViewerToken() }
+            setOnLongClickListener { copyViewerToken(); true }
         }
+        val copyToken = NativeButton(this, false).apply { text = "Copy viewer token" }
+        copyToken.setOnClickListener { copyViewerToken() }
         startButton.setOnClickListener { startCaptureIfAllowed() }
         stopButton.setOnClickListener { stopCapture() }
         val content = LinearLayout(this).apply {
@@ -77,6 +85,9 @@ class CctvServerActivity : AppCompatActivity() {
             addView(status, LinearLayout.LayoutParams(-1, -2).apply {
                 bottomMargin = UiStyle.dp(context, 12f)
             })
+            addView(tokenView, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = UiStyle.dp(context, 8f)
+            })
             addView(copyToken, LinearLayout.LayoutParams(-1, -2).apply {
                 bottomMargin = UiStyle.dp(context, 8f)
             })
@@ -86,6 +97,12 @@ class CctvServerActivity : AppCompatActivity() {
             addView(stopButton, LinearLayout.LayoutParams(-1, -2))
         }
         setContentView(com.opentools.box.ToolScaffold.wrap(this, "CCTV Camera", content))
+    }
+
+    private fun copyViewerToken() {
+        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        clipboard.setPrimaryClip(ClipData.newPlainText("CCTV viewer token", accessToken))
+        android.widget.Toast.makeText(this, "Viewer token copied", android.widget.Toast.LENGTH_SHORT).show()
     }
 
     override fun onResume() {
@@ -109,7 +126,7 @@ class CctvServerActivity : AppCompatActivity() {
             if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
                 ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.ACCESS_FINE_LOCATION), 9001)
             } else {
-                hostHandle = LanDiscovery.host(this, "_opentools-cam._tcp.", CctvLan.PORT, (android.os.Build.MODEL ?: "cam").replace(" ","-") + "-" + (0..999).random(), onRegistered = { n -> runOnUiThread { hostName2 = n; status.text = "Hosting as " + n + " on port " + CctvLan.PORT + "\nViewer access token: " + accessToken } }, onError = { })
+                hostHandle = LanDiscovery.host(this, "_opentools-cam._tcp.", CctvLan.PORT, (android.os.Build.MODEL ?: "cam").replace(" ","-") + "-" + (0..999).random(), onRegistered = { n -> runOnUiThread { status.text = "Hosting as " + n + " on port " + CctvLan.PORT } }, onError = { })
             }
         }
         if (server == null) server = CctvLan.MjpegServer(
@@ -117,7 +134,7 @@ class CctvServerActivity : AppCompatActivity() {
             accessToken,
             { message -> runOnUiThread { status.text = "Stream failed: " + message } }
         ).also { it.start() }
-        status.text = "Streaming on port " + CctvLan.PORT + "\nViewer access token: " + accessToken
+        status.text = "Streaming on port " + CctvLan.PORT
         startButton.isEnabled = false
         stopButton.isEnabled = true
         if (camera == null) openCamera()

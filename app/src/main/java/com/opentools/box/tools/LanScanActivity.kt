@@ -14,6 +14,7 @@ import androidx.appcompat.app.AppCompatActivity
 import com.opentools.box.ToolScaffold
 import com.opentools.box.UiStyle
 import java.net.InetAddress
+import java.util.concurrent.atomic.AtomicBoolean
 
 /** LAN host scan on the current Wi-Fi subnet with native status and result rows. */
 class LanScanActivity : AppCompatActivity() {
@@ -23,6 +24,7 @@ class LanScanActivity : AppCompatActivity() {
     private lateinit var scanButton: NativeButton
     @Volatile private var scanning = false
     @Volatile private var scanGeneration = 0
+    private val isCancelled = AtomicBoolean(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -82,6 +84,7 @@ class LanScanActivity : AppCompatActivity() {
         }
         val prefix = Formatter.formatIpAddress(ip).substringBeforeLast(".") + "."
         scanning = true
+        isCancelled.set(false)
         val generation = ++scanGeneration
         hosts.clear()
         adapter.notifyDataSetChanged()
@@ -89,7 +92,7 @@ class LanScanActivity : AppCompatActivity() {
         status.text = "Scanning $prefix*… This may take a little while."
         Thread {
             for (host in 1..254) {
-                if (Thread.currentThread().isInterrupted || generation != scanGeneration || isFinishing) break
+                if (isCancelled.get() || Thread.currentThread().isInterrupted || generation != scanGeneration || isFinishing) break
                 try {
                     val address = InetAddress.getByName(prefix + host)
                     if (address.isReachable(300)) {
@@ -115,6 +118,7 @@ class LanScanActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        isCancelled.set(true)
         scanGeneration++
         scanning = false
         super.onDestroy()

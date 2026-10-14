@@ -83,7 +83,7 @@ class HeartRateActivity : AppCompatActivity() {
                 flashOn = !flashOn
                 text = if (flashOn) "Flash: on" else "Flash: off"
                 if (pausedForCooldown) return@setOnClickListener
-                if (flashOn) restartForFlashChange() else restartForFlashChange()
+                restartForFlashChange()
             }
         }
         val content = LinearLayout(this).apply {

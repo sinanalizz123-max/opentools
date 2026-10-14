@@ -16,7 +16,6 @@ import android.view.TextureView
 import android.widget.FrameLayout
 import android.widget.TextView
 import android.view.Gravity
-import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import com.opentools.box.UiStyle

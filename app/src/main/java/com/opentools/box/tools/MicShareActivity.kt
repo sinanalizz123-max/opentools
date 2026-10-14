@@ -19,6 +19,8 @@ import com.opentools.box.UiStyle
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
+import java.security.MessageDigest
+import java.security.SecureRandom
 
 /**
  * LAN microphone share: stream mic to peer, or listen for a stream.
@@ -40,7 +42,7 @@ class MicShareActivity : AppCompatActivity() {
     private var hostingNsd = false
     private var hostName = ""
     private var selectedIp = ""
-    private var selectedPort = 0
+    @Volatile private var sessionToken = ""
     private val peers = mutableListOf<NsdServiceInfo>()
     private lateinit var peerAdapter: ArrayAdapter<String>
     private val svcType = "_opentools-mic._udp."
@@ -79,15 +81,22 @@ class MicShareActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        sessionToken = newToken()
         peerAdapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, mutableListOf("(searching for hosts…)"))
         val peerList = ListView(this).apply { adapter = peerAdapter }
+        val token = android.widget.EditText(this).apply {
+            hint = "Peer access token"
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+            UiStyle.styleInput(this)
+            setSingleLine(true)
+        }
         val hostBtn = NativeButton(this, false).apply { text = "Start hosting" }
         hostBtn.setOnClickListener {
             if (hostingNsd) { try { hostHandle?.close() } catch (_: Exception) { }; hostHandle = null; hostingNsd = false; hostBtn.text = "Start hosting"; status.text = "Idle"; ensureLocBrowse() }
-            else { startListen(); hostHandle = LanDiscovery.host(this, svcType, 9997, (android.os.Build.MODEL ?: "mic").replace(" ","-") + "-" + (0..999).random(), onRegistered = { n -> runOnUiThread { hostName = n; status.text = "Hosting as " + n + " · listening on :9997" } }, onError = { m -> runOnUiThread { status.text = "Host error: " + m } }); hostingNsd = true; hostBtn.text = "Stop hosting" }
+            else { startListen(); hostHandle = LanDiscovery.host(this, svcType, 9997, (android.os.Build.MODEL ?: "mic").replace(" ","-") + "-" + (0..999).random(), onRegistered = { n -> runOnUiThread { hostName = n; status.text = "Hosting as " + n + " · listening on :9997\nShare token: " + sessionToken } }, onError = { m -> runOnUiThread { status.text = "Host error: " + m } }); hostingNsd = true; hostBtn.text = "Stop hosting" }
         }
         peerList.setOnItemClickListener { _, _, pos, _ ->
-            peers.getOrNull(pos)?.let { s -> try { selectedIp = s.host?.hostAddress ?: "" } catch (_: Exception) { }; selectedPort = s.port; status.text = "Peer: " + peerLabel(s); if (!streaming) startStream(selectedIp) }
+            peers.getOrNull(pos)?.let { s -> try { selectedIp = s.host?.hostAddress ?: "" } catch (_: Exception) { }; status.text = "Peer: " + peerLabel(s); if (!streaming) startStream(selectedIp, token.text.toString().trim()) }
         }
         status = TextView(this).apply {
             text = "Idle · choose whether to stream your microphone or listen for a peer."
@@ -99,7 +108,7 @@ class MicShareActivity : AppCompatActivity() {
         streamButton = NativeButton(this).apply { text = "Start microphone stream" }
         listenButton = NativeButton(this, false).apply { text = "Listen on port 9997" }
         streamButton.setOnClickListener {
-            if (streaming) stopStream() else startStream(selectedIp)
+            if (streaming) stopStream() else startStream(selectedIp, token.text.toString().trim())
         }
         listenButton.setOnClickListener {
             if (listening) stopListen() else startListen()
@@ -123,6 +132,9 @@ class MicShareActivity : AppCompatActivity() {
             addView(peerList, LinearLayout.LayoutParams(-1, UiStyle.dp(context, 140f)).apply {
                 bottomMargin = UiStyle.dp(context, 10f)
             })
+            addView(token, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = UiStyle.dp(context, 8f)
+            })
             addView(streamButton, LinearLayout.LayoutParams(-1, -2).apply {
                 bottomMargin = UiStyle.dp(context, 8f)
             })
@@ -142,8 +154,14 @@ class MicShareActivity : AppCompatActivity() {
         }
     }
 
-    private fun startStream(ip: String) {
+    private fun newToken(): String {
+        val bytes = ByteArray(16).also { SecureRandom().nextBytes(it) }
+        return bytes.joinToString("") { "%02x".format(it) }
+    }
+
+    private fun startStream(ip: String, token: String) {
         if (ip.isBlank()) { status.text = "Tap a peer in the list first"; return }
+        if (token.isBlank()) { status.text = "Enter the access token shown on the listening device"; return }
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.RECORD_AUDIO), 1)
             return
@@ -167,12 +185,13 @@ class MicShareActivity : AppCompatActivity() {
                 sender = DatagramSocket()
                 streamSocket = sender
                 val addr = InetAddress.getByName(ip)
-                val buf = ByteArray(2048)
+                val prefix = (token + "\n").toByteArray()
+                val buf = ByteArray(prefix.size + 2048)
                 runOnUiThread { status.text = "Streaming to $ip" }
                 while (streaming) {
-                    val n = localRecorder.read(buf, 0, buf.size)
+                    val n = localRecorder.read(buf, prefix.size, buf.size - prefix.size)
                     if (n < 0) throw IllegalStateException("Microphone read failed")
-                    if (n > 0) sender.send(DatagramPacket(buf, n, addr, 9997))
+                    if (n > 0) sender.send(DatagramPacket(buf, prefix.size + n, addr, 9997))
                 }
             } catch (e: Exception) {
                 if (streaming) runOnUiThread { status.text = "Stream failed: " + (e.message ?: "audio unavailable") }
@@ -216,11 +235,15 @@ class MicShareActivity : AppCompatActivity() {
                 if (localPlayer.state != AudioTrack.STATE_INITIALIZED) throw IllegalStateException("Speaker unavailable")
                 player = localPlayer
                 localPlayer.play()
-                val buf = ByteArray(2048)
+                val expected = (sessionToken + "\n").toByteArray()
+                val buf = ByteArray(expected.size + 2048)
                 while (listening) {
                     val pkt = DatagramPacket(buf, buf.size)
                     receiver.receive(pkt)
-                    localPlayer.write(pkt.data, 0, pkt.length)
+                    if (pkt.length >= expected.size &&
+                        MessageDigest.isEqual(expected, pkt.data.copyOfRange(0, expected.size))) {
+                        localPlayer.write(pkt.data, expected.size, pkt.length - expected.size)
+                    }
                 }
             } catch (e: Exception) {
                 if (listening) runOnUiThread { status.text = "Listener failed: " + (e.message ?: "audio unavailable") }

@@ -8,8 +8,14 @@
   not applied: the suggested versions require `compileSdk 37`, which is not
   available in this project's SDK; applying them breaks the build (verified).
 - Manifest audit: all 78 `ToolRegistry` activities registered; `ScreenRecordService`
-  declared with `mediaProjection` type; no auto-init providers remain
-  (`androidx.startup` and ML Kit init are stripped on purpose).
+  declared with `mediaProjection` type; auto-init is minimized, not eliminated:
+  the emoji initializer is removed *inside*
+  `androidx.startup.InitializationProvider` (a top-level `<meta-data
+  tools:node="remove">` never matched it — verified absent from
+  `app/build/intermediates/merged_manifest/debug/.../AndroidManifest.xml` after
+  the fix), the provider itself still runs the ProfileInstaller/lifecycle
+  initializers, and the ML Kit init provider is deliberately KEPT (Play-services
+  OCR crashes with "MlKitContext has not been initialized" without it).
 - Permission audit: every `CAMERA` / `RECORD_AUDIO` call site has an explicit
   runtime check plus a `SecurityException` catch (revocation race).
 - Lifecycle audit: all camera/mic/sensor/player owners release in

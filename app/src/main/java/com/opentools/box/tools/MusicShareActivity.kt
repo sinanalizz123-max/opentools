@@ -23,6 +23,8 @@ import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
 import java.nio.ByteBuffer
+import java.security.MessageDigest
+import java.security.SecureRandom
 
 /**
  * LAN music share: host decodes an audio file and streams PCM over UDP;
@@ -40,7 +42,7 @@ class MusicShareActivity : AppCompatActivity() {
     private var hostingNsd = false
     private var hostName = ""
     private var selectedIp = ""
-    private var selectedPort = 0
+    @Volatile private var sessionToken = ""
     private val peers = mutableListOf<NsdServiceInfo>()
     private lateinit var peerAdapter: ArrayAdapter<String>
     private val svcType = "_opentools-music._udp."
@@ -83,6 +85,7 @@ class MusicShareActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        sessionToken = newToken()
         status = TextView(this).apply {
             text = "Idle · host a file or join another device."
             UiStyle.styleText(this, 14f, false, UiStyle.muted(context))
@@ -93,7 +96,13 @@ class MusicShareActivity : AppCompatActivity() {
         peerAdapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, mutableListOf("(searching for hosts…)"))
         val peerList = ListView(this).apply { adapter = peerAdapter }
         peerList.setOnItemClickListener { _, _, pos, _ ->
-            peers.getOrNull(pos)?.let { s -> try { selectedIp = s.host?.hostAddress ?: "" } catch (_: Exception) { }; selectedPort = s.port; status.text = "Peer: " + peerLabel(s) }
+            peers.getOrNull(pos)?.let { s -> try { selectedIp = s.host?.hostAddress ?: "" } catch (_: Exception) { }; status.text = "Peer: " + peerLabel(s) }
+        }
+        val token = android.widget.EditText(this).apply {
+            hint = "Peer access token"
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+            UiStyle.styleInput(this)
+            setSingleLine(true)
         }
         val hostBtn = NativeButton(this).apply { text = "Start hosting" }
         val pickBtn = NativeButton(this).apply { text = "Host audio file" }
@@ -102,11 +111,11 @@ class MusicShareActivity : AppCompatActivity() {
         val stopJoin = NativeButton(this, false).apply { text = "Stop listening" }
         hostBtn.setOnClickListener {
             if (hostingNsd) { try { hostHandle?.close() } catch (_: Exception) { }; hostHandle = null; hostingNsd = false; hostBtn.text = "Start hosting"; status.text = "Idle"; ensureLocBrowse() }
-            else { hostHandle = LanDiscovery.host(this, svcType, 9994, (android.os.Build.MODEL ?: "music").replace(" ","-") + "-" + (0..999).random(), onRegistered = { n -> runOnUiThread { hostName = n; status.text = "Hosting as " + n + " · pick a file to stream" } }, onError = { m -> runOnUiThread { status.text = "Host error: " + m } }); hostingNsd = true; hostBtn.text = "Stop hosting" }
+            else { hostHandle = LanDiscovery.host(this, svcType, 9994, (android.os.Build.MODEL ?: "music").replace(" ","-") + "-" + (0..999).random(), onRegistered = { n -> runOnUiThread { hostName = n; status.text = "Hosting as " + n + " · pick a file to stream\nShare token: " + sessionToken } }, onError = { m -> runOnUiThread { status.text = "Host error: " + m } }); hostingNsd = true; hostBtn.text = "Stop hosting" }
         }
         pickBtn.setOnClickListener { picker.launch(arrayOf("audio/*")) }
         stopHost.setOnClickListener { hosting = false; status.text = "Idle" }
-        joinBtn.setOnClickListener { if (!joining) join() }
+        joinBtn.setOnClickListener { if (!joining) join(token.text.toString().trim()) }
         stopJoin.setOnClickListener {
             joining = false
             try { recvSocket?.close() } catch (_: Exception) { }
@@ -114,7 +123,6 @@ class MusicShareActivity : AppCompatActivity() {
             track = null
             status.text = "Listening stopped."
         }
-        pendingUri = null
         setContentView(com.opentools.box.ToolScaffold.wrap(this, "Music Share", LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             val pad = UiStyle.dp(context, 20f)
@@ -131,6 +139,9 @@ class MusicShareActivity : AppCompatActivity() {
             addView(peerList, LinearLayout.LayoutParams(-1, UiStyle.dp(context, 140f)).apply {
                 bottomMargin = UiStyle.dp(context, 10f)
             })
+            addView(token, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = UiStyle.dp(context, 8f)
+            })
             listOf(hostBtn, pickBtn, stopHost, joinBtn, stopJoin).forEach { button ->
                 addView(button, LinearLayout.LayoutParams(-1, -2).apply {
                     bottomMargin = UiStyle.dp(context, 8f)
@@ -139,14 +150,17 @@ class MusicShareActivity : AppCompatActivity() {
         }))
     }
 
-    private var pendingUri: android.net.Uri? = null
+    private fun newToken(): String {
+        val bytes = ByteArray(16).also { SecureRandom().nextBytes(it) }
+        return bytes.joinToString("") { "%02x".format(it) }
+    }
 
     private fun host(uri: Uri) {
         val ip = selectedIp
         if (ip.isEmpty()) { status.text = "Tap a peer in the list first"; return }
         if (!hostingNsd) { hostHandle = LanDiscovery.host(this, svcType, 9994, (android.os.Build.MODEL ?: "music").replace(" ","-") + "-" + (0..999).random(), onRegistered = { n -> runOnUiThread { hostName = n } }, onError = { }); hostingNsd = true }
         hosting = true
-        status.text = "Streaming…"
+        status.text = "Streaming…\nShare token: " + sessionToken
         Thread {
             try {
                 val extractor = MediaExtractor()
@@ -170,9 +184,13 @@ class MusicShareActivity : AppCompatActivity() {
                 codec.start()
                 val addr = InetAddress.getByName(ip)
                 val send = DatagramSocket()
-                // Send header: sampleRate, channels.
+                val prefix = (sessionToken + "\n").toByteArray()
+                // Send header: sampleRate, channels, preceded by the session token.
                 val header = ByteBuffer.allocate(8).putInt(sampleRate).putInt(channels).array()
-                send.send(DatagramPacket(header, header.size, addr, 9994))
+                val headerPacket = ByteArray(prefix.size + header.size)
+                System.arraycopy(prefix, 0, headerPacket, 0, prefix.size)
+                System.arraycopy(header, 0, headerPacket, prefix.size, header.size)
+                send.send(DatagramPacket(headerPacket, headerPacket.size, addr, 9994))
                 val info = MediaCodec.BufferInfo()
                 var inputDone = false
                 while (hosting) {
@@ -197,11 +215,14 @@ class MusicShareActivity : AppCompatActivity() {
                         val pcm = ByteArray(info.size)
                         buf.get(pcm)
                         codec.releaseOutputBuffer(outIdx, false)
-                        // Chunk into UDP packets.
+                        // Chunk into UDP packets, each prefixed with the session token.
                         var off = 0
                         while (off < pcm.size) {
                             val len = minOf(1400, pcm.size - off)
-                            send.send(DatagramPacket(pcm, off, len, addr, 9994))
+                            val pkt = ByteArray(prefix.size + len)
+                            System.arraycopy(prefix, 0, pkt, 0, prefix.size)
+                            System.arraycopy(pcm, off, pkt, prefix.size, len)
+                            send.send(DatagramPacket(pkt, pkt.size, addr, 9994))
                             off += len
                         }
                         if (info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) break
@@ -218,7 +239,8 @@ class MusicShareActivity : AppCompatActivity() {
         }.start()
     }
 
-    private fun join() {
+    private fun join(token: String) {
+        if (token.isBlank()) { status.text = "Enter the access token shown on the host"; return }
         joining = true
         status.text = "Listening on :9994"
         Thread {
@@ -230,26 +252,32 @@ class MusicShareActivity : AppCompatActivity() {
                     return@Thread
                 }
                 recvSocket = sock
-                // Header first.
-                val hbuf = ByteArray(8)
-                sock.receive(DatagramPacket(hbuf, hbuf.size))
-                val header = ByteBuffer.wrap(hbuf)
-                val sampleRate = header.int
-                val channels = header.int
-                val cfg = if (channels >= 2) AudioFormat.CHANNEL_OUT_STEREO
-                    else AudioFormat.CHANNEL_OUT_MONO
-                val minBuf = AudioTrack.getMinBufferSize(sampleRate, cfg,
-                    AudioFormat.ENCODING_PCM_16BIT)
-                track = AudioTrack(AudioManager.STREAM_MUSIC, sampleRate, cfg,
-                    AudioFormat.ENCODING_PCM_16BIT, minBuf, AudioTrack.MODE_STREAM)
-                    .also { it.play() }
+                // Header arrives first, but only packets carrying the entered token are accepted.
+                val expected = (token + "\n").toByteArray()
                 val buf = ByteArray(4096)
+                var configured = false
                 while (joining) {
-                    try {
-                        val pkt = DatagramPacket(buf, buf.size)
-                        recvSocket?.receive(pkt)
-                        track?.write(pkt.data, 0, pkt.length)
-                    } catch (_: Exception) { break }
+                    val pkt = DatagramPacket(buf, buf.size)
+                    sock.receive(pkt)
+                    if (pkt.length < expected.size) continue
+                    if (!MessageDigest.isEqual(expected, pkt.data.copyOfRange(0, expected.size))) continue
+                    val payloadLen = pkt.length - expected.size
+                    if (!configured) {
+                        if (payloadLen < 8) continue
+                        val header = ByteBuffer.wrap(pkt.data, expected.size, 8)
+                        val sampleRate = header.int
+                        val channels = header.int
+                        val cfg = if (channels >= 2) AudioFormat.CHANNEL_OUT_STEREO
+                            else AudioFormat.CHANNEL_OUT_MONO
+                        val minBuf = AudioTrack.getMinBufferSize(sampleRate, cfg,
+                            AudioFormat.ENCODING_PCM_16BIT)
+                        track = AudioTrack(AudioManager.STREAM_MUSIC, sampleRate, cfg,
+                            AudioFormat.ENCODING_PCM_16BIT, minBuf, AudioTrack.MODE_STREAM)
+                            .also { it.play() }
+                        configured = true
+                    } else {
+                        track?.write(pkt.data, expected.size, payloadLen)
+                    }
                 }
             } catch (_: Exception) { }
             try { track?.stop(); track?.release() } catch (_: Exception) { }

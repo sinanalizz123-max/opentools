@@ -3,8 +3,13 @@ package com.opentools.box.tools
 import android.content.Context
 import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 object LanDiscovery {
+    private const val RESOLVE_TIMEOUT_MS = 5000L
+
     fun host(
         context: Context,
         svc: String,
@@ -51,14 +56,23 @@ object LanDiscovery {
         return try {
             val nsd = context.getSystemService(Context.NSD_SERVICE) as NsdManager
             val found = mutableMapOf<String, NsdServiceInfo>()
-            val resolveListener = { name: String ->
-                object : NsdManager.ResolveListener {
-                    override fun onResolveFailed(si: NsdServiceInfo, code: Int) { }
-                    override fun onServiceResolved(si: NsdServiceInfo) {
-                        synchronized(found) { found[name] = si }
+            val resolver = Executors.newSingleThreadExecutor { task ->
+                Thread(task, "lan-discovery-resolve").apply { isDaemon = true }
+            }
+            fun resolve(si: NsdServiceInfo) {
+                val done = CountDownLatch(1)
+                val listener = object : NsdManager.ResolveListener {
+                    override fun onResolveFailed(failed: NsdServiceInfo, code: Int) {
+                        done.countDown()
+                    }
+                    override fun onServiceResolved(resolved: NsdServiceInfo) {
+                        synchronized(found) { found[si.serviceName] = resolved }
                         try { onPeersChanged(snapshot(found)) } catch (_: Exception) { }
+                        done.countDown()
                     }
                 }
+                try { nsd.resolveService(si, listener) } catch (_: Exception) { return }
+                try { done.await(RESOLVE_TIMEOUT_MS, TimeUnit.MILLISECONDS) } catch (_: Exception) { }
             }
             val discovery = object : NsdManager.DiscoveryListener {
                 override fun onDiscoveryStarted(t: String) { }
@@ -66,9 +80,7 @@ object LanDiscovery {
                 override fun onStartDiscoveryFailed(t: String, code: Int) { }
                 override fun onStopDiscoveryFailed(t: String, code: Int) { }
                 override fun onServiceFound(si: NsdServiceInfo) {
-                    Thread {
-                        try { nsd.resolveService(si, resolveListener(si.serviceName)) } catch (_: Exception) { }
-                    }.start()
+                    try { resolver.execute { resolve(si) } } catch (_: Exception) { }
                 }
                 override fun onServiceLost(si: NsdServiceInfo) {
                     synchronized(found) { found.remove(si.serviceName) }
@@ -78,9 +90,13 @@ object LanDiscovery {
             try {
                 nsd.discoverServices(svc, NsdManager.PROTOCOL_DNS_SD, discovery)
             } catch (_: Exception) {
+                resolver.shutdownNow()
                 return AutoCloseable { }
             }
-            AutoCloseable { try { nsd.stopServiceDiscovery(discovery) } catch (_: Exception) { } }
+            AutoCloseable {
+                try { nsd.stopServiceDiscovery(discovery) } catch (_: Exception) { }
+                resolver.shutdownNow()
+            }
         } catch (_: Exception) {
             AutoCloseable { }
         }

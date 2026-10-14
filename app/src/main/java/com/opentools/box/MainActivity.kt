@@ -311,7 +311,11 @@ class MainActivity : AppCompatActivity() {
     private fun makeTile(entry: ToolEntry): View {
         val icon = android.widget.ImageView(this).apply {
             val res = ToolIcons.resId(entry.id)
-            if (res != 0) setImageResource(res)
+            if (res != 0) {
+                setImageResource(res)
+            } else {
+                setImageResource(android.R.drawable.ic_menu_help)
+            }
             if (ToolIcons.tint(entry.id)) {
                 imageTintList = android.content.res.ColorStateList.valueOf(UiStyle.text(this@MainActivity))
             }

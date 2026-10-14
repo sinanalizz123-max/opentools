@@ -129,7 +129,7 @@ class ScreenRecordService : Service() {
         )
         val builder = Notification.Builder(this, CHANNEL_ID)
         return builder
-            .setSmallIcon(android.R.drawable.presence_video_online)
+            .setSmallIcon(com.opentools.box.R.drawable.ic_record_dot)
             .setContentTitle("OpenTools screen recorder")
             .setContentText(failureMessage ?: if (outputFile == null) "Starting recording…" else "Saving to " + outputFile!!.name)
             .setOngoing(failureMessage == null && outputFile != null)

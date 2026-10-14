@@ -22,6 +22,7 @@ import java.io.FileOutputStream
 import java.security.KeyStore
 import java.security.MessageDigest
 import java.security.SecureRandom
+import java.util.concurrent.Executors
 import javax.crypto.Cipher
 import javax.crypto.CipherInputStream
 import javax.crypto.KeyGenerator
@@ -38,6 +39,8 @@ class VaultActivity : AppCompatActivity() {
     private lateinit var adapter: ArrayAdapter<String>
     private val files = mutableListOf<String>()
     private var pendingExportName: String? = null
+    private val pinExecutor = Executors.newSingleThreadExecutor()
+    private var derivingPin = false
 
     private fun prefs() = getSharedPreferences("vault", Context.MODE_PRIVATE)
     private fun vaultDir() = File(filesDir, "vault").also { it.mkdirs() }
@@ -91,18 +94,35 @@ class VaultActivity : AppCompatActivity() {
             setPadding(pad, pad, pad, pad)
         }
         go.setOnClickListener {
+            if (derivingPin) return@setOnClickListener
             val entered = pin.text.toString()
             if (entered.length < 4) {
                 status.text = "PIN must contain at least 4 digits."
                 return@setOnClickListener
             }
-            if (!hasPin()) {
-                storePin(entered)
-                showUnlocked()
-            } else if (verifyPin(entered)) {
-                showUnlocked()
-            } else {
-                status.text = "Incorrect PIN."
+            derivingPin = true
+            go.isEnabled = false
+            go.text = "Working…"
+            pinExecutor.execute {
+                var message: String? = null
+                var unlocked = false
+                try {
+                    if (!hasPin()) {
+                        storePin(entered)
+                        unlocked = true
+                    } else {
+                        unlocked = verifyPin(entered)
+                        if (!unlocked) message = "Incorrect PIN."
+                    }
+                } catch (e: Exception) {
+                    message = "PIN failed: " + (e.message ?: "error")
+                }
+                runOnUiThread {
+                    derivingPin = false
+                    go.isEnabled = true
+                    go.text = if (hasPin()) "Unlock vault" else "Create vault PIN"
+                    if (unlocked) showUnlocked() else status.text = message ?: "Incorrect PIN."
+                }
             }
         }
         setContentView(com.opentools.box.ToolScaffold.wrap(this, "File Vault", lockView))

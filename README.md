@@ -32,8 +32,8 @@ billing/play-purchase flows.
 Requires Android SDK (platform 36) and JDK 17:
 
 ```sh
-gradle :app:assembleDebug     # quick local build
-gradle :app:assembleRelease   # R8 + resource shrinking (needs signing, see below)
+./gradlew :app:assembleDebug     # quick local build
+./gradlew :app:assembleRelease   # R8 + resource shrinking (needs signing, see below)
 ```
 
 Release signing: create `local.properties` (never committed) with

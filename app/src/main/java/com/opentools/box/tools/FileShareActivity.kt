@@ -45,7 +45,6 @@ class FileShareActivity : AppCompatActivity() {
     private var hostingNsd = false
     private var hostName = ""
     private var selectedIp = ""
-    private var selectedPort = 0
     private val peers = mutableListOf<NsdServiceInfo>()
     private lateinit var peerAdapter: ArrayAdapter<String>
     private val svcType = "_opentools-file._tcp."
@@ -139,7 +138,7 @@ class FileShareActivity : AppCompatActivity() {
             }
         }
         peerList.setOnItemClickListener { _, _, pos, _ ->
-            peers.getOrNull(pos)?.let { s -> try { selectedIp = s.host?.hostAddress ?: "" } catch (_: Exception) { }; selectedPort = s.port; fetchFrom(selectedIp, token.text.toString().trim()) }
+            peers.getOrNull(pos)?.let { s -> try { selectedIp = s.host?.hostAddress ?: "" } catch (_: Exception) { }; fetchFrom(selectedIp, token.text.toString().trim()) }
         }
         val fetch = NativeButton(this).apply { text = "Fetch files" }
         share.setOnClickListener { picker.launch(arrayOf("*/*")) }

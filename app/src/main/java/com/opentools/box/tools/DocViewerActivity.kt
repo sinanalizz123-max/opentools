@@ -33,7 +33,10 @@ class DocViewerActivity : AppCompatActivity() {
                         output.write(buffer, 0, read)
                         total += read
                     }
-                    if (total == MAX_DISPLAY_BYTES && input.read() != -1) truncated = true
+                    if (total == MAX_DISPLAY_BYTES) {
+                        val probe = ByteArray(1)
+                        if (input.read(probe) > 0) truncated = true
+                    }
                     String(output.toByteArray(), Charsets.UTF_8) to truncated
                 } ?: throw IllegalStateException("File could not be opened")
                 text.text = result.first + if (result.second) "\n\n[Preview limited to 1 MB]" else ""

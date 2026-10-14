@@ -7,7 +7,6 @@
         <item name="android:fontFamily">sans</item>
         <item name="android:statusBarColor">?android:colorBackground</item>
         <item name="android:navigationBarColor">?android:colorBackground</item>
-        <item name="android:windowLightStatusBar">true</item>
         <item name="android:colorAccent">#265BB4</item>
     </style>
 </resources>

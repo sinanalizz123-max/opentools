@@ -11,12 +11,12 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
-import com.google.android.material.button.MaterialButton
+import com.opentools.box.UiStyle
 
 /** UI for the foreground-service-backed screen recorder. */
 class ScreenRecordActivity : AppCompatActivity() {
     private lateinit var projectionManager: MediaProjectionManager
-    private lateinit var toggle: MaterialButton
+    private lateinit var toggle: NativeButton
     private lateinit var status: TextView
     private var recording = false
     private val recorderPrefs by lazy { getSharedPreferences("screen_recorder", MODE_PRIVATE) }
@@ -44,8 +44,14 @@ class ScreenRecordActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         projectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-        status = TextView(this).apply { textSize = 17f; text = "Ready" }
-        toggle = MaterialButton(this).apply { text = "Start recording" }
+        status = TextView(this).apply {
+            text = "Ready to record your screen."
+            UiStyle.styleText(this, 15f, false, UiStyle.muted(context))
+            setPadding(UiStyle.dp(context, 16f), UiStyle.dp(context, 14f),
+                UiStyle.dp(context, 16f), UiStyle.dp(context, 14f))
+            background = UiStyle.rounded(context, UiStyle.surface(context), 14f, UiStyle.border(context))
+        }
+        toggle = NativeButton(this).apply { text = "Start recording" }
         toggle.setOnClickListener {
             if (recording) stopRecording()
             else ensureNotificationPermissionThen {
@@ -54,9 +60,22 @@ class ScreenRecordActivity : AppCompatActivity() {
         }
         setContentView(com.opentools.box.ToolScaffold.wrap(this, "Screen Recorder", LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            val pad = (16 * resources.displayMetrics.density).toInt()
+            val pad = UiStyle.dp(context, 20f)
             setPadding(pad, pad, pad, pad)
-            addView(status); addView(toggle)
+            addView(TextView(context).apply {
+                text = "Capture your screen"
+                UiStyle.styleText(this, 24f, true)
+                setPadding(0, 0, 0, UiStyle.dp(context, 12f))
+            })
+            addView(TextView(context).apply {
+                text = "Android will ask you to confirm screen capture before recording begins."
+                UiStyle.styleText(this, 14f, false, UiStyle.muted(context))
+                setPadding(0, 0, 0, UiStyle.dp(context, 18f))
+            })
+            addView(status, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = UiStyle.dp(context, 16f)
+            })
+            addView(toggle, LinearLayout.LayoutParams(-1, -2))
         }))
         syncRecordingState()
     }
@@ -104,7 +123,10 @@ class ScreenRecordActivity : AppCompatActivity() {
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == 7) {
-            pendingCapture?.invoke()
+            val granted = Build.VERSION.SDK_INT < 33 ||
+                grantResults.firstOrNull() == android.content.pm.PackageManager.PERMISSION_GRANTED
+            if (granted) pendingCapture?.invoke()
+            else status.text = "Notification permission denied. Recording was not started."
             pendingCapture = null
         }
     }

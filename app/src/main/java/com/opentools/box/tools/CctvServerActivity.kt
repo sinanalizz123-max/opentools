@@ -29,12 +29,13 @@ class CctvServerActivity : AppCompatActivity() {
     private var thread: HandlerThread? = null
     private var handler: Handler? = null
     private val latestJpeg = AtomicReference<ByteArray?>(null)
+    private val accessToken = java.util.UUID.randomUUID().toString().replace("-", "")
     private var server: CctvLan.MjpegServer? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         cameraManager = getSystemService(Context.CAMERA_SERVICE) as CameraManager
-        status = TextView(this).apply { textSize = 16f; text = "Starting…" }
+        status = TextView(this).apply { textSize = 16f; text = "Starting…"; setTextIsSelectable(true) }
         setContentView(com.opentools.box.ToolScaffold.wrap(this, "CCTV Camera",LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             addView(status)
@@ -55,8 +56,8 @@ class CctvServerActivity : AppCompatActivity() {
             thread = HandlerThread("cctv").also { it.start() }
             handler = Handler(thread!!.looper)
         }
-        if (server == null) server = CctvLan.MjpegServer { latestJpeg.get() }.also { it.start() }
-        status.text = "Streaming on :" + CctvLan.PORT
+        if (server == null) server = CctvLan.MjpegServer({ latestJpeg.get() }, accessToken).also { it.start() }
+        status.text = "Streaming on :" + CctvLan.PORT + "\nViewer access token: " + accessToken
         if (camera == null) openCamera()
     }
 

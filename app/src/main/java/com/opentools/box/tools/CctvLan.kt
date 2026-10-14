@@ -6,6 +6,7 @@ import android.graphics.Rect
 import android.graphics.YuvImage
 import android.widget.ImageView
 import java.io.ByteArrayOutputStream
+import java.security.MessageDigest
 import java.io.BufferedInputStream
 import java.io.IOException
 import java.net.InetSocketAddress
@@ -16,7 +17,7 @@ import java.net.URL
 object CctvLan {
     const val PORT = 9996
 
-    class MjpegServer(private val frames: () -> ByteArray?) {
+    class MjpegServer(private val frames: () -> ByteArray?, private val token: String? = null) {
         @Volatile var running = false
         @Volatile private var server: SocketServer? = null
 
@@ -42,10 +43,20 @@ object CctvLan {
             try {
                 socket.use { client ->
                     client.soTimeout = 10000
-                    val input = client.getInputStream()
-                    val request = ByteArray(2048)
-                    input.read(request)
+                    val input = BufferedInputStream(client.getInputStream())
+                    val requestHeaders = readRequestHeaders(input)
+                    val authLine = requestHeaders.lineSequence().firstOrNull {
+                        it.startsWith("Authorization:", ignoreCase = true)
+                    }
+                    val supplied = authLine?.substringAfter(':')?.trim()?.let {
+                        if (it.startsWith("Bearer ", ignoreCase = true)) it.substring(7).trim() else ""
+                    }.orEmpty()
                     val out = client.getOutputStream()
+                    if (token != null && !MessageDigest.isEqual(token.toByteArray(), supplied.toByteArray())) {
+                        out.write("HTTP/1.0 401 Unauthorized\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".toByteArray(Charsets.US_ASCII))
+                        out.flush()
+                        return
+                    }
                     out.write(("HTTP/1.0 200 OK\r\n" +
                         "Content-Type: multipart/x-mixed-replace; boundary=frame\r\n" +
                         "Cache-Control: no-store\r\nConnection: close\r\n\r\n").toByteArray(Charsets.US_ASCII))
@@ -68,6 +79,26 @@ object CctvLan {
             }
         }
 
+        private fun readRequestHeaders(input: BufferedInputStream): String {
+            val bytes = ByteArrayOutputStream()
+            var state = 0
+            while (state < 4) {
+                val value = input.read()
+                if (value < 0) throw IOException("Camera client closed before request headers arrived")
+                bytes.write(value)
+                if (bytes.size() > 16 * 1024) throw IOException("Request headers are too large")
+                state = when {
+                    state == 0 && value == 13 -> 1
+                    state == 1 && value == 10 -> 2
+                    state == 2 && value == 13 -> 3
+                    state == 3 && value == 10 -> 4
+                    value == 13 -> 1
+                    else -> 0
+                }
+            }
+            return bytes.toString(Charsets.US_ASCII.name())
+        }
+
         fun stop() {
             running = false
             try { server?.socket?.close() } catch (_: Exception) { }
@@ -84,7 +115,7 @@ object CctvLan {
         @Volatile var running = false
         @Volatile private var connection: Socket? = null
 
-        fun start(url: String) {
+        fun start(url: String, token: String? = null) {
             stop()
             running = true
             Thread {
@@ -96,13 +127,17 @@ object CctvLan {
                     socket.connect(InetSocketAddress(parsed.host, if (parsed.port > 0) parsed.port else PORT), 8000)
                     socket.soTimeout = 10000
                     val requestPath = parsed.file.ifBlank { "/" }
+                    val authorization = token?.takeIf { it.isNotBlank() }?.let { "Authorization: Bearer " + it + "\r\n" }.orEmpty()
                     socket.getOutputStream().apply {
                         write(("GET " + requestPath + " HTTP/1.0\r\nHost: " + parsed.host +
-                            "\r\nConnection: close\r\n\r\n").toByteArray(Charsets.US_ASCII))
+                            "\r\n" + authorization + "Connection: close\r\n\r\n").toByteArray(Charsets.US_ASCII))
                         flush()
                     }
                     val input = BufferedInputStream(socket.getInputStream())
-                    readHeaders(input)
+                    val responseHeaders = readHeaders(input)
+                    if (!responseHeaders.startsWith("HTTP/1.0 200") && !responseHeaders.startsWith("HTTP/1.1 200")) {
+                        throw IOException("Camera rejected the access token or is unavailable")
+                    }
                     var buffer = ByteArray(8192)
                     var used = 0
                     val chunk = ByteArray(8192)
@@ -150,14 +185,14 @@ object CctvLan {
             }.start()
         }
 
-        private fun readHeaders(input: BufferedInputStream) {
+        private fun readHeaders(input: BufferedInputStream): String {
+            val bytes = ByteArrayOutputStream()
             var state = 0
-            var count = 0
             while (state < 4) {
                 val value = input.read()
                 if (value < 0) throw IOException("Camera closed before HTTP headers arrived")
-                count++
-                if (count > 16 * 1024) throw IOException("Camera response headers are too large")
+                bytes.write(value)
+                if (bytes.size() > 16 * 1024) throw IOException("Camera response headers are too large")
                 state = when {
                     state == 0 && value == 13 -> 1
                     state == 1 && value == 10 -> 2
@@ -167,6 +202,7 @@ object CctvLan {
                     else -> 0
                 }
             }
+            return bytes.toString(Charsets.US_ASCII.name())
         }
 
         private fun indexOf(data: ByteArray, length: Int, needle: ByteArray, from: Int): Int {

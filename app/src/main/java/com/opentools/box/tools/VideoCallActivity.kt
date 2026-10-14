@@ -49,7 +49,9 @@ class VideoCallActivity : AppCompatActivity() {
     private var mjpegClient: CctvLan.MjpegClient? = null
 
     @Volatile private var callActive = false
+    private val accessToken = java.util.UUID.randomUUID().toString().replace("-", "")
     private var pendingPeer: String? = null
+    private var pendingPeerToken: String? = null
     private var audioSocket: DatagramSocket? = null
     private var recorder: AudioRecord? = null
     private var player: AudioTrack? = null
@@ -58,15 +60,21 @@ class VideoCallActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         cameraManager = getSystemService(Context.CAMERA_SERVICE) as CameraManager
         val ip = EditText(this).apply { hint = "Peer IP, e.g. 192.168.1.5" }
-        status = TextView(this).apply { text = "Enter peer IP and join" }
+        val peerToken = EditText(this).apply { hint = "Peer camera/audio token" }
+        status = TextView(this).apply { text = "Enter peer IP and token to join" }
+        val localToken = TextView(this).apply {
+            text = "Your access token: " + accessToken
+            textSize = 12f
+            setTextIsSelectable(true)
+        }
         remoteView = ImageView(this).apply { adjustViewBounds = true }
         val join = MaterialButton(this).apply { text = "Join call" }
         val hangup = MaterialButton(this).apply { text = "Hang up" }
-        join.setOnClickListener { joinCall(ip.text.toString().trim()) }
+        join.setOnClickListener { joinCall(ip.text.toString().trim(), peerToken.text.toString().trim()) }
         hangup.setOnClickListener { hangUp() }
         setContentView(com.opentools.box.ToolScaffold.wrap(this, "LAN Video Call",LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            addView(ip); addView(status)
+            addView(ip); addView(peerToken); addView(localToken); addView(status)
             addView(LinearLayout(context).apply {
                 orientation = LinearLayout.HORIZONTAL
                 addView(join); addView(hangup)
@@ -98,10 +106,12 @@ class VideoCallActivity : AppCompatActivity() {
             thread = HandlerThread("vcall").also { it.start() }
             handler = Handler(thread!!.looper)
         }
-        if (mjpegServer == null) mjpegServer = CctvLan.MjpegServer { latestJpeg.get() }.also { it.start() }
+        if (mjpegServer == null) mjpegServer = CctvLan.MjpegServer({ latestJpeg.get() }, accessToken).also { it.start() }
         if (camera == null) openCamera()
+        val peerSecret = pendingPeerToken ?: return
         pendingPeer = null
-        beginCall(peer)
+        pendingPeerToken = null
+        beginCall(peer, peerSecret)
     }
 
     override fun onPause() {
@@ -109,24 +119,30 @@ class VideoCallActivity : AppCompatActivity() {
         super.onPause()
     }
 
-    private fun joinCall(ip: String) {
-        if (ip.isBlank() || callActive || pendingPeer != null) return
+    private fun joinCall(ip: String, peerToken: String) {
+        if (ip.isBlank() || peerToken.isBlank()) {
+            status.text = "Enter both the peer IP and token."
+            return
+        }
+        if (callActive || pendingPeer != null) return
         pendingPeer = ip
+        pendingPeerToken = peerToken
         status.text = "Checking permissions…"
         startCaptureIfAllowed()
     }
 
-    private fun beginCall(ip: String) {
+    private fun beginCall(ip: String, peerToken: String) {
         callActive = true
         status.text = "In call with " + ip
         mjpegClient = CctvLan.MjpegClient(remoteView) { message -> status.text = message }.also {
-            it.start("http://" + ip + ":" + CctvLan.PORT + "/")
+            it.start("http://" + ip + ":" + CctvLan.PORT + "/", peerToken)
         }
-        startAudio(ip)
+        startAudio(ip, peerToken)
     }
 
     private fun hangUp() {
         pendingPeer = null
+        pendingPeerToken = null
         callActive = false
         mjpegClient?.stop(); mjpegClient = null
         try { audioSocket?.close() } catch (_: Exception) { }
@@ -147,7 +163,7 @@ class VideoCallActivity : AppCompatActivity() {
         runOnUiThread { status.text = "Call ended" }
     }
 
-    private fun startAudio(ip: String) {
+    private fun startAudio(ip: String, peerToken: String) {
         Thread {
             try {
                 val addr = InetAddress.getByName(ip)
@@ -164,22 +180,30 @@ class VideoCallActivity : AppCompatActivity() {
                     minOut, AudioTrack.MODE_STREAM).also { it?.play() }
                 // Receiver.
                 Thread {
-                    val buf = ByteArray(2048)
+                    val buf = ByteArray(4096)
                     while (callActive) {
                         try {
                             val pkt = DatagramPacket(buf, buf.size)
                             audioSocket?.receive(pkt)
-                            player?.write(pkt.data, 0, pkt.length)
+                            val localSecret = accessToken.toByteArray(Charsets.UTF_8)
+                            if (pkt.length <= localSecret.size) continue
+                            if (!java.security.MessageDigest.isEqual(
+                                    pkt.data.copyOfRange(0, localSecret.size), localSecret)) continue
+                            player?.write(pkt.data, localSecret.size, pkt.length - localSecret.size)
                         } catch (_: Exception) { break }
                     }
                 }.start()
                 // Sender.
                 val send = DatagramSocket()
+                val secret = peerToken.toByteArray(Charsets.UTF_8)
                 val buf = ByteArray(2048)
+                val packetData = ByteArray(secret.size + buf.size)
                 while (callActive) {
                     val n = recorder?.read(buf, 0, buf.size) ?: 0
                     if (n > 0) {
-                        try { send.send(DatagramPacket(buf, n, addr, 9995)) }
+                        System.arraycopy(secret, 0, packetData, 0, secret.size)
+                        System.arraycopy(buf, 0, packetData, secret.size, n)
+                        try { send.send(DatagramPacket(packetData, secret.size + n, addr, 9995)) }
                         catch (_: Exception) { break }
                     }
                 }

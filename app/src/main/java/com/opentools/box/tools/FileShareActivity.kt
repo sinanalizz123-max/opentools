@@ -76,7 +76,7 @@ class FileShareActivity : AppCompatActivity() {
         }
         list.adapter = adapter
         val share = NativeButton(this).apply { text = "Add file to share" }
-        val toggle = MaterialButton(this).apply { text = "Start server :9999" }
+        val toggle = NativeButton(this).apply { text = "Start server :9999" }
         val peer = EditText(this).apply {
             hint = "Peer IP address"
             UiStyle.styleInput(this)
@@ -88,7 +88,7 @@ class FileShareActivity : AppCompatActivity() {
             UiStyle.styleInput(this)
             setSingleLine(true)
         }
-        val fetch = MaterialButton(this).apply { text = "Fetch files" }
+        val fetch = NativeButton(this).apply { text = "Fetch files" }
         share.setOnClickListener { picker.launch(arrayOf("*/*")) }
         toggle.setOnClickListener {
             if (serving) stopServer() else startServer()

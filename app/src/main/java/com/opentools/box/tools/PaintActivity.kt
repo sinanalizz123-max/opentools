@@ -26,12 +26,12 @@ class PaintActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         canvas = PaintView(this)
         val black = NativeButton(this, false).apply { text = "Black" }
-        val red = MaterialButton(this).apply { text = "Red" }
-        val blue = MaterialButton(this).apply { text = "Blue" }
-        val clear = MaterialButton(this).apply { text = "Clear" }
-        val save = MaterialButton(this).apply { text = "Save" }
-        val thin = MaterialButton(this).apply { text = "Thin" }
-        val thick = MaterialButton(this).apply { text = "Thick" }
+        val red = NativeButton(this).apply { text = "Red" }
+        val blue = NativeButton(this).apply { text = "Blue" }
+        val clear = NativeButton(this).apply { text = "Clear" }
+        val save = NativeButton(this).apply { text = "Save" }
+        val thin = NativeButton(this).apply { text = "Thin" }
+        val thick = NativeButton(this).apply { text = "Thick" }
         black.setOnClickListener { canvas.color = Color.BLACK; canvas.announceForAccessibility("Black selected") }
         red.setOnClickListener { canvas.color = Color.RED; canvas.announceForAccessibility("Red selected") }
         blue.setOnClickListener { canvas.color = Color.BLUE; canvas.announceForAccessibility("Blue selected") }

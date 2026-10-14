@@ -27,7 +27,7 @@ class SignalActivity : AppCompatActivity() {
             UiStyle.styleText(this, 15f, false)
             setPadding(UiStyle.dp(context, 16f), UiStyle.dp(context, 16f),
                 UiStyle.dp(context, 16f), UiStyle.dp(context, 16f))
-            textIsSelectable = true
+            setTextIsSelectable(true)
             background = UiStyle.rounded(context, UiStyle.surface(context), 14f, UiStyle.border(context))
         }
         status = TextView(this).apply {

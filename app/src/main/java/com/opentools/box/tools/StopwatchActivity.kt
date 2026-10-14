@@ -110,7 +110,10 @@ class StopwatchActivity : AppCompatActivity() {
     }
 
     override fun onPause() {
-        if (running) baseElapsed = currentElapsed()
+        if (running) {
+            baseElapsed = currentElapsed()
+            startStamp = SystemClock.elapsedRealtime()
+        }
         displayView.removeCallbacks(ticker)
         super.onPause()
     }

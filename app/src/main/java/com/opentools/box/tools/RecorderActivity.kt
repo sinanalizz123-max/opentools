@@ -6,6 +6,7 @@ import android.media.MediaPlayer
 import android.media.MediaRecorder
 import android.os.Build
 import android.os.Bundle
+import android.widget.TextView
 import android.os.SystemClock
 import android.widget.Chronometer
 import android.widget.LinearLayout

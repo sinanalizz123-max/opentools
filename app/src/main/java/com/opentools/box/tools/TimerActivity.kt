@@ -3,7 +3,6 @@ package com.opentools.box.tools
 import android.os.Bundle
 import android.os.CountDownTimer
 import android.view.Gravity
-import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.NumberPicker
 import android.widget.ProgressBar
@@ -41,9 +40,8 @@ class TimerActivity : AppCompatActivity() {
         hours = picker(23)
         minutes = picker(59)
         seconds = picker(59)
-        toggle = Button(this).apply {
+        toggle = NativeButton(this).apply {
             text = "Start timer"
-            UiStyle.styleButton(this)
         }
         toggle.setOnClickListener { if (running) cancel() else start() }
 

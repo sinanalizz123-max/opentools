@@ -61,6 +61,11 @@ class DecibelActivity : AppCompatActivity() {
     }
 
     private fun startMeasuring() {
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.RECORD_AUDIO), 1)
+            return
+        }
+        if (measuring) return
         val size = maxOf(
             AudioRecord.getMinBufferSize(44100, AudioFormat.CHANNEL_IN_MONO,
                 AudioFormat.ENCODING_PCM_16BIT),
@@ -69,8 +74,20 @@ class DecibelActivity : AppCompatActivity() {
             AudioRecord(MediaRecorder.AudioSource.MIC, 44100,
                 AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, size)
         } catch (_: Exception) { null }
-        if (recorder?.state != AudioRecord.STATE_INITIALIZED) return
-        recorder?.startRecording()
+        if (recorder?.state != AudioRecord.STATE_INITIALIZED) {
+            recorder?.release()
+            recorder = null
+            levelView.text = "Microphone unavailable"
+            return
+        }
+        try {
+            recorder?.startRecording()
+        } catch (_: SecurityException) {
+            recorder?.release()
+            recorder = null
+            levelView.text = "Microphone permission required"
+            return
+        }
         measuring = true
         peak = 0.0
         peakSince = System.currentTimeMillis()
@@ -104,15 +121,16 @@ class DecibelActivity : AppCompatActivity() {
 
     private fun stopMeasuring() {
         measuring = false
-        try { worker?.join(300) } catch (_: Exception) { }
-        worker = null
         try { recorder?.stop() } catch (_: Exception) { }
+        try { worker?.join(500) } catch (_: Exception) { }
+        worker = null
         recorder?.release()
         recorder = null
     }
 
     override fun onRequestPermissionsResult(code: Int, perms: Array<String>, results: IntArray) {
         super.onRequestPermissionsResult(code, perms, results)
+        if (code != 1) return
         if (results.firstOrNull() == PackageManager.PERMISSION_GRANTED) startMeasuring()
         else finish()
     }

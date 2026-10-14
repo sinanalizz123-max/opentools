@@ -364,7 +364,15 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun openTool(id: String) {
-        allTools.firstOrNull { it.id == id }?.let { openTool(it) }
+        allTools.firstOrNull { it.id == id }?.let { openTool(it); return }
+        // Settings/Help/About are real activities, not grid tools — open directly.
+        val cls = when (id) {
+            "settings" -> com.opentools.box.tools.SettingsActivity::class.java
+            "help" -> com.opentools.box.tools.HelpActivity::class.java
+            "about" -> com.opentools.box.tools.AboutActivity::class.java
+            else -> null
+        } ?: return
+        startActivity(Intent(this, cls))
     }
 
     private fun openTool(entry: ToolEntry) {

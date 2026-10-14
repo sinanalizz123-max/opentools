@@ -42,13 +42,22 @@ class ConverterActivity : AppCompatActivity() {
             "Kilocalorie" to 4184.0, "Wh" to 3600.0, "kWh" to 3600000.0, "eV" to 1.602176634e-19)),
         Category("Data", linkedMapOf("Bit" to 1.0, "Byte" to 8.0, "Kilobyte" to 8.0 * 1024,
             "Megabyte" to 8.0 * 1024 * 1024, "Gigabyte" to 8.0 * 1024 * 1024 * 1024,
-            "Terabyte" to 8.0 * 1024 * 1024 * 1024 * 1024))
+            "Terabyte" to 8.0 * 1024 * 1024 * 1024 * 1024)),
+        Category("Cooking", linkedMapOf("Milliliter (ml)" to 0.001, "Liter (L)" to 1.0,
+            "Teaspoon (tsp)" to 0.00492892159375, "Tablespoon (tbsp)" to 0.01478676478125,
+            "Fluid ounce (fl-oz)" to 0.0295735295625, "Cup" to 0.24)),
+        Category("Fuel", linkedMapOf("L/100km" to 1.0, "Km/L" to 1.0,
+            "MPG (US)" to 1.0, "MPG (UK)" to 1.0)),
+        Category("Currency", linkedMapOf("USD" to 1.0, "EUR" to 0.92, "GBP" to 0.79,
+            "INR" to 83.0, "JPY" to 149.0))
     )
 
     private lateinit var categorySpinner: Spinner
     private lateinit var fromSpinner: Spinner
     private lateinit var toSpinner: Spinner
     private lateinit var input: EditText
+    private lateinit var rateInput: EditText
+    private lateinit var rateLabel: TextView
     private lateinit var output: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -70,6 +79,17 @@ class ConverterActivity : AppCompatActivity() {
                 UiStyle.dp(context, 18f), UiStyle.dp(context, 20f))
             background = UiStyle.rounded(context, UiStyle.surface(context), 16f, UiStyle.border(context))
         }
+        rateLabel = TextView(this).apply {
+            text = "Manual rate (units per 1 USD, comma-separated USD,EUR,GBP,INR,JPY)"
+            UiStyle.styleText(this, 13f, true, UiStyle.muted(context))
+            visibility = View.GONE
+        }
+        rateInput = EditText(this).apply {
+            hint = "e.g. 1,0.92,0.79,83,149"
+            inputType = android.text.InputType.TYPE_CLASS_TEXT
+            UiStyle.styleInput(this)
+            visibility = View.GONE
+        }
 
         categorySpinner.adapter = styledAdapter(categories.map { it.name })
         categorySpinner.onItemSelectedListener = simpleListener { selectCategory(it) }
@@ -78,6 +98,11 @@ class ConverterActivity : AppCompatActivity() {
         toSpinner.onItemSelectedListener = convertListener
         input.addTextChangedListener(object : TextWatcher {
             override fun afterTextChanged(s: Editable?) = convert()
+            override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) = Unit
+            override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) = Unit
+        })
+        rateInput.addTextChangedListener(object : TextWatcher {
+            override fun afterTextChanged(s: Editable?) = applyManualRate()
             override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) = Unit
             override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) = Unit
         })
@@ -107,6 +132,10 @@ class ConverterActivity : AppCompatActivity() {
             addView(toSpinner, LinearLayout.LayoutParams(-1, UiStyle.dp(context, 52f)).apply {
                 bottomMargin = UiStyle.dp(context, 18f)
             })
+            addView(rateLabel, LinearLayout.LayoutParams(-1, -2))
+            addView(rateInput, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = UiStyle.dp(context, 18f)
+            })
             addView(output, LinearLayout.LayoutParams(-1, -2))
         }
         setContentView(ToolScaffold.wrap(this, "Converter", content))
@@ -127,7 +156,37 @@ class ConverterActivity : AppCompatActivity() {
         fromSpinner.adapter = styledAdapter(units)
         toSpinner.adapter = styledAdapter(units)
         toSpinner.setSelection(minOf(1, units.size - 1))
+        val isCurrency = categories.getOrNull(index)?.name == "Currency"
+        rateLabel.visibility = if (isCurrency) View.VISIBLE else View.GONE
+        rateInput.visibility = if (isCurrency) View.VISIBLE else View.GONE
         convert()
+    }
+
+    private fun applyManualRate() {
+        val cat = categories.getOrNull(categorySpinner.selectedItemPosition) ?: return
+        if (cat.name != "Currency") return
+        val parts = rateInput.text.toString().trim().split(",").map { it.trim().toDoubleOrNull() }
+        if (parts.size == cat.units.size && parts.all { it != null && it!!.isFinite() && it > 0 }) {
+            val keys = cat.units.keys.toList()
+            parts.forEachIndexed { i, v -> cat.units[keys[i]] = v!! }
+        }
+        convert()
+    }
+
+    private fun convertFuel(value: Double, from: String, to: String): Double {
+        if (value == 0.0) return Double.NaN
+        val base = when (from) {
+            "L/100km" -> value
+            "Km/L" -> 100.0 / value
+            "MPG (US)" -> 235.214 / value
+            else -> 282.481 / value
+        }
+        return when (to) {
+            "L/100km" -> base
+            "Km/L" -> 100.0 / base
+            "MPG (US)" -> 235.214 / base
+            else -> 282.481 / base
+        }
     }
 
     private fun convert() {
@@ -141,7 +200,12 @@ class ConverterActivity : AppCompatActivity() {
         val from = fromSpinner.selectedItem as? String ?: return
         val to = toSpinner.selectedItem as? String ?: return
         val result = if (cat.name == "Temperature") convertTemperature(value, from, to)
+            else if (cat.name == "Fuel") convertFuel(value, from, to)
             else value * (cat.units[from] ?: return) / (cat.units[to] ?: return)
+        if (!result.isFinite()) {
+            output.text = "Cannot convert (check zero input)."
+            return
+        }
         output.text = "= ${String.format(Locale.getDefault(), "%.6g", result)} $to"
     }
 

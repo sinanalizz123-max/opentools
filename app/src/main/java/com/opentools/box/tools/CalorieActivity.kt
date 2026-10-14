@@ -14,39 +14,86 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
-import com.google.android.material.button.MaterialButton
+import com.opentools.box.ToolScaffold
+import com.opentools.box.UiStyle
 
-/** Calorie + step counter (step-detector sensor with manual fallback). */
+/** Step counter and rough calorie estimate, with a manual fallback for missing sensors. */
 class CalorieActivity : AppCompatActivity(), SensorEventListener {
     private var steps = 0
     private var weightKg = 70.0
     private lateinit var sensorManager: SensorManager
     private lateinit var stepsView: TextView
     private lateinit var calorieView: TextView
+    private lateinit var status: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        steps = savedInstanceState?.getInt("steps") ?: 0
+        weightKg = savedInstanceState?.getDouble("weightKg") ?: 70.0
         sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
-        stepsView = TextView(this).apply { textSize = 48f }
-        calorieView = TextView(this).apply { textSize = 24f }
-        val weight = EditText(this).apply {
-            hint = "Weight (kg)"
-            inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
+        stepsView = TextView(this).apply {
+            gravity = android.view.Gravity.CENTER
+            UiStyle.styleText(this, 36f, true)
+            setPadding(UiStyle.dp(context, 16f), UiStyle.dp(context, 22f),
+                UiStyle.dp(context, 16f), UiStyle.dp(context, 22f))
+            background = UiStyle.rounded(context, UiStyle.surface(context), 18f, UiStyle.border(context))
         }
-        val set = MaterialButton(this).apply { text = "Set weight" }
+        calorieView = TextView(this).apply {
+            gravity = android.view.Gravity.CENTER
+            UiStyle.styleText(this, 22f, true)
+            setPadding(UiStyle.dp(context, 16f), UiStyle.dp(context, 18f),
+                UiStyle.dp(context, 16f), UiStyle.dp(context, 18f))
+            background = UiStyle.rounded(context, UiStyle.surface(context), 18f, UiStyle.border(context))
+        }
+        status = TextView(this).apply { UiStyle.styleText(this, 13f, false, UiStyle.muted(context)) }
+        val weight = EditText(this).apply {
+            hint = "Weight in kg (1–500)"
+            inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
+            setText(weightKg.toString())
+            UiStyle.styleInput(this)
+        }
+        val set = NativeButton(this).apply { text = "Update weight" }
         set.setOnClickListener {
-            weight.text.toString().toDoubleOrNull()?.takeIf { it in 1.0..500.0 }?.let { weightKg = it }
+            val value = weight.text.toString().trim().toDoubleOrNull()
+            if (value == null || !value.isFinite() || value !in 1.0..500.0) {
+                weight.error = "Enter a weight from 1 to 500 kg"
+                return@setOnClickListener
+            }
+            weightKg = value
+            status.text = "Weight updated. Calorie value is an estimate."
             render()
         }
-        val reset = MaterialButton(this).apply { text = "Reset steps" }
-        reset.setOnClickListener { steps = 0; render() }
+        val reset = NativeButton(this, false).apply { text = "Reset step count" }
+        reset.setOnClickListener { steps = 0; render(); status.text = "Step count reset." }
         render()
-        setContentView(com.opentools.box.ToolScaffold.wrap(this, "Calorie Counter", LinearLayout(this).apply {
+        val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            val pad = (16 * resources.displayMetrics.density).toInt()
+            val pad = UiStyle.dp(context, 20f)
             setPadding(pad, pad, pad, pad)
-            addView(stepsView); addView(calorieView); addView(weight); addView(set); addView(reset)
-        }))
+            addView(TextView(context).apply { text = "Activity overview"; UiStyle.styleText(this, 24f, true) })
+            addView(TextView(context).apply {
+                text = "Steps are counted while the sensor is available and this screen is active."
+                UiStyle.styleText(this, 14f, false, UiStyle.muted(context))
+                setPadding(0, UiStyle.dp(context, 4f), 0, UiStyle.dp(context, 18f))
+            })
+            addView(stepsView, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = UiStyle.dp(context, 10f)
+            })
+            addView(calorieView, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = UiStyle.dp(context, 10f)
+            })
+            addView(status, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = UiStyle.dp(context, 12f)
+            })
+            addView(weight, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = UiStyle.dp(context, 8f)
+            })
+            addView(set, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = UiStyle.dp(context, 8f)
+            })
+            addView(reset, LinearLayout.LayoutParams(-1, -2))
+        }
+        setContentView(ToolScaffold.wrap(this, "Calorie Counter", content))
     }
 
     override fun onResume() {
@@ -55,16 +102,17 @@ class CalorieActivity : AppCompatActivity(), SensorEventListener {
     }
 
     private fun requestOrRegisterSensor() {
-        // ACTIVITY_RECOGNITION is an API-29 runtime permission; older releases
-        // grant it at install time so no request is needed there.
         if (android.os.Build.VERSION.SDK_INT >= 29 &&
             ActivityCompat.checkSelfPermission(this, Manifest.permission.ACTIVITY_RECOGNITION) != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.ACTIVITY_RECOGNITION), 1)
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.ACTIVITY_RECOGNITION), REQUEST_ACTIVITY)
             return
         }
         sensorManager.getDefaultSensor(Sensor.TYPE_STEP_DETECTOR)?.let {
             sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_UI)
-        } ?: run { calorieView.text = "Step sensor unavailable" }
+            status.text = "Step sensor ready. Calorie estimate is approximate."
+        } ?: run {
+            status.text = "Step sensor unavailable on this device. Step count will not update automatically."
+        }
     }
 
     override fun onPause() {
@@ -80,15 +128,23 @@ class CalorieActivity : AppCompatActivity(), SensorEventListener {
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
 
     private fun render() {
-        stepsView.text = steps.toString() + " steps"
+        stepsView.text = "$steps\nsteps"
         calorieView.text = "≈ %.1f kcal".format(steps * 0.04 * weightKg / 70.0)
     }
 
-    @Deprecated("Deprecated in Android API; retained for compatibility with minSdk 26")
-    override fun onRequestPermissionsResult(code: Int, perms: Array<String>, results: IntArray) {
-        super.onRequestPermissionsResult(code, perms, results)
-        if (code != 1) return
-        if (results.firstOrNull() == PackageManager.PERMISSION_GRANTED) requestOrRegisterSensor()
-        else calorieView.text = "Activity permission denied"
+    override fun onSaveInstanceState(out: Bundle) {
+        super.onSaveInstanceState(out)
+        out.putInt("steps", steps)
+        out.putDouble("weightKg", weightKg)
     }
+
+    @Deprecated("Deprecated in Android API; retained for compatibility with minSdk 26")
+    override fun onRequestPermissionsResult(code: Int, permissions: Array<String>, results: IntArray) {
+        super.onRequestPermissionsResult(code, permissions, results)
+        if (code != REQUEST_ACTIVITY) return
+        if (results.firstOrNull() == PackageManager.PERMISSION_GRANTED) requestOrRegisterSensor()
+        else status.text = "Activity recognition permission denied."
+    }
+
+    companion object { private const val REQUEST_ACTIVITY = 1 }
 }
